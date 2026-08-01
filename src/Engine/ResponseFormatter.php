@@ -1,0 +1,310 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Engine;
+
+/**
+ * Response Formatter
+ *
+ * Formats query results into a structured response with:
+ * - Display text (human-readable summary)
+ * - Speech text (TTS-friendly version)
+ * - Statistical insights
+ * - Visualization type hint
+ */
+class ResponseFormatter
+{
+    /**
+     * Format a complete query response.
+     */
+    public function format(array $queryResult, array $rows, array $options = []): array
+    {
+        $responseType = $this->determineResponseType($queryResult, $rows);
+        $texts = $this->generateAnswerText($queryResult, $rows, $responseType);
+        $insights = $this->generateInsights($queryResult, $rows);
+        $visualization = $this->determineVisualization($responseType, count($rows));
+
+        $response = [
+            'status' => 'success',
+            'type' => $responseType,
+            'rows' => $rows,
+            'parsed_query' => [
+                'scheme' => $queryResult['scheme'],
+                'metric' => $queryResult['metric'],
+                'district' => $queryResult['district'] ?? null,
+                'limit' => $queryResult['limit'] ?? null,
+                'order' => $queryResult['order'] ?? null,
+                'query_type' => $queryResult['query_type'] ?? 'ranking',
+            ],
+            'answer' => $texts['display'],
+            'visualization' => $visualization,
+        ];
+
+        if (config('naturalquery.response.include_speech_text', true)) {
+            $response['speech_text'] = $texts['speech'];
+        }
+
+        if (config('naturalquery.response.include_insights', true)) {
+            $response['insights'] = $insights;
+        }
+
+        if (config('naturalquery.response.include_visualization_hint', true)) {
+            $response['visualization'] = $visualization;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Format a "no data" response.
+     */
+    public function formatNoData(array $queryResult): array
+    {
+        $district = $queryResult['district'] ?? null;
+        $schemeName = $queryResult['scheme_name'] ?? $queryResult['scheme'];
+
+        $message = $district
+            ? "No data found for {$district} in {$schemeName}. The name may be spelled differently in the database."
+            : "No data found for {$schemeName}.";
+
+        return [
+            'status' => 'success',
+            'type' => 'no_data',
+            'rows' => [],
+            'parsed_query' => [
+                'scheme' => $queryResult['scheme'],
+                'metric' => $queryResult['metric'],
+                'district' => $district,
+            ],
+            'answer' => $message,
+            'visualization' => 'message',
+        ];
+    }
+
+    /**
+     * Format a clarification response.
+     */
+    public function formatClarification(array $intent, array $availableSchemes, array $availableMetrics = []): array
+    {
+        $rawType = $intent['clarification_type'] ?? 'scheme';
+        $clarificationType = in_array($rawType, ['scheme', 'scheme_clarification'])
+            ? 'scheme_clarification'
+            : 'metric_clarification';
+
+        $alternatives = array_map(fn($s) => [
+            'scheme_name' => $s['name'],
+            'scheme_key' => $s['key'],
+            'confidence' => 0.5,
+        ], $availableSchemes);
+
+        return [
+            'status' => 'clarification_needed',
+            'type' => $clarificationType,
+            'message' => $clarificationType === 'metric_clarification'
+                ? 'What metric would you like to see for this dataset?'
+                : 'Which dataset would you like to query? Please select from the options.',
+            // Null-coalesced on purpose: a provider is only required to return
+            // the keys it actually resolved. A self-hosted or OpenAI-compatible
+            // model that omits 'district' must still produce a clarification,
+            // not an undefined-key error that the orchestrator turns into a
+            // generic failure. Provider portability matters more than strict
+            // response shapes here.
+            'parsed_query' => [
+                'scheme' => $intent['scheme'] ?? null,
+                'metric' => $intent['metric'] ?? null,
+                'district' => $intent['district'] ?? null,
+            ],
+            'alternatives' => $alternatives,
+            'available_metrics' => $availableMetrics,
+            'metadata' => [
+                'confidence' => $intent['confidence'] ?? 0,
+            ],
+        ];
+    }
+
+    /**
+     * Format an error response.
+     */
+    public function formatError(string $error, array $metadata = []): array
+    {
+        return [
+            'status' => 'error',
+            'error' => $error,
+            'metadata' => $metadata,
+        ];
+    }
+
+    /**
+     * Determine the response type based on query result and rows.
+     */
+    protected function determineResponseType(array $queryResult, array $rows): string
+    {
+        $queryType = $queryResult['query_type'] ?? 'ranking';
+
+        if ($queryType === 'district' || !empty($queryResult['district'])) {
+            return count($rows) === 1 ? 'single_result' : 'ranking';
+        }
+
+        if ($queryType === 'aggregation') {
+            return 'aggregation';
+        }
+
+        return count($rows) === 1 ? 'single_result' : 'ranking';
+    }
+
+    /**
+     * Generate answer text (both display and speech versions).
+     */
+    protected function generateAnswerText(array $queryResult, array $rows, string $type): array
+    {
+        $schemeName = $queryResult['scheme_name'] ?? $queryResult['scheme'];
+        $metric = $queryResult['metric'] ?? 'data';
+        $metricDesc = $queryResult['metric_description'] ?? $metric;
+        $unit = $queryResult['metric_unit'] ?? '';
+        $groupColumn = $queryResult['group_column'] ?? 'name';
+        $order = strtolower($queryResult['order'] ?? 'desc');
+        $count = count($rows);
+        $numberFormat = config('naturalquery.response.number_format', 'international');
+
+        if ($type === 'single_result' && $count === 1) {
+            $row = (array) $rows[0];
+            $name = $row[$groupColumn] ?? 'Unknown';
+            $value = $row[$metric] ?? 'N/A';
+            $formattedValue = is_numeric($value) ? $this->formatNumber($value, $numberFormat) : $value;
+
+            return [
+                'display' => "{$name}: {$formattedValue} {$unit} ({$metricDesc})",
+                'speech' => "{$name} has {$formattedValue} {$unit} for {$metricDesc} in {$schemeName}.",
+            ];
+        }
+
+        if ($type === 'aggregation') {
+            $row = (array) $rows[0];
+            $totalKey = "total_{$metric}";
+            $total = $row[$totalKey] ?? array_values($row)[0] ?? 0;
+            $formatted = $this->formatNumber($total, $numberFormat);
+
+            return [
+                'display' => "Total {$metricDesc}: {$formatted} {$unit}",
+                'speech' => "The total {$metricDesc} for {$schemeName} is {$formatted} {$unit}.",
+            ];
+        }
+
+        // Ranking
+        $direction = $order === 'desc' ? 'highest' : 'lowest';
+        $topRows = array_slice($rows, 0, 3);
+        $topNames = array_map(fn($r) => ((array) $r)[$groupColumn] ?? '?', $topRows);
+        $topList = implode(', ', $topNames);
+
+        return [
+            'display' => "Top {$count} by {$metricDesc} ({$direction}): {$topList}" . ($count > 3 ? '...' : ''),
+            'speech' => "Here are the {$count} entries with the {$direction} {$metricDesc} in {$schemeName}. Top entries are {$topList}.",
+        ];
+    }
+
+    /**
+     * Generate statistical insights from results.
+     */
+    protected function generateInsights(array $queryResult, array $rows): array
+    {
+        if (empty($rows)) {
+            return [];
+        }
+
+        $metric = $queryResult['metric'] ?? null;
+        if (!$metric) {
+            return [];
+        }
+
+        $values = array_filter(
+            array_map(fn($r) => ((array) $r)[$metric] ?? null, $rows),
+            fn($v) => is_numeric($v)
+        );
+
+        if (empty($values)) {
+            return [];
+        }
+
+        $numberFormat = config('naturalquery.response.number_format', 'international');
+
+        return [
+            'count' => count($values),
+            'total' => $this->formatNumber(array_sum($values), $numberFormat),
+            'average' => $this->formatNumber(array_sum($values) / count($values), $numberFormat),
+            'min' => $this->formatNumber(min($values), $numberFormat),
+            'max' => $this->formatNumber(max($values), $numberFormat),
+        ];
+    }
+
+    /**
+     * Determine the best visualization type.
+     */
+    protected function determineVisualization(string $responseType, int $rowCount): string
+    {
+        if ($responseType === 'single_result') {
+            return 'card';
+        }
+
+        if ($responseType === 'aggregation') {
+            return 'card';
+        }
+
+        if ($rowCount <= 5) {
+            return 'bar';
+        }
+
+        if ($rowCount <= 20) {
+            return 'bar';
+        }
+
+        return 'table';
+    }
+
+    /**
+     * Format a number according to the configured style.
+     */
+    protected function formatNumber($value, string $format = 'international'): string
+    {
+        if (!is_numeric($value)) {
+            return (string) $value;
+        }
+
+        $value = floatval($value);
+
+        // Detect if it's a whole number
+        if (floor($value) == $value && $value < PHP_INT_MAX) {
+            if ($format === 'indian') {
+                return $this->formatIndian((int) $value);
+            }
+            return number_format((int) $value);
+        }
+
+        if ($format === 'indian') {
+            return $this->formatIndian($value, 2);
+        }
+
+        return number_format($value, 2);
+    }
+
+    /**
+     * Format number in Indian numbering system (12,34,567).
+     */
+    protected function formatIndian($number, int $decimals = 0): string
+    {
+        $negative = $number < 0;
+        $number = abs($number);
+
+        $parts = explode('.', number_format($number, $decimals, '.', ''));
+        $integer = $parts[0];
+        $decimal = $parts[1] ?? '';
+
+        // Apply Indian grouping
+        if (strlen($integer) > 3) {
+            $lastThree = substr($integer, -3);
+            $remaining = substr($integer, 0, -3);
+            $remaining = preg_replace('/(\d)(?=(\d{2})+$)/', '$1,', $remaining);
+            $integer = $remaining . ',' . $lastThree;
+        }
+
+        return ($negative ? '-' : '') . $integer . ($decimal ? '.' . $decimal : '');
+    }
+}

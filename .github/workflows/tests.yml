@@ -1,0 +1,190 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }} · Laravel ${{ matrix.laravel }} · ${{ matrix.dependency-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+        laravel: [10, 11, 12, 13]
+        dependency-version: [prefer-stable]
+        include:
+          # Each Laravel release pairs with one Testbench major.
+          - laravel: 10
+            testbench: ^8.0
+          - laravel: 11
+            testbench: ^9.0
+          - laravel: 12
+            testbench: ^10.0
+          - laravel: 13
+            testbench: ^11.0
+          # Oldest supported combination, with the lowest allowed dependency
+          # versions — catches "works on my lockfile" breakage.
+          - php: '8.1'
+            laravel: 10
+            testbench: ^8.0
+            dependency-version: prefer-lowest
+          # …and the same check at the top of the range, so a newly added
+          # constraint that only resolves against the very latest release
+          # still gets caught.
+          - php: '8.3'
+            laravel: 13
+            testbench: ^11.0
+            dependency-version: prefer-lowest
+        exclude:
+          # Laravel 11 and 12 require PHP 8.2+; Laravel 13 requires PHP 8.3+.
+          - php: '8.1'
+            laravel: 11
+          - php: '8.1'
+            laravel: 12
+          - php: '8.1'
+            laravel: 13
+          - php: '8.2'
+            laravel: 13
+          # Laravel 10 and 11 both predate PHP 8.5 and are past active support,
+          # so their dependency trees are not tested against it upstream.
+          - php: '8.5'
+            laravel: 10
+          - php: '8.5'
+            laravel: 11
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, pdo, pdo_sqlite, sqlite3, json, curl
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ matrix.php }}-${{ matrix.laravel }}-${{ matrix.dependency-version }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ matrix.php }}-${{ matrix.laravel }}-
+
+      - name: Select Laravel ${{ matrix.laravel }}
+        run: |
+          composer require --dev --no-interaction --no-update \
+            "laravel/framework:^${{ matrix.laravel }}.0" \
+            "orchestra/testbench:${{ matrix.testbench }}"
+
+      - name: Install dependencies
+        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction --no-progress
+
+      - name: Show resolved versions
+        run: composer show laravel/framework phpunit/phpunit --no-interaction
+
+      - name: Run test suite
+        run: vendor/bin/phpunit
+
+  # The rest of the suite runs on SQLite so it needs no services, which leaves
+  # the Postgres introspection SQL — everything `naturalquery:discover` depends
+  # on — with no coverage. This job is the only place PostgresIntrospectorTest
+  # actually executes; elsewhere it skips itself.
+  postgres:
+    name: PostgreSQL ${{ matrix.postgres }} integration
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Latest, plus one still-common older major.
+        postgres: ['16', '18']
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      NQ_PGSQL_HOST: 127.0.0.1
+      NQ_PGSQL_PORT: '5432'
+      NQ_PGSQL_DATABASE: postgres
+      NQ_PGSQL_USERNAME: postgres
+      NQ_PGSQL_PASSWORD: postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo, pdo_pgsql, pgsql, pdo_sqlite, sqlite3, json, curl
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: Run the full suite against PostgreSQL
+        run: vendor/bin/phpunit
+
+      # A skipped test is not a passing test. If the service or the extension
+      # is misconfigured the suite would still be green while covering nothing,
+      # so assert these cases really ran.
+      - name: Fail if the Postgres tests were skipped
+        run: |
+          vendor/bin/phpunit --filter PostgresIntrospectorTest --do-not-cache-result > pg.log 2>&1 || true
+          cat pg.log
+          if grep -qiE 'skipped|no tests executed' pg.log; then
+            echo "::error::PostgresIntrospectorTest did not run against the service"
+            exit 1
+          fi
+
+  lint:
+    name: Lint (PHP syntax + widget JS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The widget JS ships unbundled and is served straight to browsers, so a
+      # syntax error would break every consumer's page.
+      - name: Check widget JS syntax
+        run: node --check resources/js/naturalquery-widget.js
+
+      - name: Check PHP syntax
+        run: |
+          find src config database routes stubs tests -name '*.php' -print0 \
+            | xargs -0 -n1 -P4 php -l
+
+      # composer.lock is gitignored (correct for a library — the consuming app
+      # owns the lock), so there is nothing to check it against.
+      - name: Validate composer.json
+        run: composer validate --strict --no-check-lock

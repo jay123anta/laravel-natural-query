@@ -1,0 +1,83 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Unit;
+
+use Jayanta\NaturalQuery\Schema\Introspectors\MysqlIntrospector;
+use Jayanta\NaturalQuery\Schema\Introspectors\PostgresIntrospector;
+use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
+use Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+class IntrospectorRegistryTest extends TestCase
+{
+    /**
+     * The critical one. Laravel's mergeConfigFrom is a SHALLOW merge, so an app
+     * that published config/naturalquery.php under an older version never
+     * receives nested keys added later. If the driver map lived only in config,
+     * upgrading would silently leave those apps with zero supported drivers and
+     * a package that refuses every query with "unsupported driver".
+     */
+    #[Test]
+    public function the_built_in_drivers_survive_a_published_config_that_predates_them()
+    {
+        // Exactly what an older published config looks like: the key is absent.
+        config(['naturalquery.sql' => ['database_connection' => null]]);
+
+        $this->assertTrue(IntrospectorRegistry::supports('mysql'));
+        $this->assertTrue(IntrospectorRegistry::supports('pgsql'));
+        $this->assertTrue(IntrospectorRegistry::supports('mariadb'));
+    }
+
+    #[Test]
+    public function it_supports_the_built_in_drivers_and_nothing_else_by_default()
+    {
+        config(['naturalquery.sql.introspectors' => []]);
+
+        $this->assertSame(['pgsql', 'mysql', 'mariadb'], IntrospectorRegistry::supportedDrivers());
+        $this->assertFalse(IntrospectorRegistry::supports('sqlite'));
+        $this->assertSame(PostgresIntrospector::class, IntrospectorRegistry::classFor('pgsql'));
+        $this->assertSame(MysqlIntrospector::class, IntrospectorRegistry::classFor('mariadb'));
+    }
+
+    #[Test]
+    public function config_can_register_an_additional_driver()
+    {
+        config(['naturalquery.sql.introspectors' => ['sqlite' => SqliteTestIntrospector::class]]);
+
+        $this->assertTrue(IntrospectorRegistry::supports('sqlite'));
+        $this->assertSame(SqliteTestIntrospector::class, IntrospectorRegistry::classFor('sqlite'));
+        // …without displacing the built-ins.
+        $this->assertTrue(IntrospectorRegistry::supports('mysql'));
+    }
+
+    #[Test]
+    public function config_can_override_a_built_in_driver()
+    {
+        config(['naturalquery.sql.introspectors' => ['mysql' => SqliteTestIntrospector::class]]);
+
+        $this->assertSame(SqliteTestIntrospector::class, IntrospectorRegistry::classFor('mysql'));
+    }
+
+    #[Test]
+    public function a_malformed_config_value_does_not_break_the_built_ins()
+    {
+        config(['naturalquery.sql.introspectors' => 'not-an-array']);
+
+        $this->assertTrue(IntrospectorRegistry::supports('mysql'));
+    }
+
+    #[Test]
+    public function the_service_provider_resolves_the_registered_introspector()
+    {
+        config([
+            'database.default' => 'nq_reg',
+            'database.connections.nq_reg' => ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''],
+            'naturalquery.sql.introspectors' => ['sqlite' => SqliteTestIntrospector::class],
+        ]);
+
+        $resolved = $this->app->make(\Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class);
+
+        $this->assertInstanceOf(SqliteTestIntrospector::class, $resolved);
+    }
+}

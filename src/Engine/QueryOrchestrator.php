@@ -1,0 +1,784 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Engine;
+
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Security\InputGuard;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Query Orchestrator - Main Engine
+ *
+ * Orchestrates the full natural language → SQL → results pipeline.
+ *
+ * Supports three query modes:
+ *
+ * 1. INTENT MODE: AI extracts intent → local SqlBuilder constructs SQL.
+ *    Safest, but limited to predefined metrics in schema config.
+ *
+ * 2. SQL GENERATION MODE: AI receives full table structure and generates
+ *    SQL directly. More flexible — works with any query. SQL is validated
+ *    before execution.
+ *
+ * 3. AUTO MODE (default): Tries intent mode first. If intent parsing
+ *    fails or needs clarification, falls back to SQL generation mode.
+ *    This gives the best of both worlds.
+ *
+ * This is the primary entry point exposed via the NaturalQuery facade.
+ */
+class QueryOrchestrator
+{
+    /**
+     * Shown when the LLM provider answers 429. Kept honest and actionable —
+     * a rate limit must never surface as "could not understand the query".
+     */
+    public const RATE_LIMIT_MESSAGE =
+        'The AI service is receiving too many requests right now (rate limit). '
+        . 'Please wait a minute and try again.';
+
+    protected LlmProviderInterface $llmProvider;
+    protected QueryCacheInterface $cache;
+    protected SqlValidatorInterface $validator;
+    protected SchemaRegistry $registry;
+    protected SqlBuilder $sqlBuilder;
+    protected PromptBuilder $promptBuilder;
+    protected ResponseFormatter $formatter;
+
+    protected InputGuard $inputGuard;
+    protected QueryVerifier $verifier;
+
+    public function __construct(
+        LlmProviderInterface $llmProvider,
+        QueryCacheInterface $cache,
+        SqlValidatorInterface $validator,
+        SchemaRegistry $registry,
+        SqlBuilder $sqlBuilder,
+        PromptBuilder $promptBuilder,
+        ResponseFormatter $formatter,
+        InputGuard $inputGuard,
+        QueryVerifier $verifier
+    ) {
+        $this->llmProvider = $llmProvider;
+        $this->cache = $cache;
+        $this->validator = $validator;
+        $this->registry = $registry;
+        $this->sqlBuilder = $sqlBuilder;
+        $this->promptBuilder = $promptBuilder;
+        $this->formatter = $formatter;
+        $this->inputGuard = $inputGuard;
+        $this->verifier = $verifier;
+    }
+
+    /**
+     * Process a natural language query end-to-end.
+     *
+     * @param string $naturalLanguageQuery The user's question
+     * @param string|null $schemeHint Optional scheme key hint
+     * @return array Complete response with data, or clarification/error
+     */
+    public function query(string $naturalLanguageQuery, ?string $schemeHint = null): array
+    {
+        $startTime = microtime(true);
+        $queryMode = config('naturalquery.query_mode', 'auto');
+        $metadata = ['processing_mode' => $this->llmProvider->getName(), 'query_mode' => $queryMode];
+
+        try {
+            // Security: Validate and sanitize input BEFORE it reaches the AI
+            $guardResult = $this->inputGuard->validate($naturalLanguageQuery);
+            if (!$guardResult['safe']) {
+                Log::warning('[NaturalQuery] Input blocked by guard', [
+                    'reason' => $guardResult['blocked_reason'],
+                    'query' => substr($naturalLanguageQuery, 0, 100),
+                ]);
+                return $this->formatter->formatError(
+                    $guardResult['blocked_reason'] ?? 'Query blocked for security reasons.',
+                    $metadata
+                );
+            }
+            $naturalLanguageQuery = $guardResult['query']; // Use sanitized version
+
+            // Apply default scheme if configured and no hint provided
+            if (!$schemeHint) {
+                $defaultScheme = config('naturalquery.default_scheme');
+                if ($defaultScheme && $this->registry->has($defaultScheme)) {
+                    $schemeHint = $defaultScheme;
+                    $metadata['default_scheme_applied'] = true;
+                }
+            }
+
+            // Check cache first (works for all modes)
+            $cacheHit = false;
+            $cachedResult = $this->cache->find($naturalLanguageQuery);
+            if ($cachedResult && isset($cachedResult['intent'])) {
+                $cacheHit = true;
+                $metadata['cache_hit'] = true;
+                $metadata['cache_match_type'] = $cachedResult['cache_match_type'];
+            }
+
+            // Route to appropriate mode
+            if ($queryMode === 'sql_generation') {
+                $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+            } elseif ($queryMode === 'intent') {
+                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+            } else {
+                // AUTO mode: try intent first, fall back to SQL generation
+                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+
+                // If intent mode returned an error (not clarification), try SQL generation
+                if (($result['status'] ?? '') === 'error' && ($result['_fallback_eligible'] ?? false)) {
+                    Log::info('[NaturalQuery] Auto mode: intent failed, falling back to sql_generation');
+                    $metadata['query_mode'] = 'auto→sql_generation';
+                    $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                }
+            }
+
+            // Retry with refined prompt on failure (if enabled).
+            // Never retry a rate-limited request — it would only add load.
+            if (($result['status'] ?? '') === 'error'
+                && config('naturalquery.errors.retry_on_failure', true)
+                && !($result['_retried'] ?? false)
+                && !($result['_rate_limited'] ?? false)
+            ) {
+                $result = $this->retryWithRefinedPrompt($naturalLanguageQuery, $schemeHint, $metadata);
+            }
+
+            // Remove internal flags
+            unset($result['_fallback_eligible'], $result['_rate_limited']);
+
+            // Add timing
+            $result['metadata'] = array_merge($result['metadata'] ?? [], [
+                'processing_time_ms' => round((microtime(true) - $startTime) * 1000, 2),
+                'cache_hit' => $cacheHit,
+                'provider' => $this->llmProvider->getName(),
+            ]);
+
+            // Audit logging
+            if (config('naturalquery.privacy.audit_queries', true) && ($result['status'] ?? '') === 'success') {
+                $this->auditLog($result, $cacheHit, $startTime);
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            Log::error('[NaturalQuery] Orchestrator error', ['error' => $e->getMessage()]);
+            return $this->formatter->formatError('An error occurred processing your query.', $metadata);
+        }
+    }
+
+    // =========================================================================
+    // INTENT MODE
+    // =========================================================================
+
+    /**
+     * Process query using intent parsing → local SQL builder.
+     *
+     * Flow: AI extracts (scheme, metric, order, limit, district) → SqlBuilder constructs SQL
+     */
+    protected function processWithIntent(string $query, ?string $schemeHint, ?array $cached, array &$metadata): array
+    {
+        $metadata['query_mode_used'] = 'intent';
+
+        // Use cached intent or parse new one
+        $intent = null;
+        if ($cached) {
+            $intent = $cached['intent'];
+        } else {
+            $schemeList = $this->registry->getSchemeListForLlm();
+            $intent = $this->llmProvider->parseIntent($query, $schemeList);
+
+            if (($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
+                $this->cache->store($query, $intent);
+            }
+        }
+
+        // Apply scheme hint
+        if ($schemeHint && empty($intent['scheme'])) {
+            if ($this->registry->has($schemeHint)) {
+                $intent['scheme'] = $schemeHint;
+            }
+        }
+
+        // Handle parse failure
+        if (!($intent['success'] ?? true)) {
+            // Rate limiting is NOT a comprehension failure: falling back to
+            // sql_generation / retrying would fire MORE calls at a provider
+            // that is already refusing them. Tell the user the truth instead.
+            if (($intent['status'] ?? null) === 429) {
+                return array_merge(
+                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata),
+                    ['_rate_limited' => true]
+                );
+            }
+
+            return array_merge(
+                $this->formatter->formatError($intent['error'] ?? 'Failed to understand query', $metadata),
+                ['_fallback_eligible' => true]
+            );
+        }
+
+        // Handle clarification
+        $hasScheme = !empty($intent['scheme']);
+        $hasDistrict = !empty($intent['district']);
+        $needsScheme = !$hasScheme || ($intent['clarification_type'] ?? null) === 'scheme';
+
+        if ($needsScheme) {
+            return $this->formatter->formatClarification($intent, $this->registry->getAvailableSchemes());
+        }
+
+        if ($hasScheme && $hasDistrict && empty($intent['metric'])) {
+            // District detail — SqlBuilder handles this
+        } elseif ($intent['needs_clarification'] ?? false) {
+            return $this->formatter->formatClarification(
+                $intent,
+                $this->registry->getAvailableSchemes(),
+                $this->registry->getSchemeMetrics($intent['scheme'])
+            );
+        }
+
+        // Build SQL locally
+        $queryResult = $this->sqlBuilder->buildQuery($intent);
+        if (!$queryResult['success']) {
+            return array_merge(
+                $this->formatter->formatError($queryResult['error'] ?? 'Failed to build query', $metadata),
+                ['_fallback_eligible' => true]
+            );
+        }
+
+        // Validate and execute
+        return $this->validateAndExecute($queryResult, $intent['scheme'], $metadata);
+    }
+
+    // =========================================================================
+    // SQL GENERATION MODE
+    // =========================================================================
+
+    /**
+     * Process query using AI-generated SQL.
+     *
+     * Flow: AI receives full schema → generates SQL → validate → execute
+     * The AI sees every table, column, type, description, alias, and JOIN.
+     */
+    protected function processWithSqlGeneration(string $query, ?string $schemeHint, ?array $cached, array &$metadata): array
+    {
+        $metadata['query_mode_used'] = 'sql_generation';
+
+        // Check if we have a cached SQL result
+        if ($cached && isset($cached['intent']['_sql_result'])) {
+            $sqlResult = $cached['intent']['_sql_result'];
+            return $this->validateAndExecute($sqlResult, $sqlResult['scheme'] ?? null, $metadata);
+        }
+
+        // Step 1: Identify the scheme (priority: hint → routing → keywords → LLM intent)
+        $scheme = $schemeHint;
+        if (!$scheme || !$this->registry->has($scheme)) {
+            // Try keyword/routing detection first (fast, no API call)
+            $scheme = $this->detectSchemeFromKeywords($query);
+        }
+
+        if (!$scheme || !$this->registry->has($scheme)) {
+            // Fall back to LLM intent parsing (slower, requires API call)
+            $schemeList = $this->registry->getSchemeListForLlm();
+            $intent = $this->llmProvider->parseIntent($query, $schemeList);
+            $scheme = $intent['scheme'] ?? null;
+
+            if (!$scheme) {
+                $scheme = $this->registry->findByAlias($query);
+            }
+        }
+
+        // Step 2: Build prompt — prefer single-scheme (more accurate)
+        if ($scheme && $this->registry->has($scheme)) {
+            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
+        } else {
+            $prompt = $this->promptBuilder->buildMultiSchemePrompt($query);
+        }
+
+        // Ask AI to generate SQL
+        $response = $this->llmProvider->generateSql($prompt);
+
+        if (!$response['success']) {
+            if (($response['status'] ?? null) === 429) {
+                return array_merge(
+                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata),
+                    ['_rate_limited' => true]
+                );
+            }
+
+            return $this->formatter->formatError($response['error'] ?? 'AI failed to generate SQL', $metadata);
+        }
+
+        $data = $response['data'];
+
+        // AI returned an error / needs clarification
+        if (isset($data['error'])) {
+            $intent = [
+                'scheme' => null,
+                'metric' => null,
+                'district' => null,
+                'confidence' => 0,
+                'needs_clarification' => $data['needs_clarification'] ?? true,
+                'clarification_type' => $data['clarification_type'] ?? 'ambiguous',
+            ];
+
+            return $this->formatter->formatClarification($intent, $this->registry->getAvailableSchemes());
+        }
+
+        // AI generated SQL
+        $sql = $data['sql'] ?? null;
+        $scheme = $data['scheme'] ?? $schemeHint;
+
+        if (!$sql) {
+            return $this->formatter->formatError('AI did not generate a SQL query', $metadata);
+        }
+
+        // Replace computed metric names if AI used them as column names
+        if ($scheme && $this->registry->has($scheme)) {
+            $sql = $this->replaceComputedMetrics($sql, $scheme);
+        }
+
+        // Build query result
+        $schemaData = $scheme ? $this->registry->get($scheme) : null;
+        $queryResult = [
+            'success' => true,
+            'sql' => $sql,
+            'scheme' => $scheme,
+            'scheme_name' => $schemaData['name'] ?? $scheme,
+            'metric' => $data['metric'] ?? null,
+            'metric_description' => $data['explanation'] ?? ($data['metric'] ?? 'data'),
+            'metric_unit' => '',
+            'metric_type' => 'neutral',
+            'district' => $data['district'] ?? null,
+            'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
+            'order' => $data['order'] ?? 'DESC',
+            'query_type' => $data['query_type'] ?? 'ranking',
+            'group_column' => $schemaData['tables']['primary']['group_column'] ?? 'name',
+        ];
+
+        // Resolve metric unit/type from schema if possible
+        if ($scheme && $queryResult['metric']) {
+            $metricData = $this->resolveMetricData($scheme, $queryResult['metric']);
+            if ($metricData) {
+                $queryResult['metric_description'] = $metricData['description'] ?? $queryResult['metric_description'];
+                $queryResult['metric_unit'] = $metricData['unit'] ?? '';
+                $queryResult['metric_type'] = $metricData['type'] ?? $metricData['metric_type'] ?? 'neutral';
+            }
+        }
+
+        // Self-verification: AI checks its own SQL before execution
+        if ($this->shouldVerify($metadata)) {
+            $verification = $this->verifier->verify($query, $queryResult['sql'], $scheme);
+
+            $metadata['verification'] = [
+                'confidence' => $verification['confidence'],
+                'passed' => $verification['passed'],
+                'attempts' => $verification['attempt'],
+            ];
+
+            // If verification provided a fixed SQL, use it
+            if ($verification['fixed_sql']) {
+                $queryResult['sql'] = $verification['fixed_sql'];
+                $metadata['verification']['sql_corrected'] = true;
+                Log::info('[NaturalQuery:Verifier] SQL corrected', [
+                    'issue' => $verification['issues'],
+                ]);
+            }
+        }
+
+        // Cache the VERIFIED SQL result for future identical queries
+        $this->cache->store($query, [
+            'scheme' => $scheme,
+            'metric' => $queryResult['metric'],
+            'district' => $queryResult['district'],
+            'limit' => $queryResult['limit'],
+            'order' => $queryResult['order'],
+            'query_type' => $queryResult['query_type'],
+            '_sql_result' => $queryResult,
+        ]);
+
+        // Validate and execute
+        return $this->validateAndExecute($queryResult, $scheme, $metadata);
+    }
+
+    // =========================================================================
+    // RETRY LOGIC
+    // =========================================================================
+
+    /**
+     * Retry a failed query with a refined prompt.
+     *
+     * Strategy:
+     * 1. Try to detect scheme from query keywords/aliases
+     * 2. If found, retry with single-scheme SQL prompt (much more accurate)
+     * 3. If still no scheme, retry with explicit instruction to generate SQL
+     */
+    protected function retryWithRefinedPrompt(string $query, ?string $schemeHint, array $metadata): array
+    {
+        $metadata['_retried'] = true;
+        $metadata['retry'] = true;
+        Log::info('[NaturalQuery] Retrying with refined prompt', ['query' => $query]);
+
+        // Strategy 1: Try keyword-based scheme detection from all aliases
+        $scheme = $schemeHint;
+        if (!$scheme) {
+            $scheme = $this->detectSchemeFromKeywords($query);
+        }
+
+        if ($scheme && $this->registry->has($scheme)) {
+            Log::info('[NaturalQuery] Retry: detected scheme from keywords', ['scheme' => $scheme]);
+            // Use single-scheme SQL prompt — much more reliable
+            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
+            $response = $this->llmProvider->generateSql($prompt);
+
+            if ($response['success'] && isset($response['data']['sql'])) {
+                $data = $response['data'];
+                $schemaData = $this->registry->get($scheme);
+
+                $queryResult = [
+                    'success' => true,
+                    'sql' => $data['sql'],
+                    'scheme' => $scheme,
+                    'scheme_name' => $schemaData['name'] ?? $scheme,
+                    'metric' => $data['metric'] ?? null,
+                    'metric_description' => $data['explanation'] ?? '',
+                    'metric_unit' => '',
+                    'metric_type' => 'neutral',
+                    'district' => $data['district'] ?? null,
+                    'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
+                    'order' => $data['order'] ?? 'DESC',
+                    'query_type' => $data['query_type'] ?? 'ranking',
+                    'group_column' => $schemaData['tables']['primary']['group_column'] ?? 'name',
+                ];
+
+                $result = $this->validateAndExecute($queryResult, $scheme, $metadata);
+                $result['_retried'] = true;
+                return $result;
+            }
+        }
+
+        // Strategy 2: Return a helpful error with available schemes
+        $schemes = array_map(fn($s) => $s['name'] . ' (' . $s['key'] . ')', $this->registry->getAvailableSchemes());
+        $schemeList = implode(', ', array_slice($schemes, 0, 10));
+
+        return $this->formatter->formatError(
+            "Could not understand the query. Try mentioning a dataset name. Available: {$schemeList}",
+            $metadata
+        );
+    }
+
+    /**
+     * Detect scheme from query keywords.
+     *
+     * Priority:
+     * 1. User-defined query_routing rules (most specific, highest priority)
+     * 2. Schema aliases (from schema config files)
+     * 3. Column aliases (last resort)
+     */
+    protected function detectSchemeFromKeywords(string $query): ?string
+    {
+        $queryLower = strtolower($query);
+
+        // Priority 1: User-defined routing rules (longest match first)
+        $routing = config('naturalquery.query_routing', []);
+        if (!empty($routing)) {
+            // Sort by key length DESC — longer phrases matched first
+            uksort($routing, fn($a, $b) => strlen($b) - strlen($a));
+
+            foreach ($routing as $keyword => $schemeKey) {
+                if (str_contains($queryLower, strtolower($keyword))) {
+                    if ($this->registry->has($schemeKey)) {
+                        Log::debug('[NaturalQuery] Route matched', ['keyword' => $keyword, 'scheme' => $schemeKey]);
+                        return $schemeKey;
+                    }
+                }
+            }
+        }
+
+        // Priority 2: Schema aliases (longest first for best match)
+        foreach ($this->registry->all() as $key => $schema) {
+            if (str_contains($queryLower, strtolower($key))) {
+                return $key;
+            }
+
+            $aliases = $schema['aliases'] ?? [];
+            usort($aliases, fn($a, $b) => strlen($b) - strlen($a));
+
+            foreach ($aliases as $alias) {
+                if (str_contains($queryLower, strtolower($alias))) {
+                    return $key;
+                }
+            }
+        }
+
+        // Priority 3: Column aliases
+        foreach ($this->registry->all() as $key => $schema) {
+            $columns = $schema['tables']['primary']['columns'] ?? [];
+            foreach ($columns as $colName => $colDef) {
+                foreach ($colDef['aliases'] ?? [] as $alias) {
+                    if (str_contains($queryLower, strtolower($alias))) {
+                        return $key;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // =========================================================================
+    // SHARED EXECUTION
+    // =========================================================================
+
+    /**
+     * Validate SQL, execute it, and format the response.
+     */
+    protected function validateAndExecute(array $queryResult, ?string $scheme, array $metadata): array
+    {
+        $sql = $queryResult['sql'];
+
+        // Validate SQL security
+        $allowedTables = $this->registry->getAllowedTables();
+        $maxLimit = $scheme ? $this->registry->getMaxLimit($scheme) : config('naturalquery.sql.max_limit');
+        $requireLimit = $maxLimit !== null;
+
+        $validation = $this->validator->validate($sql, $allowedTables, [
+            'max_limit' => $maxLimit,
+            'require_limit' => $requireLimit,
+        ]);
+
+        if (!$validation['valid']) {
+            Log::warning('[NaturalQuery] SQL validation failed', ['sql' => $sql, 'reason' => $validation['reason']]);
+            return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata);
+        }
+
+        // Execute SQL (with parameterized bindings when available)
+        $connection = $scheme ? $this->registry->getConnection($scheme) : config('naturalquery.sql.database_connection');
+        $bindings = $queryResult['bindings'] ?? [];
+
+        try {
+            $rows = $connection
+                ? DB::connection($connection)->select($sql, $bindings)
+                : DB::select($sql, $bindings);
+        } catch (\Exception $e) {
+            Log::error('[NaturalQuery] SQL execution failed', ['sql' => $sql, 'error' => $e->getMessage()]);
+            return $this->formatter->formatError('Database query failed: ' . $this->sanitizeDbError($e->getMessage()), $metadata);
+        }
+
+        // Empty results
+        if (empty($rows)) {
+            $response = $this->formatter->formatNoData($queryResult);
+            $response['metadata'] = $metadata;
+            return $response;
+        }
+
+        // Format response
+        $response = $this->formatter->format($queryResult, $rows);
+        $response['metadata'] = array_merge($metadata, [
+            'scheme_name' => $queryResult['scheme_name'] ?? null,
+            'metric_unit' => $queryResult['metric_unit'] ?? null,
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Replace computed metric names with their SQL expressions.
+     * Safety net if AI uses a computed metric name as a column name.
+     */
+    protected function replaceComputedMetrics(string $sql, string $scheme): string
+    {
+        $computed = $this->registry->getComputedMetrics($scheme);
+        if (empty($computed)) {
+            return $sql;
+        }
+
+        foreach ($computed as $metricName => $metricData) {
+            $expression = $metricData['expression'];
+
+            // Replace in ORDER BY
+            $sql = preg_replace(
+                '/\bORDER\s+BY\s+' . preg_quote($metricName, '/') . '\b/i',
+                'ORDER BY ' . $expression,
+                $sql
+            );
+
+            // Replace in SELECT (if used as column name without AS)
+            if (preg_match('/\bSELECT\b.*\b' . preg_quote($metricName, '/') . '\b.*\bFROM\b/is', $sql)) {
+                if (!preg_match('/AS\s+' . preg_quote($metricName, '/') . '\b/i', $sql)) {
+                    $sql = preg_replace(
+                        '/(\bSELECT\s+(?:.*?,\s*)?)' . preg_quote($metricName, '/') . '(\s*(?:,|\s+FROM\b))/i',
+                        '$1' . $expression . ' AS ' . $metricName . '$2',
+                        $sql
+                    );
+                }
+            }
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Resolve metric metadata from schema config.
+     */
+    protected function resolveMetricData(string $scheme, string $metric): ?array
+    {
+        $metrics = $this->registry->getMetrics($scheme);
+        if (isset($metrics[$metric])) {
+            return $metrics[$metric];
+        }
+
+        $computed = $this->registry->getComputedMetrics($scheme);
+        if (isset($computed[$metric])) {
+            return $computed[$metric];
+        }
+
+        // Try alias resolution
+        $resolved = $this->registry->resolveMetric($scheme, $metric);
+        if ($resolved) {
+            return $metrics[$resolved] ?? $computed[$resolved] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Should we verify the AI-generated SQL?
+     */
+    protected function shouldVerify(array $metadata): bool
+    {
+        if (!config('naturalquery.verification.enabled', true)) {
+            return false;
+        }
+        if (config('naturalquery.verification.skip_on_cache_hit', true) && ($metadata['cache_hit'] ?? false)) {
+            return false;
+        }
+        if ($metadata['_retried'] ?? false) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Sanitize database error messages for user display.
+     */
+    protected function sanitizeDbError(string $message): string
+    {
+        // Remove SQL details, keep only the human-readable part
+        if (preg_match('/ERROR:\s*(.+?)(?:\(|$)/i', $message, $m)) {
+            return trim($m[1]);
+        }
+        return 'An error occurred while querying the database.';
+    }
+
+    /**
+     * Audit log for successful queries.
+     */
+    protected function auditLog(array $result, bool $cacheHit, float $startTime): void
+    {
+        $channel = config('naturalquery.privacy.audit_channel');
+        $logger = $channel ? Log::channel($channel) : Log::getFacadeRoot();
+        $logger->info('[NaturalQuery] Query executed', [
+            'scheme' => $result['parsed_query']['scheme'] ?? null,
+            'query_type' => $result['parsed_query']['query_type'] ?? null,
+            'metric' => $result['parsed_query']['metric'] ?? null,
+            'rows' => count($result['rows'] ?? []),
+            'cache_hit' => $cacheHit,
+            'mode' => $result['metadata']['query_mode_used'] ?? 'unknown',
+            'processing_ms' => round((microtime(true) - $startTime) * 1000, 2),
+        ]);
+    }
+
+    // =========================================================================
+    // VOICE QUERIES
+    // =========================================================================
+
+    /**
+     * Process a voice query (audio input).
+     */
+    public function voiceQuery(string $audioBase64, string $mimeType = 'audio/webm', ?string $schemeHint = null): array
+    {
+        if (!$this->llmProvider->supportsVoice()) {
+            return $this->formatter->formatError(
+                "Voice input is not supported by the '{$this->llmProvider->getName()}' provider. Use text input instead."
+            );
+        }
+
+        try {
+            $schemeList = $this->registry->getSchemeListForLlm();
+            $intent = $this->llmProvider->parseVoiceQuery($audioBase64, $mimeType, $schemeList);
+
+            $transcribedText = $intent['transcribed_text'] ?? null;
+            if ($transcribedText) {
+                return $this->query($transcribedText, $schemeHint);
+            }
+
+            return $this->formatter->formatError('Could not transcribe audio. Please try again or use text input.');
+        } catch (\Exception $e) {
+            Log::error('[NaturalQuery] Voice query error', ['error' => $e->getMessage()]);
+            return $this->formatter->formatError('Voice processing failed: ' . $e->getMessage());
+        }
+    }
+
+    // =========================================================================
+    // PUBLIC API
+    // =========================================================================
+
+    public function getSchemes(): array
+    {
+        return $this->registry->getAvailableSchemes();
+    }
+
+    public function getSchemeMetrics(string $schemeKey): array
+    {
+        return $this->registry->getSchemeMetrics($schemeKey);
+    }
+
+    public function healthCheck(): array
+    {
+        $providerHealth = $this->llmProvider->healthCheck();
+        $cacheStats = $this->cache->getStatistics();
+
+        return [
+            'status' => $providerHealth['status'] === 'ok' ? 'healthy' : 'degraded',
+            'provider' => [
+                'name' => $this->llmProvider->getName(),
+                'status' => $providerHealth['status'],
+                'model' => $providerHealth['model'] ?? null,
+                'supports_voice' => $this->llmProvider->supportsVoice(),
+            ],
+            'cache' => [
+                'enabled' => ($cacheStats['enabled'] ?? false),
+                'total_entries' => $cacheStats['total_entries'] ?? 0,
+                'total_hits' => $cacheStats['total_hits'] ?? 0,
+            ],
+            'schemas' => [
+                'loaded' => count($this->registry->all()),
+                'keys' => $this->registry->keys(),
+            ],
+            'query_mode' => config('naturalquery.query_mode', 'auto'),
+            'security' => [
+                'input_guard' => true,
+                'sql_validator' => true,
+                'ai_guard' => $this->inputGuard->hasAiGuard(),
+                'rate_limiting' => str_contains(implode(',', config('naturalquery.routes.middleware', [])), 'throttle'),
+            ],
+            'verification' => [
+                'enabled' => config('naturalquery.verification.enabled', true),
+                'confidence_threshold' => config('naturalquery.verification.confidence_threshold', 0.7),
+            ],
+        ];
+    }
+
+    public function getCacheStats(): array
+    {
+        return $this->cache->getStatistics();
+    }
+
+    public function clearCache(?string $scheme = null, int $olderThanDays = 0, int $minHits = 0): int
+    {
+        return $this->cache->clear($scheme, $olderThanDays, $minHits);
+    }
+}
