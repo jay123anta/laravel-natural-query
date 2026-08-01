@@ -63,14 +63,14 @@ class DoctorCommand extends Command
 
         $driver = config('naturalquery.llm.driver');
         if (!$driver) {
-            $this->fail('No LLM driver configured', 'Set NATURALQUERY_LLM_DRIVER in .env (e.g. gemini, openai, claude, ollama)');
+            $this->problem('No LLM driver configured', 'Set NATURALQUERY_LLM_DRIVER in .env (e.g. gemini, openai, claude, ollama)');
             return;
         }
 
         $providers = config('naturalquery.llm.providers', []);
         if (!isset($providers[$driver])) {
             $available = implode(', ', array_keys($providers));
-            $this->fail(
+            $this->problem(
                 "Driver '{$driver}' has no provider block",
                 "Add a 'llm.providers.{$driver}' block in config/naturalquery.php, or switch NATURALQUERY_LLM_DRIVER to one of: {$available}"
             );
@@ -87,7 +87,7 @@ class DoctorCommand extends Command
         if (empty($providerConfig['api_key'])) {
             $envVar = strtoupper($driver) . '_API_KEY';
             if ($needsKey) {
-                $this->fail('API key is empty', "Set {$envVar} in .env, then run: php artisan config:clear");
+                $this->problem('API key is empty', "Set {$envVar} in .env, then run: php artisan config:clear");
             } else {
                 $this->pass('No API key needed (local provider)');
             }
@@ -119,7 +119,7 @@ class DoctorCommand extends Command
             if (is_file($verify)) {
                 $this->pass('SSL verified against CA bundle: ' . $verify);
             } else {
-                $this->fail(
+                $this->problem(
                     'CA bundle not found: ' . $verify,
                     'Fix the NATURALQUERY_SSL_VERIFY path, or download a bundle from https://curl.se/ca/cacert.pem'
                 );
@@ -142,7 +142,7 @@ class DoctorCommand extends Command
         try {
             $provider = app(LlmProviderInterface::class);
         } catch (\Throwable $e) {
-            $this->fail('Could not build the LLM provider: ' . $e->getMessage(), 'Check the llm.driver and llm.providers config.');
+            $this->problem('Could not build the LLM provider: ' . $e->getMessage(), 'Check the llm.driver and llm.providers config.');
             return;
         }
 
@@ -170,7 +170,7 @@ class DoctorCommand extends Command
         $lower = strtolower($message);
 
         if (str_contains($lower, 'certificate') || str_contains($lower, 'curl error 60') || str_contains($lower, 'ssl')) {
-            $this->fail(
+            $this->problem(
                 'TLS failure talking to the provider',
                 'Your PHP has no CA certificate store (common on XAMPP/WAMP). Download https://curl.se/ca/cacert.pem, then set NATURALQUERY_SSL_VERIFY to its full path in .env and run: php artisan config:clear'
             );
@@ -178,7 +178,7 @@ class DoctorCommand extends Command
         }
 
         if (str_contains($lower, '404')) {
-            $this->fail(
+            $this->problem(
                 'Provider returned 404 — the configured model does not exist',
                 'Models get retired (gemini-2.0-flash was). Check your provider\'s current model list and update the model in .env, then run: php artisan config:clear'
             );
@@ -186,7 +186,7 @@ class DoctorCommand extends Command
         }
 
         if (str_contains($lower, '401') || str_contains($lower, '403') || str_contains($lower, 'api key')) {
-            $this->fail(
+            $this->problem(
                 'Provider rejected the API key',
                 'Verify the key is correct, active, and has access to this model. After editing .env run: php artisan config:clear'
             );
@@ -202,14 +202,14 @@ class DoctorCommand extends Command
         }
 
         if (str_contains($lower, 'could not resolve') || str_contains($lower, 'connection') || str_contains($lower, 'timed out')) {
-            $this->fail(
+            $this->problem(
                 'Cannot reach the provider',
                 'Check network access and any proxy/firewall between this server and the provider. For self-hosted models, confirm base_url is correct and the server is running.'
             );
             return;
         }
 
-        $this->fail('Provider health check failed: ' . $message, 'Run with -v for more detail, or check storage/logs/laravel.log.');
+        $this->problem('Provider health check failed: ' . $message, 'Run with -v for more detail, or check storage/logs/laravel.log.');
     }
 
     protected function checkDatabase(): void
@@ -229,7 +229,7 @@ class DoctorCommand extends Command
                 . ($configured ? ', connection "' . $configured . '"' : '') . ')'
             );
         } catch (\Throwable $e) {
-            $this->fail(
+            $this->problem(
                 'Cannot connect to the database: ' . $e->getMessage(),
                 'Check DB_* settings in .env. The database must exist before migrating.'
             );
@@ -244,7 +244,7 @@ class DoctorCommand extends Command
         $driver = $connection->getDriverName();
 
         if (!IntrospectorRegistry::supports($driver)) {
-            $this->fail(
+            $this->problem(
                 "Driver '{$driver}' is connected but NaturalQuery cannot introspect it. "
                 . 'Supported: ' . implode(', ', IntrospectorRegistry::supportedDrivers())
                 . '. Every query and every package route will fail.',
@@ -278,7 +278,7 @@ class DoctorCommand extends Command
             if (Schema::hasTable($table)) {
                 $this->pass("{$label} '{$table}' exists");
             } else {
-                $this->fail("{$label} '{$table}' is missing", $fix);
+                $this->problem("{$label} '{$table}' is missing", $fix);
             }
         } catch (\Throwable $e) {
             $this->warn_("Could not inspect '{$table}': " . $e->getMessage(), $fix);
@@ -292,7 +292,7 @@ class DoctorCommand extends Command
         $path = config('naturalquery.schema.config_path', config_path('naturalquery-schemas'));
 
         if (!is_dir($path)) {
-            $this->fail(
+            $this->problem(
                 'Schema directory does not exist: ' . $path,
                 'Run: php artisan naturalquery:install (or create the directory and add a schema file)'
             );
@@ -302,7 +302,7 @@ class DoctorCommand extends Command
         $schemas = $registry->all();
 
         if (empty($schemas)) {
-            $this->fail(
+            $this->problem(
                 'No schema files found in ' . $path,
                 'Generate one from your live database: php artisan naturalquery:discover'
             );
@@ -313,7 +313,7 @@ class DoctorCommand extends Command
 
         $default = config('naturalquery.default_scheme');
         if ($default && !$registry->has($default)) {
-            $this->fail(
+            $this->problem(
                 "default_scheme '{$default}' does not match any loaded schema",
                 'Set default_scheme to one of: ' . implode(', ', array_keys($schemas))
             );
@@ -339,7 +339,7 @@ class DoctorCommand extends Command
         $table = $registry->getTableName($key);
 
         if (!$table) {
-            $this->fail("Schema '{$key}' has no table name", "Add tables.primary.name to the '{$key}' schema file.");
+            $this->problem("Schema '{$key}' has no table name", "Add tables.primary.name to the '{$key}' schema file.");
             return;
         }
 
@@ -353,7 +353,7 @@ class DoctorCommand extends Command
             $exists = $schemaBuilder->hasTable($table) || $schemaBuilder->hasTable($bare);
 
             if (!$exists) {
-                $this->fail(
+                $this->problem(
                     "Schema '{$key}': table '{$table}' not found in the database",
                     'Fix the table name in the schema file, run your migrations, or regenerate with: php artisan naturalquery:discover'
                 );
@@ -368,7 +368,7 @@ class DoctorCommand extends Command
             ));
 
             if ($missing) {
-                $this->fail(
+                $this->problem(
                     "Schema '{$key}': column(s) not in '{$table}': " . implode(', ', $missing),
                     'Correct these names in the schema file — the AI is told they exist, so queries using them will fail at execution.'
                 );
@@ -377,7 +377,7 @@ class DoctorCommand extends Command
 
             $groupColumn = $registry->getGroupColumn($key);
             if ($groupColumn && !in_array(strtolower($groupColumn), $actual, true)) {
-                $this->fail(
+                $this->problem(
                     "Schema '{$key}': group_column '{$groupColumn}' is not a real column",
                     'Set group_column to the column results should be grouped/labelled by.'
                 );
@@ -438,7 +438,7 @@ class DoctorCommand extends Command
         $this->line("    <fg=gray>-</> {$message}");
     }
 
-    protected function fail(string $message, string $fix): void
+    protected function problem(string $message, string $fix): void
     {
         $this->line("    <fg=red>✗</> {$message}");
         $this->line("      <fg=yellow>→ Fix:</> {$fix}");
