@@ -317,10 +317,26 @@ class DiscoverSchemaCommand extends Command
      */
     protected function verifyGeneratedFile(string $path): ?string
     {
+        $code = @file_get_contents($path);
+
+        if ($code === false) {
+            return 'file could not be read back after writing';
+        }
+
+        // Check syntax WITHOUT executing. A parse error inside include/require
+        // is a fatal compile error, not a catchable ParseError — the catch
+        // below never fires and the whole PHP process dies, which is precisely
+        // the outcome this verification exists to prevent. token_get_all with
+        // TOKEN_PARSE parses the same grammar and throws catchably instead.
         try {
-            $value = include $path;
+            token_get_all($code, TOKEN_PARSE);
         } catch (\ParseError $e) {
             return 'PHP syntax error — ' . $e->getMessage();
+        }
+
+        // Syntax is proven, so including it can no longer kill the process.
+        try {
+            $value = include $path;
         } catch (\Throwable $e) {
             return $e->getMessage();
         }

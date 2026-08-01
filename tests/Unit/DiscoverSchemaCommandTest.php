@@ -94,6 +94,39 @@ class DiscoverSchemaCommandTest extends TestCase
         return $this->outputPath . '/orders.php';
     }
 
+    /**
+     * Load a generated schema file, syntax-checking it first.
+     *
+     * `include` on a file with a syntax error is an uncatchable fatal that
+     * kills the whole PHP process, and PHPUnit can only report it as
+     * "Premature end of PHP process" — no file, no line, no message. Parsing
+     * first turns that dead end into an ordinary assertion failure that names
+     * the problem and prints the offending source.
+     *
+     * @return array<string, mixed>
+     */
+    private function loadGenerated(?string $path = null): array
+    {
+        $path = $path ?? $this->generatedFile();
+
+        $this->assertFileExists($path);
+        $code = file_get_contents($path);
+
+        try {
+            token_get_all($code, TOKEN_PARSE);
+        } catch (\ParseError $e) {
+            $this->fail(
+                "Generated schema file is not valid PHP: {$e->getMessage()}\n"
+                . "--- {$path} ---\n{$code}"
+            );
+        }
+
+        $value = include $path;
+        $this->assertIsArray($value, "Generated schema file did not return an array: {$path}");
+
+        return $value;
+    }
+
     private function runDiscover(array $options = []): \Illuminate\Testing\PendingCommand
     {
         return $this->artisan('naturalquery:discover', array_merge([
@@ -118,7 +151,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover()->assertExitCode(0);
 
-        $schema = include $this->generatedFile();
+        $schema = $this->loadGenerated();
 
         $this->assertIsArray($schema);
         $this->assertSame(
@@ -140,7 +173,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover()->assertExitCode(0);
 
-        $schema = include $this->generatedFile();
+        $schema = $this->loadGenerated();
 
         $this->assertSame(
             'Windows path C:\\temp\\x and a\nnewline',
@@ -155,7 +188,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover()->assertExitCode(0);
 
-        $columns = (include $this->generatedFile())['tables']['primary']['columns'];
+        $columns = $this->loadGenerated()['tables']['primary']['columns'];
 
         $this->assertTrue($columns['revenue']['aggregatable']);
         $this->assertTrue($columns['customer_name']['groupable']);
@@ -249,7 +282,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover(['--ai' => true])->assertExitCode(0);
 
-        $examples = (include $this->generatedFile())['example_queries'];
+        $examples = $this->loadGenerated()['example_queries'];
 
         $this->assertCount(1, $examples);
         $this->assertSame('total revenue', $examples[0]['natural']);
@@ -280,7 +313,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover(['--ai' => true])->assertExitCode(0);
 
-        $examples = (include $this->generatedFile())['example_queries'];
+        $examples = $this->loadGenerated()['example_queries'];
 
         $this->assertCount(1, $examples);
         $this->assertStringNotContainsString('profit_margin', json_encode($examples));
@@ -312,7 +345,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover(['--ai' => true])->assertExitCode(0);
 
-        $this->assertSame([], (include $this->generatedFile())['example_queries']);
+        $this->assertSame([], $this->loadGenerated()['example_queries']);
     }
 
     #[Test]
@@ -340,7 +373,7 @@ class DiscoverSchemaCommandTest extends TestCase
 
         $this->runDiscover(['--ai' => true])->assertExitCode(0);
 
-        $metrics = (include $this->generatedFile())['computed_metrics'];
+        $metrics = $this->loadGenerated()['computed_metrics'];
 
         $this->assertArrayHasKey('avg_revenue', $metrics);
         $this->assertArrayNotHasKey('broken', $metrics);
