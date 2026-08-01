@@ -348,9 +348,13 @@ class DoctorCommand extends Command
             $schemaBuilder = Schema::connection($connectionName);
 
             // A schema-qualified name (public.orders) may need the bare form
-            // depending on driver and search_path.
+            // depending on driver and search_path. Laravel 11+ parses the
+            // "schema.table" form and can throw when that schema is unknown to
+            // the driver, so each form is probed independently — one throwing
+            // must not abort the whole check and leave the schema unverified.
             $bare = str_contains($table, '.') ? substr(strrchr($table, '.'), 1) : $table;
-            $exists = $schemaBuilder->hasTable($table) || $schemaBuilder->hasTable($bare);
+            $exists = $this->tableExists($schemaBuilder, $table)
+                || $this->tableExists($schemaBuilder, $bare);
 
             if (!$exists) {
                 $this->problem(
@@ -387,6 +391,24 @@ class DoctorCommand extends Command
             $this->pass("Schema '{$key}' → {$table} (" . count($declared) . ' columns verified)');
         } catch (\Throwable $e) {
             $this->warn_("Schema '{$key}': could not verify against the database — " . $e->getMessage(), 'Check the connection setting in this schema file.');
+        }
+    }
+
+    /**
+     * Does this table exist, as far as this naming form is concerned?
+     *
+     * Deliberately swallows driver errors rather than letting them bubble:
+     * a qualified name that the driver cannot parse means "not found by this
+     * form", not "verification impossible". Letting it escape would turn a
+     * real, reportable problem into a warning and leave the command exiting 0
+     * on a schema that does not match the database.
+     */
+    protected function tableExists($schemaBuilder, string $name): bool
+    {
+        try {
+            return $schemaBuilder->hasTable($name);
+        } catch (\Throwable $e) {
+            return false;
         }
     }
 
