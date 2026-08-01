@@ -42,11 +42,15 @@ First public release.
   layered on top of `InputGuard`. Enforcement follows ai-guard's own `mode` and
   `confidence_threshold`, so installing it never silently changes what is
   refused; override with `privacy.ai_guard.enforce`.
-- Support for **Laravel 13** and **PHP 8.5**, alongside Laravel 10/11/12 and
-  PHP 8.1+.
-- CI across PHP 8.1–8.5 × Laravel 10/11/12/13, prefer-lowest jobs at both ends
-  of the range, a lint job, and a PostgreSQL integration job running against
+- Supports **Laravel 12 and 13** on **PHP 8.2–8.5**.
+- CI across PHP 8.2–8.5 × Laravel 12/13, prefer-lowest jobs at both ends of the
+  range, a lint job, and a PostgreSQL integration job running against
   PostgreSQL 16 and 18.
+
+  Laravel 10 and 11 are intentionally not supported. Both are past security
+  support, so every published version carries advisories and Composer refuses
+  to install them under its default `policy.advisories.block`. A version the
+  package manager will not install is not a version worth claiming.
 - Pluggable schema introspection: `pgsql`, `mysql` and `mariadb` are built in,
   and any other database can be supported by implementing
   `Contracts\SchemaIntrospectorInterface` and registering it under

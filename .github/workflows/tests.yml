@@ -14,48 +14,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
-        laravel: [10, 11, 12, 13]
+        # Laravel 10 and 11 are deliberately absent: both are past security
+        # support and every published version now carries advisories, so
+        # Composer refuses to install them under its default
+        # policy.advisories.block. A version the package manager will not
+        # install is not a version this package can claim to support.
+        php: ['8.2', '8.3', '8.4', '8.5']
+        laravel: [12, 13]
         dependency-version: [prefer-stable]
         include:
           # Each Laravel release pairs with one Testbench major.
-          - laravel: 10
-            testbench: ^8.0
-          - laravel: 11
-            testbench: ^9.0
           - laravel: 12
             testbench: ^10.0
           - laravel: 13
             testbench: ^11.0
-          # Oldest supported combination, with the lowest allowed dependency
-          # versions — catches "works on my lockfile" breakage.
-          - php: '8.1'
-            laravel: 10
-            testbench: ^8.0
+          # Lowest allowed dependency versions at both ends of the supported
+          # range — catches "works on my lockfile" breakage in either
+          # direction.
+          - php: '8.2'
+            laravel: 12
+            testbench: ^10.0
             dependency-version: prefer-lowest
-          # …and the same check at the top of the range, so a newly added
-          # constraint that only resolves against the very latest release
-          # still gets caught.
           - php: '8.3'
             laravel: 13
             testbench: ^11.0
             dependency-version: prefer-lowest
         exclude:
-          # Laravel 11 and 12 require PHP 8.2+; Laravel 13 requires PHP 8.3+.
-          - php: '8.1'
-            laravel: 11
-          - php: '8.1'
-            laravel: 12
-          - php: '8.1'
-            laravel: 13
+          # Laravel 13 requires PHP 8.3+.
           - php: '8.2'
             laravel: 13
-          # Laravel 10 and 11 both predate PHP 8.5 and are past active support,
-          # so their dependency trees are not tested against it upstream.
-          - php: '8.5'
-            laravel: 10
-          - php: '8.5'
-            laravel: 11
 
     steps:
       - name: Checkout
@@ -84,11 +71,23 @@ jobs:
       - name: Install dependencies
         run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction --no-progress
 
+      # `composer show` takes [<package> [<version>]], so passing two package
+      # names makes it parse the second as a version constraint and fail.
       - name: Show resolved versions
-        run: composer show laravel/framework phpunit/phpunit --no-interaction
+        run: |
+          composer show laravel/framework --no-interaction | head -3
+          composer show phpunit/phpunit --no-interaction | head -3
 
+      # Surface the failure text as an annotation. Log downloads need admin
+      # rights, but annotations are readable on a public repo, so a red build
+      # says what actually broke instead of just "exit code 1".
       - name: Run test suite
-        run: vendor/bin/phpunit
+        run: |
+          set -o pipefail
+          vendor/bin/phpunit --colors=never 2>&1 | tee phpunit.log || {
+            echo "::error title=PHPUnit failed (PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }})::$(tail -c 2500 phpunit.log | tr '\n' '~')"
+            exit 1
+          }
 
   # The rest of the suite runs on SQLite so it needs no services, which leaves
   # the Postgres introspection SQL — everything `naturalquery:discover` depends
@@ -141,7 +140,12 @@ jobs:
         run: composer update --prefer-stable --prefer-dist --no-interaction --no-progress
 
       - name: Run the full suite against PostgreSQL
-        run: vendor/bin/phpunit
+        run: |
+          set -o pipefail
+          vendor/bin/phpunit --colors=never 2>&1 | tee phpunit.log || {
+            echo "::error title=PHPUnit failed on PostgreSQL ${{ matrix.postgres }}::$(tail -c 2500 phpunit.log | tr '\n' '~')"
+            exit 1
+          }
 
       # A skipped test is not a passing test. If the service or the extension
       # is misconfigured the suite would still be green while covering nothing,
