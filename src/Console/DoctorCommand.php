@@ -437,6 +437,20 @@ class DoctorCommand extends Command
             $this->pass('Throttled, no auth — fine for public/demo data');
         } else {
             $this->pass('Protected by auth middleware');
+
+            // Laravel's auth middleware redirects guests to a route named
+            // 'login'. A fresh app has no such route until a starter kit is
+            // installed, so the first request to any endpoint here dies with
+            // RouteNotFoundException — a 500 that says nothing about the real
+            // cause. Cheap to detect, baffling to debug.
+            if (!\Illuminate\Support\Facades\Route::has('login')) {
+                $this->warn_(
+                    "auth middleware is on, but this app has no route named 'login'",
+                    'Any unauthenticated request will fail with "Route [login] not defined" rather than a redirect. '
+                    . "Install an auth starter kit, or drop 'auth' from routes.middleware in config/naturalquery.php "
+                    . 'if these endpoints should be reachable without logging in.'
+                );
+            }
         }
     }
 

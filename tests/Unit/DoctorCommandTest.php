@@ -247,4 +247,22 @@ class DoctorCommandTest extends TestCase
             ->expectsOutputToContain('connection "testing"')
             ->assertExitCode(0);
     }
+
+    /**
+     * Found during a fresh-install run on Laravel 12: a new app has no route
+     * named 'login' until a starter kit is added, but Laravel's auth
+     * middleware redirects guests to exactly that. So the very first request
+     * an adopter makes after installing dies with RouteNotFoundException — a
+     * 500 naming neither the middleware nor the missing route — while doctor
+     * happily reported "Protected by auth middleware".
+     */
+    #[Test]
+    public function it_warns_when_auth_middleware_is_on_but_the_app_has_no_login_route()
+    {
+        $this->createStubTables();
+        config(['naturalquery.routes.middleware' => ['web', 'auth', 'throttle:60,1']]);
+
+        $this->artisan('naturalquery:doctor --skip-api')
+            ->expectsOutputToContain("no route named 'login'");
+    }
 }
