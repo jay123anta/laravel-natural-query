@@ -1,8 +1,29 @@
 # Laravel NaturalQuery
 
-Privacy-safe natural language to SQL engine for Laravel. AI sees only your schema structure, never your actual data.
+**Let people ask your database questions in English — without your data ever
+leaving your server.**
 
-Ask questions in plain English. Get SQL results. Data never leaves your server.
+[![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+<!-- Add once published to Packagist — until then these render as "not found":
+[![Packagist](https://img.shields.io/packagist/v/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
+[![Downloads](https://img.shields.io/packagist/dt/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
+-->
+
+<!-- TODO before release: replace with a ~10s screen recording of the widget
+     answering a question, then rendering the chart. Nobody adopts what they
+     cannot see working. -->
+
+The AI is sent your **schema structure only** — table names, column names,
+types, and the words your users use for them. It returns SQL. Your server
+validates that SQL, runs it locally, and formats the rows. **Not one row is
+ever sent upstream**, and that is enforced by tests, not by intent.
+
+Pair it with a self-hosted model (Ollama, vLLM, LM Studio, llama.cpp) and
+**nothing leaves your network at all** — not even the schema. That is the case
+hosted BI tools cannot serve: government, healthcare, finance, anywhere the
+data genuinely cannot go to a third party.
 
 ```php
 $result = NaturalQuery::query("top 5 customers by revenue");
@@ -10,9 +31,37 @@ $result = NaturalQuery::query("total units held per warehouse bin");
 $result = NaturalQuery::query("which districts have the most pending applications");
 ```
 
-It holds no knowledge of your domain. `naturalquery:discover` reads *your*
-database and writes a config file per table; those files are the only thing
-that makes it understand your data, so any schema works without code changes.
+Or drop the whole UI — text box, microphone, charts — into any Blade view with
+one line:
+
+```blade
+<x-naturalquery::widget />
+```
+
+## What it is good at, and what it is not
+
+Worth being straight about this, because natural-language-to-SQL is often
+oversold.
+
+**It works well** on datasets you have described — which is what
+`naturalquery:discover --ai` sets up for you, and what you then refine. Told
+that `revenue` is a measure to total, that users say "client" for
+`customer_name`, and that cancelled orders don't count, it is reliable for the
+questions those datasets are meant to answer.
+
+**It is not magic.** Pointed at an undescribed database and asked something
+vague, any text-to-SQL system — this one included — will sometimes produce a
+confident, wrong answer. The mitigations here are real: generated SQL is
+SELECT-only and restricted to your tables, `naturalquery:doctor` catches
+schema drift before your users do, corrections you submit feed back into later
+prompts, and every answer is rendered with its numbers so they can be checked.
+But the honest framing is **a fast analyst for datasets you have curated**, not
+an oracle for arbitrary databases.
+
+It ships knowing nothing about your domain. `naturalquery:discover` reads
+*your* database and writes a config file per table; those files are the only
+thing that makes it understand your data, so any schema works without code
+changes.
 
 ## How it works
 
