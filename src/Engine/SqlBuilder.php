@@ -64,7 +64,12 @@ class SqlBuilder
             $metricData = $this->getMetricData($schemeKey, $metric);
 
             // Validate and sanitize parameters
-            $district = $this->sanitizeGroupValue($intent['district'] ?? null);
+            // 'district' is the pre-1.0 name for this field. Still accepted so
+            // a custom prompt override, a cached intent, or a third-party
+            // provider written against the old contract keeps working.
+            $groupValue = $this->sanitizeGroupValue(
+                $intent['group_value'] ?? $intent['district'] ?? null
+            );
             $maxLimit = $this->registry->getMaxLimit($schemeKey) ?? config('naturalquery.sql.max_limit');
             $defaultLimit = $schema['defaults']['limit'] ?? config('naturalquery.sql.default_limit', 100);
             $limit = intval($intent['limit'] ?? $defaultLimit);
@@ -102,11 +107,11 @@ class SqlBuilder
 
             // Determine query type and build SQL
             $bindings = [];
-            if ($district) {
-                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $district, $schemeKey);
+            if ($groupValue) {
+                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
-                $queryType = 'district';
+                $queryType = 'group_detail';
             } else {
                 $sql = $this->buildRankingQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $order, $limit, $aggregate);
                 $queryType = 'ranking';
@@ -128,7 +133,7 @@ class SqlBuilder
                 'metric_description' => $metricData['description'] ?? $metric,
                 'metric_unit' => $metricData['unit'] ?? 'units',
                 'metric_type' => $metricData['type'] ?? 'neutral',
-                'district' => $district,
+                'group_value' => $groupValue,
                 'limit' => $limit,
                 'order' => $order,
                 'query_type' => $queryType,

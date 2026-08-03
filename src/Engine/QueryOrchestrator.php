@@ -185,10 +185,10 @@ class QueryOrchestrator
         // Use cached intent or parse new one
         $intent = null;
         if ($cached) {
-            $intent = $cached['intent'];
+            $intent = $this->normalizeIntent($cached['intent']);
         } else {
             $schemeList = $this->registry->getSchemeListForLlm();
-            $intent = $this->llmProvider->parseIntent($query, $schemeList);
+            $intent = $this->normalizeIntent($this->llmProvider->parseIntent($query, $schemeList));
 
             if (($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
                 $this->cache->store($query, $intent);
@@ -222,14 +222,14 @@ class QueryOrchestrator
 
         // Handle clarification
         $hasScheme = !empty($intent['scheme']);
-        $hasDistrict = !empty($intent['district']);
+        $hasGroupValue = !empty($intent['group_value']);
         $needsScheme = !$hasScheme || ($intent['clarification_type'] ?? null) === 'scheme';
 
         if ($needsScheme) {
             return $this->formatter->formatClarification($intent, $this->registry->getAvailableSchemes());
         }
 
-        if ($hasScheme && $hasDistrict && empty($intent['metric'])) {
+        if ($hasScheme && $hasGroupValue && empty($intent['metric'])) {
             // District detail — SqlBuilder handles this
         } elseif ($intent['needs_clarification'] ?? false) {
             return $this->formatter->formatClarification(
@@ -255,6 +255,34 @@ class QueryOrchestrator
     }
 
     /**
+     * Bring an intent onto the current contract.
+     *
+     * The field naming a single record to filter to used to be called
+     * `district` — vocabulary from the project this package came out of, which
+     * meant nothing on anyone else's database and which models mis-filled on
+     * other domains. It is `group_value` now, matching the builder's own
+     * group_column terminology.
+     *
+     * The old key is still read, because it can still arrive from three
+     * places: a cache row written before the rename, a custom prompt override
+     * in `prompts.intent_parsing`, or a third-party provider written against
+     * the old contract.
+     *
+     * @param array<string, mixed> $intent
+     * @return array<string, mixed>
+     */
+    protected function normalizeIntent(array $intent): array
+    {
+        if (!array_key_exists('group_value', $intent) && array_key_exists('district', $intent)) {
+            $intent['group_value'] = $intent['district'];
+        }
+
+        unset($intent['district']);
+
+        return $intent;
+    }
+
+    /**
      * Recover when a name filter matched nothing.
      *
      * The intent contract lets the model name a single record to filter by.
@@ -272,14 +300,14 @@ class QueryOrchestrator
      */
     protected function retryWithoutUnmatchedNameFilter(array $response, array $intent, array $metadata): array
     {
-        $filter = $intent['district'] ?? null;
+        $filter = $intent['group_value'] ?? null;
 
         if (($response['type'] ?? null) !== 'no_data' || empty($filter)) {
             return $response;
         }
 
         $unfiltered = $intent;
-        $unfiltered['district'] = null;
+        $unfiltered['group_value'] = null;
 
         $rebuilt = $this->sqlBuilder->buildQuery($unfiltered);
         if (!($rebuilt['success'] ?? false)) {
@@ -374,7 +402,7 @@ class QueryOrchestrator
             $intent = [
                 'scheme' => null,
                 'metric' => null,
-                'district' => null,
+                'group_value' => null,
                 'confidence' => 0,
                 'needs_clarification' => $data['needs_clarification'] ?? true,
                 'clarification_type' => $data['clarification_type'] ?? 'ambiguous',
@@ -407,11 +435,11 @@ class QueryOrchestrator
             'metric_description' => $data['explanation'] ?? ($data['metric'] ?? 'data'),
             'metric_unit' => '',
             'metric_type' => 'neutral',
-            'district' => $data['district'] ?? null,
+            'group_value' => $data['group_value'] ?? null,
             'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
             'order' => $data['order'] ?? 'DESC',
             'query_type' => $data['query_type'] ?? 'ranking',
-            'group_column' => $schemaData['tables']['primary']['group_column'] ?? 'name',
+            'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
         ];
 
         // Resolve metric unit/type from schema if possible
@@ -448,7 +476,7 @@ class QueryOrchestrator
         $this->cache->store($query, [
             'scheme' => $scheme,
             'metric' => $queryResult['metric'],
-            'district' => $queryResult['district'],
+            'group_value' => $queryResult['group_value'],
             'limit' => $queryResult['limit'],
             'order' => $queryResult['order'],
             'query_type' => $queryResult['query_type'],
@@ -502,11 +530,11 @@ class QueryOrchestrator
                     'metric_description' => $data['explanation'] ?? '',
                     'metric_unit' => '',
                     'metric_type' => 'neutral',
-                    'district' => $data['district'] ?? null,
+                    'group_value' => $data['group_value'] ?? null,
                     'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
                     'order' => $data['order'] ?? 'DESC',
                     'query_type' => $data['query_type'] ?? 'ranking',
-                    'group_column' => $schemaData['tables']['primary']['group_column'] ?? 'name',
+                    'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
                 ];
 
                 $result = $this->validateAndExecute($queryResult, $scheme, $metadata);

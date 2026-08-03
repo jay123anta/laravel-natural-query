@@ -99,11 +99,11 @@ class ConversationManager
         // Pattern: "compare with X" / "vs X" / "and X"
         if (preg_match('/^(?:compare\s+with|vs|versus|and)\s+(.+)/i', $queryLower, $m)) {
             $other = trim($m[1]);
-            $district = $context['district'] ?? '';
+            $groupValue = $context['group_value'] ?? '';
             $scheme = $context['scheme_name'] ?? $context['scheme'] ?? '';
             $metric = $context['metric'] ?? '';
-            if ($district) {
-                return "compare {$district} and {$other} in {$scheme} for {$metric}";
+            if ($groupValue) {
+                return "compare {$groupValue} and {$other} in {$scheme} for {$metric}";
             }
             return "show {$other} in {$scheme} for {$metric}";
         }
@@ -112,9 +112,9 @@ class ConversationManager
         if (preg_match('/^(?:what\s+about|switch\s+to|change\s+to|show\s+me)\s+(.+?)(?:\s+scheme)?$/i', $queryLower, $m)) {
             $newTopic = trim($m[1]);
             $metric = $context['metric'] ?? '';
-            $district = $context['district'] ?? '';
-            if ($district) {
-                return "{$metric} for {$district} in {$newTopic}";
+            $groupValue = $context['group_value'] ?? '';
+            if ($groupValue) {
+                return "{$metric} for {$groupValue} in {$newTopic}";
             }
             if ($metric) {
                 return "{$metric} in {$newTopic}";
@@ -212,7 +212,7 @@ class ConversationManager
             'scheme' => $parsed['scheme'] ?? null,
             'scheme_name' => $result['metadata']['scheme_name'] ?? $parsed['scheme'] ?? null,
             'metric' => $parsed['metric'] ?? null,
-            'district' => $parsed['district'] ?? null,
+            'group_value' => $parsed['group_value'] ?? null,
             'order' => $parsed['order'] ?? null,
             'limit' => $parsed['limit'] ?? null,
             'query_type' => $parsed['query_type'] ?? null,

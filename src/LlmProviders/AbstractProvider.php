@@ -473,7 +473,7 @@ abstract class AbstractProvider
             'metric' => null,
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
             'confidence' => 0.0,
             'needs_clarification' => true,
             'clarification_type' => 'error',

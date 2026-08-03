@@ -5,8 +5,14 @@ Privacy-safe natural language to SQL engine for Laravel. AI sees only your schem
 Ask questions in plain English. Get SQL results. Data never leaves your server.
 
 ```php
-$result = NaturalQuery::query("top 5 districts by pending applications");
+$result = NaturalQuery::query("top 5 customers by revenue");
+$result = NaturalQuery::query("total units held per warehouse bin");
+$result = NaturalQuery::query("which districts have the most pending applications");
 ```
+
+It holds no knowledge of your domain. `naturalquery:discover` reads *your*
+database and writes a config file per table; those files are the only thing
+that makes it understand your data, so any schema works without code changes.
 
 ## Requirements
 

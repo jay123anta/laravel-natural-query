@@ -17,7 +17,7 @@ return new class extends Migration
             $table->text('normalized_query')->index();
             $table->string('scheme', 100)->nullable()->index();
             $table->string('metric', 100)->nullable();
-            $table->string('district', 255)->nullable();
+            $table->string('group_value', 255)->nullable();
             $table->json('intent')->nullable();
             $table->integer('limit_value')->nullable();
             $table->string('order_direction', 10)->nullable();

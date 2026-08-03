@@ -73,10 +73,10 @@ Parse this natural language query about datasets: "{$text}"
 AVAILABLE DATASETS:
 {$schemeInfo}
 
-Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), district (or null), confidence (0.0-1.0).
+Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), confidence (0.0-1.0).
 If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
 
-Return JSON only: {"scheme":"key","metric":"name","limit":10,"order":"desc","district":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON only: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -203,7 +203,7 @@ PROMPT;
             'metric' => $parsed['metric'] ?? null,
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
-            'district' => $parsed['district'] ?? null,
+            'group_value' => $parsed['group_value'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

@@ -26,7 +26,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -51,7 +51,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -67,7 +67,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'avg_amount',
             'limit' => 5,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -87,7 +87,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'total_households',
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -103,7 +103,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
-            'district' => 'Sharma Traders',
+            'group_value' => 'Sharma Traders',
         ]);
 
         $this->assertTrue($result['success']);
@@ -132,7 +132,33 @@ class SqlBuilderTest extends TestCase
     }
 
     #[Test]
-    public function it_builds_district_query_with_parameterized_bindings()
+    public function it_builds_a_group_detail_query_with_parameterized_bindings()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 1,
+            'order' => 'desc',
+            'group_value' => 'Kamrup',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals('group_detail', $result['query_type']);
+        // Should use parameterized queries (? placeholders)
+        $this->assertStringContainsString('?', $result['sql']);
+        $this->assertNotEmpty($result['bindings']);
+        $this->assertCount(3, $result['bindings']); // exact, LIKE, CASE
+        $this->assertEquals('Kamrup', $result['bindings'][0]);
+    }
+
+    /**
+     * `district` was the pre-1.0 name for this field. A cached intent, a
+     * custom prompt override or a third-party provider can still send it, and
+     * dropping it silently would turn a filtered question into an unfiltered
+     * one — the wrong answer, confidently.
+     */
+    #[Test]
+    public function the_legacy_district_key_is_still_honoured()
     {
         $result = $this->builder->buildQuery([
             'scheme' => 'test_orders',
@@ -143,11 +169,7 @@ class SqlBuilderTest extends TestCase
         ]);
 
         $this->assertTrue($result['success']);
-        $this->assertEquals('district', $result['query_type']);
-        // Should use parameterized queries (? placeholders)
-        $this->assertStringContainsString('?', $result['sql']);
-        $this->assertNotEmpty($result['bindings']);
-        $this->assertCount(3, $result['bindings']); // exact, ILIKE, CASE
+        $this->assertEquals('group_detail', $result['query_type']);
         $this->assertEquals('Kamrup', $result['bindings'][0]);
     }
 
@@ -159,7 +181,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'revenue', // alias for 'amount'
             'limit' => 5,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -174,7 +196,7 @@ class SqlBuilderTest extends TestCase
             'metric' => null,
             'limit' => 5,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -189,7 +211,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertFalse($result['success']);
@@ -214,7 +236,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 500, // max is 100
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -229,7 +251,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
-            'district' => "Kamrup'; DROP TABLE--",
+            'group_value' => "Kamrup'; DROP TABLE--",
         ]);
 
         // Should either sanitize to safe value or reject
@@ -247,7 +269,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'invalid',
-            'district' => null,
+            'group_value' => null,
         ]);
 
         $this->assertTrue($result['success']);
@@ -268,7 +290,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
-            'district' => 'Acme',
+            'group_value' => 'Acme',
         ]);
 
         $this->assertTrue($result['success']);
@@ -290,7 +312,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
-            'district' => 'Acme Traders',
+            'group_value' => 'Acme Traders',
         ]);
 
         $this->assertTrue($result['success']);
@@ -312,7 +334,7 @@ class SqlBuilderTest extends TestCase
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
-            'district' => "Acme'; DROP TABLE orders; --",
+            'group_value' => "Acme'; DROP TABLE orders; --",
         ]);
 
         $this->assertTrue($result['success']);

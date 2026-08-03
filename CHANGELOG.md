@@ -58,7 +58,33 @@ First public release.
   config, so apps that published their config under an earlier version keep
   working across upgrades — Laravel merges package config only one level deep.
 
+### Changed
+- The intent field naming a single record to filter to is now `group_value`,
+  not `district`. The old name was vocabulary from the project this package was
+  extracted from: meaningless on anyone else's database, and models mis-filled
+  it on other domains — "top 5 customers by revenue" was observed coming back
+  with it set to `"customers"`, producing a `WHERE` that matched nothing. This
+  affects `parsed_query`, the prompts, the provider contract and the cache
+  table column. `district` is still read on input, so a cached intent, a custom
+  prompt override or a third-party provider written against the old contract
+  keeps working. The `district` query type is likewise now `group_detail`.
+
 ### Fixed
+- **`ILIKE` broke every named-record lookup on MySQL and MariaDB.** It is
+  PostgreSQL-only syntax, emitted unconditionally without consulting the
+  dialect, and the prompts instructed models to generate it too. Replaced with
+  the ANSI `LOWER(col) LIKE LOWER(?)`.
+- **A name filter matching nothing became a dead end.** When the model names a
+  record that does not exist, the query now runs again without the filter and
+  says so — "No match for "X", so this covers everything" — instead of
+  reporting no data for a question that has a perfectly good answer.
+- **Dataset detection in conversations used a hardcoded word list** carried
+  over from one project, so short follow-ups were mis-handled on every other
+  application. It now reads the schema registry.
+- **A schema file without `group_column` assumed a column called `name`,**
+  producing `SELECT name … GROUP BY name` and a hard SQL error on any table
+  without one. The grouping column is now derived from the schema's own
+  columns.
 - **Schema discovery crashed on any PostgreSQL database with the same table
   name in two schemas.** `listTables()` estimated row counts with a subquery
   matching `pg_class.relname` alone, but `pg_class` is database-wide, so a

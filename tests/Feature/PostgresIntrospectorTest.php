@@ -153,6 +153,9 @@ class PostgresIntrospectorTest extends TestCase
         $this->assertTrue($columns->has('district'));
         $this->assertSame('Pending count', $columns['pending']['comment']);
         $this->assertTrue((bool) $columns['id']['is_primary']);
+        // 'district' here is a real column in the fixture table, not the
+        // intent contract's field — an application is perfectly entitled to
+        // have a column called district.
         $this->assertFalse((bool) $columns['district']['is_primary']);
     }
 

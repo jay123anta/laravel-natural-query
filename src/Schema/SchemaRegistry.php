@@ -120,12 +120,46 @@ class SchemaRegistry
     }
 
     /**
-     * Get the group column for a schema.
+     * The column results are grouped and labelled by.
+     *
+     * When a schema file does not declare `group_column`, this used to assume
+     * a column literally called `name`. On a table without one — most tables —
+     * that produced `SELECT name ... GROUP BY name` and a hard SQL error, not
+     * a degraded label. `naturalquery:discover` always writes group_column, but
+     * the README documents hand-written schema files too, and those are exactly
+     * the ones that omit it.
+     *
+     * So derive it from the schema's own columns instead of guessing a name:
+     * the first column marked groupable, else the first column that is not a
+     * measure, else simply the first column. Any of those produce valid SQL on
+     * any table.
      */
     public function getGroupColumn(string $key): string
     {
-        $schema = $this->get($key);
-        return $schema['tables']['primary']['group_column'] ?? 'name';
+        $primary = $this->get($key)['tables']['primary'] ?? [];
+
+        if (!empty($primary['group_column'])) {
+            return $primary['group_column'];
+        }
+
+        $columns = $primary['columns'] ?? [];
+
+        foreach ($columns as $name => $column) {
+            if (!empty($column['groupable'])) {
+                return $name;
+            }
+        }
+
+        // A measure is a thing to total, not a thing to group by.
+        foreach ($columns as $name => $column) {
+            if (empty($column['aggregatable'])) {
+                return $name;
+            }
+        }
+
+        // Nothing left to reason about: a schema with no columns is broken and
+        // naturalquery:doctor reports it. 'name' keeps the old behaviour there.
+        return (string) (array_key_first($columns) ?? 'name');
     }
 
     /**

@@ -110,9 +110,9 @@ Respond with ONLY a JSON object (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
     "scheme": "{$schemeKey}",
-    "query_type": "ranking|district|aggregation|overview",
+    "query_type": "ranking|group_detail|aggregation|overview",
     "metric": "main metric column name or null",
-    "district": "specific district/group name if mentioned, or null",
+    "group_value": "a specific record name to filter to, if the user named one, else null — never a category or column name",
     "order": "DESC or ASC",
     "limit": {$defaultLimit},
     "explanation": "Brief explanation of what the query does"
@@ -201,9 +201,9 @@ Return JSON only (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
     "scheme": "dataset_key",
-    "query_type": "ranking|district|aggregation|overview",
+    "query_type": "ranking|group_detail|aggregation|overview",
     "metric": "main metric name or null",
-    "district": "specific group name if mentioned, or null",
+    "group_value": "specific group name if mentioned, or null",
     "order": "DESC or ASC",
     "limit": {$defaultLimit},
     "explanation": "Brief explanation"

@@ -49,7 +49,7 @@ class RecordingProvider implements LlmProviderInterface
             'metric' => 'total',
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
             'confidence' => 0.95,
             'needs_clarification' => false,
         ];
@@ -69,7 +69,7 @@ class RecordingProvider implements LlmProviderInterface
             'metric' => 'total',
             'limit' => 10,
             'order' => 'desc',
-            'district' => null,
+            'group_value' => null,
             'confidence' => 0.9,
             'needs_clarification' => false,
         ];

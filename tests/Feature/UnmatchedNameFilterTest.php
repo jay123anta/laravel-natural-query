@@ -75,7 +75,7 @@ class UnmatchedNameFilterTest extends TestCase
             'metric' => 'total',
             'limit' => 5,
             'order' => 'desc',
-            'district' => $filter,
+            'group_value' => $filter,
             'confidence' => 0.9,
             'needs_clarification' => false,
         ];

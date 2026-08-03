@@ -30,7 +30,7 @@ class ResponseFormatter
             'parsed_query' => [
                 'scheme' => $queryResult['scheme'],
                 'metric' => $queryResult['metric'],
-                'district' => $queryResult['district'] ?? null,
+                'group_value' => $queryResult['group_value'] ?? null,
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',
@@ -59,11 +59,11 @@ class ResponseFormatter
      */
     public function formatNoData(array $queryResult): array
     {
-        $district = $queryResult['district'] ?? null;
+        $groupValue = $queryResult['group_value'] ?? null;
         $schemeName = $queryResult['scheme_name'] ?? $queryResult['scheme'];
 
-        $message = $district
-            ? "No data found for {$district} in {$schemeName}. The name may be spelled differently in the database."
+        $message = $groupValue
+            ? "No data found for {$groupValue} in {$schemeName}. The name may be spelled differently in the database."
             : "No data found for {$schemeName}.";
 
         return [
@@ -73,7 +73,7 @@ class ResponseFormatter
             'parsed_query' => [
                 'scheme' => $queryResult['scheme'],
                 'metric' => $queryResult['metric'],
-                'district' => $district,
+                'group_value' => $groupValue,
             ],
             'answer' => $message,
             'visualization' => 'message',
@@ -111,7 +111,7 @@ class ResponseFormatter
             'parsed_query' => [
                 'scheme' => $intent['scheme'] ?? null,
                 'metric' => $intent['metric'] ?? null,
-                'district' => $intent['district'] ?? null,
+                'group_value' => $intent['group_value'] ?? null,
             ],
             'alternatives' => $alternatives,
             'available_metrics' => $availableMetrics,
@@ -140,7 +140,7 @@ class ResponseFormatter
     {
         $queryType = $queryResult['query_type'] ?? 'ranking';
 
-        if ($queryType === 'district' || !empty($queryResult['district'])) {
+        if ($queryType === 'group_detail' || !empty($queryResult['group_value'])) {
             return count($rows) === 1 ? 'single_result' : 'ranking';
         }
 

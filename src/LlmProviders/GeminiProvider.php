@@ -241,7 +241,7 @@ TASK: Extract:
 2. metric: What measurement the user wants (use exact metric names)
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
-5. district: Specific group/category name if mentioned (or null)
+5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
 6. confidence: Your confidence 0.0 to 1.0
 
 IMPORTANT RULES:
@@ -255,7 +255,7 @@ RETURN FORMAT (JSON only, no markdown):
     "metric": "metric_name or null",
     "limit": 10,
     "order": "desc",
-    "district": null,
+    "group_value": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -281,7 +281,7 @@ TASK: Extract from the audio:
 2. metric: What measurement the user wants
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
-5. district: Specific group/category if mentioned (or null)
+5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
 6. confidence: Your confidence 0.0 to 1.0
 
 RETURN FORMAT (JSON only, no markdown):
@@ -291,7 +291,7 @@ RETURN FORMAT (JSON only, no markdown):
     "metric": "metric_name or null",
     "limit": 10,
     "order": "desc",
-    "district": null,
+    "group_value": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -334,7 +334,7 @@ PROMPT;
             'metric' => $parsed['metric'] ?? null,
             'limit' => $limit,
             'order' => $order,
-            'district' => $parsed['district'] ?? null,
+            'group_value' => $parsed['group_value'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

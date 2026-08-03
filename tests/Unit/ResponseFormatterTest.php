@@ -26,7 +26,7 @@ class ResponseFormatterTest extends TestCase
             'metric_description' => 'Order amount',
             'metric_unit' => '$',
             'metric_type' => 'positive',
-            'district' => null,
+            'group_value' => null,
             'limit' => 10,
             'order' => 'DESC',
             'query_type' => 'ranking',
@@ -53,7 +53,7 @@ class ResponseFormatterTest extends TestCase
             'scheme' => 'test',
             'scheme_name' => 'Test',
             'metric' => 'amount',
-            'district' => 'Unknown',
+            'group_value' => 'Unknown',
         ];
 
         $result = $this->formatter->formatNoData($queryResult);
@@ -76,7 +76,7 @@ class ResponseFormatterTest extends TestCase
     #[Test]
     public function it_formats_clarification_response()
     {
-        $intent = ['scheme' => null, 'metric' => null, 'district' => null, 'confidence' => 0.3];
+        $intent = ['scheme' => null, 'metric' => null, 'group_value' => null, 'confidence' => 0.3];
         $schemes = [['key' => 'orders', 'name' => 'Orders', 'description' => 'test']];
 
         $result = $this->formatter->formatClarification($intent, $schemes);
@@ -89,7 +89,7 @@ class ResponseFormatterTest extends TestCase
     public function it_determines_visualization_type()
     {
         $queryResult = [
-            'scheme' => 'test', 'metric' => 'amount', 'district' => null,
+            'scheme' => 'test', 'metric' => 'amount', 'group_value' => null,
             'query_type' => 'ranking', 'group_column' => 'name',
             'scheme_name' => 'Test', 'metric_description' => 'Amount',
             'metric_unit' => '$', 'metric_type' => 'positive',
@@ -106,7 +106,7 @@ class ResponseFormatterTest extends TestCase
     public function it_generates_insights_for_numeric_data()
     {
         $queryResult = [
-            'scheme' => 'test', 'metric' => 'amount', 'district' => null,
+            'scheme' => 'test', 'metric' => 'amount', 'group_value' => null,
             'query_type' => 'ranking', 'group_column' => 'name',
             'scheme_name' => 'Test', 'metric_description' => 'Amount',
             'metric_unit' => '$', 'metric_type' => 'positive',
