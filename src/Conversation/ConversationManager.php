@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Conversation;
 
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -12,23 +13,28 @@ use Illuminate\Support\Facades\Log;
  * Enables multi-turn conversations where follow-up queries
  * inherit context from previous queries.
  *
- * Example:
- *   Turn 1: "show me pending applications in basundhara"
- *   Turn 2: "now filter by Kamrup"           → knows scheme=basundhara, adds district=Kamrup
- *   Turn 3: "compare with Nagaon"            → knows scheme=basundhara, compares two districts
- *   Turn 4: "what about NOC scheme"          → switches scheme to NOC, keeps metric=pending
+ * Example, using whatever datasets the application actually registers:
+ *   Turn 1: "top customers by revenue in orders"  → scheme=orders, metric=revenue
+ *   Turn 2: "now filter by North"                 → keeps scheme and metric, adds the filter
+ *   Turn 3: "compare with South"                  → keeps scheme and metric, compares the two
+ *   Turn 4: "what about inventory"                → switches dataset, keeps metric where it applies
+ *
+ * Nothing here knows any domain vocabulary: dataset names and aliases come
+ * from the schema registry, so this works the same on any application.
  *
  * Context is stored per-session in cache with a configurable TTL.
  */
 class ConversationManager
 {
     protected QueryOrchestrator $orchestrator;
+    protected SchemaRegistry $registry;
     protected int $contextTtl;
     protected string $cachePrefix = 'nq_conv:';
 
-    public function __construct(QueryOrchestrator $orchestrator)
+    public function __construct(QueryOrchestrator $orchestrator, SchemaRegistry $registry)
     {
         $this->orchestrator = $orchestrator;
+        $this->registry = $registry;
         $this->contextTtl = config('naturalquery.conversation.ttl', 1800); // 30 minutes
     }
 
@@ -137,16 +143,42 @@ class ConversationManager
     }
 
     /**
-     * Check if text looks like a scheme name/alias.
+     * Does this text name one of the datasets registered in THIS application?
+     *
+     * Asks the registry rather than matching a fixed word list. The previous
+     * implementation hardcoded the scheme names of the project this package
+     * was extracted from, which meant the check was meaningless anywhere else:
+     * an app with "orders" and "inventory" datasets matched nothing, so every
+     * short follow-up was treated as a record lookup, while an unrelated app
+     * that happened to mention "housing" was told it had switched dataset.
+     *
+     * Domain vocabulary belongs in the schema config files, never in here.
      */
     protected function looksLikeScheme(string $text): bool
     {
-        $schemeKeywords = ['basundhara', 'noc', 'pmay', 'nrega', 'sbm', 'nfsa', 'rti', 'housing', 'waste'];
-        foreach ($schemeKeywords as $kw) {
-            if (str_contains($text, $kw)) {
-                return true;
+        $text = strtolower(trim($text));
+
+        if ($text === '') {
+            return false;
+        }
+
+        foreach ($this->registry->getAvailableSchemes() as $scheme) {
+            $candidates = array_merge(
+                [$scheme['key'] ?? '', $scheme['name'] ?? ''],
+                (array) ($scheme['aliases'] ?? [])
+            );
+
+            foreach ($candidates as $candidate) {
+                $candidate = strtolower(trim((string) $candidate));
+
+                // Require a real word, not an incidental substring: "order"
+                // must not match inside "reorder point".
+                if ($candidate !== '' && preg_match('/\b' . preg_quote($candidate, '/') . '\b/', $text)) {
+                    return true;
+                }
             }
         }
+
         return false;
     }
 
