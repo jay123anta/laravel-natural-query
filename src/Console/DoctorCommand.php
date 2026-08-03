@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
+use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
@@ -43,6 +44,7 @@ class DoctorCommand extends Command
         $this->checkDatabase();
         $this->checkSchemas($registry);
         $this->checkRoutes();
+        $this->checkOptionalAiGuard();
 
         return $this->summarize();
     }
@@ -101,6 +103,50 @@ class DoctorCommand extends Command
         }
 
         $this->checkSslSetting();
+    }
+
+    /**
+     * The optional ai-guard companion, if it is installed at all.
+     *
+     * Silent about it when absent — it is genuinely optional and the built-in
+     * guard covers the same ground. The case worth reporting is when it IS
+     * installed but cannot actually be used, because then the user believes
+     * they have a layer they do not have.
+     */
+    protected function checkOptionalAiGuard(): void
+    {
+        /** @var InputGuard $guard */
+        $guard = app(InputGuard::class);
+
+        if (!$guard->hasAiGuard()) {
+            return;
+        }
+
+        $this->section('ai-guard (optional companion)');
+
+        if (!$guard->aiGuardSupportsTextScan()) {
+            $this->warn_(
+                'ai-guard is installed but this version cannot scan text — it has no detectText()',
+                'Upgrade jayanta/laravel-ai-guard (v2.0.0 only exposes detect(Request)). '
+                . 'Until then it is skipped entirely and the built-in InputGuard does the work, '
+                . 'so nothing is unprotected — but ai-guard is contributing nothing.'
+            );
+
+            return;
+        }
+
+        $mode = (string) config('ai-guard.mode', 'log_only');
+        $threshold = (int) config('ai-guard.confidence_threshold', 70);
+        $enforce = config('naturalquery.privacy.ai_guard.enforce', 'auto');
+
+        $this->pass("Installed and scanning (mode: {$mode}, threshold: {$threshold})");
+
+        if ($enforce !== 'always' && $mode !== 'block') {
+            $this->skip(
+                "Detections are logged, not blocked — ai-guard is in '{$mode}' mode. "
+                . "Set its mode to 'block', or privacy.ai_guard.enforce to 'always', to refuse them."
+            );
+        }
     }
 
     protected function checkSslSetting(): void

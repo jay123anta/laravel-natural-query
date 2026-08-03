@@ -31,7 +31,7 @@
         "orchestra/testbench": "^10.0|^11.0"
     },
     "suggest": {
-        "jayanta/laravel-ai-guard": "Adds scoring-based prompt-injection, jailbreak and bot detection to the built-in input guard. Auto-detected — no wiring required."
+        "jayanta/laravel-ai-guard": "Adds scoring-based prompt-injection, jailbreak and bot detection on top of the built-in input guard. Auto-detected — no wiring required. Needs a version exposing detectText(string); v2.0.0 does not, and naturalquery:doctor will say so."
     },
     "autoload": {
         "psr-4": {

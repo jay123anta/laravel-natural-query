@@ -302,6 +302,17 @@ class InputGuard
             return null; // Not installed or switched off — use built-in checks
         }
 
+        if (!$this->aiGuardSupportsTextScan()) {
+            // Say so once per request rather than throwing on every question
+            // and swallowing it. doctor reports the same thing with the fix.
+            Log::warning(
+                '[NaturalQuery:InputGuard] ai-guard is installed but its version has no detectText(); '
+                . 'skipping it and using the built-in checks. Upgrade jayanta/laravel-ai-guard.'
+            );
+
+            return null;
+        }
+
         try {
             $result = $this->callAiGuard($query);
 
@@ -380,6 +391,32 @@ class InputGuard
     protected function aiGuardInstalled(): bool
     {
         return class_exists(static::AI_GUARD_FACADE);
+    }
+
+    /**
+     * Does the installed ai-guard expose the text scanner we need?
+     *
+     * ai-guard v2.0.0 ships `detect(Request)` but not `detectText(string)`,
+     * which was added later. We have a question string, not a request, so on
+     * v2.0.0 every call throws. That is caught and the built-in checks carry
+     * on, but the feature the user believes they installed does nothing —
+     * silently, which is worse than not having it. `naturalquery:doctor`
+     * reports this so it is visible rather than merely survivable.
+     */
+    public function aiGuardSupportsTextScan(): bool
+    {
+        if (!$this->hasAiGuard()) {
+            return false;
+        }
+
+        try {
+            $facade = static::AI_GUARD_FACADE;
+            $root = $facade::getFacadeRoot();
+
+            return $root !== null && method_exists($root, 'detectText');
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
