@@ -83,10 +83,11 @@ IMPORTANT RULES:
 5. Use proper {$dialect} syntax.
 6. {$limitRule}
 7. For ranking queries, use ORDER BY with the appropriate column or expression.
-8. For specific record lookup (e.g., a district name), use smart matching:
-   WHERE LOWER(column) = LOWER('value') OR column ILIKE '%value%'
+8. For specific record lookup (e.g., a name), use smart matching:
+   WHERE LOWER(column) = LOWER('value') OR LOWER(column) LIKE LOWER('%value%')
    ORDER BY CASE WHEN LOWER(column) = LOWER('value') THEN 0 ELSE 1 END
    LIMIT 1
+   Never use ILIKE — it is PostgreSQL-only and a syntax error on MySQL.
 9. If a JOIN is specified in the schema, you MUST include it in your query.
 10. Column aliases tell you what users might call a column — match user words to the correct column.
 PROMPT;
@@ -175,7 +176,9 @@ IMPORTANT RULES:
 6. {$limitRule}
 7. If a JOIN is specified for a dataset, ALWAYS include it.
 8. Column aliases tell you what users might call a column — match user words.
-9. For specific record lookup, use smart matching with ILIKE fallback.
+9. For specific record lookup, match with LOWER(column) = LOWER('value'), falling
+   back to LOWER(column) LIKE LOWER('%value%'). Never use ILIKE — it is
+   PostgreSQL-only and a syntax error on MySQL.
 PROMPT;
 
         // Global example queries (cross-schema)

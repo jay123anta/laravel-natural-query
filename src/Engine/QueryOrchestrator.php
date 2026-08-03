@@ -249,7 +249,63 @@ class QueryOrchestrator
         }
 
         // Validate and execute
-        return $this->validateAndExecute($queryResult, $intent['scheme'], $metadata);
+        $response = $this->validateAndExecute($queryResult, $intent['scheme'], $metadata);
+
+        return $this->retryWithoutUnmatchedNameFilter($response, $intent, $metadata);
+    }
+
+    /**
+     * Recover when a name filter matched nothing.
+     *
+     * The intent contract lets the model name a single record to filter by.
+     * It sometimes fills that in with a word that is really the grouping
+     * dimension — "top 5 customers by revenue" occasionally comes back with
+     * the filter set to "customers" — and the resulting WHERE clause matches
+     * no rows. The user then gets "No data found for customers", which is a
+     * dead end and simply wrong: drop the filter and the question answers
+     * perfectly.
+     *
+     * So when a filtered query finds nothing, run it again without the filter.
+     * This costs one local query and no API call, and the answer says plainly
+     * that the name did not match rather than quietly pretending it was never
+     * asked for.
+     */
+    protected function retryWithoutUnmatchedNameFilter(array $response, array $intent, array $metadata): array
+    {
+        $filter = $intent['district'] ?? null;
+
+        if (($response['type'] ?? null) !== 'no_data' || empty($filter)) {
+            return $response;
+        }
+
+        $unfiltered = $intent;
+        $unfiltered['district'] = null;
+
+        $rebuilt = $this->sqlBuilder->buildQuery($unfiltered);
+        if (!($rebuilt['success'] ?? false)) {
+            return $response;
+        }
+
+        $fallback = $this->validateAndExecute($rebuilt, $unfiltered['scheme'] ?? null, $metadata);
+
+        // Only prefer the fallback if it actually found something.
+        if (($fallback['status'] ?? '') !== 'success' || ($fallback['type'] ?? null) === 'no_data') {
+            return $response;
+        }
+
+        Log::info('[NaturalQuery] Name filter matched nothing; answered without it', [
+            'unmatched_filter' => $filter,
+            'scheme' => $unfiltered['scheme'] ?? null,
+        ]);
+
+        $fallback['answer'] = "No match for \"{$filter}\", so this covers everything. "
+            . ($fallback['answer'] ?? '');
+        $fallback['metadata'] = array_merge($fallback['metadata'] ?? [], [
+            'unmatched_filter' => $filter,
+            'filter_dropped' => true,
+        ]);
+
+        return $fallback;
     }
 
     // =========================================================================

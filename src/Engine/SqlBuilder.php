@@ -225,8 +225,14 @@ class SqlBuilder
         $columnsStr = $groupColumnSelect . ', ' . implode(', ', $metricColumns);
         $groupBy = $aggregate ? " GROUP BY {$groupColumnRef}" : '';
 
-        // Use parameterized queries — NEVER interpolate user values into SQL
-        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE LOWER({$groupColumnRef}) = LOWER(?) OR {$groupColumnRef} ILIKE ?{$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
+        // Use parameterized queries — NEVER interpolate user values into SQL.
+        //
+        // LOWER(col) LIKE LOWER(?) rather than ILIKE: ILIKE is PostgreSQL-only
+        // and is a hard syntax error on MySQL and MariaDB, which this package
+        // also supports — every named-record lookup failed there. The LOWER()
+        // form is ANSI and behaves identically on all of them. It does forgo
+        // an index, but this query is a single-record lookup with LIMIT 1.
+        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE LOWER({$groupColumnRef}) = LOWER(?) OR LOWER({$groupColumnRef}) LIKE LOWER(?){$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
         $bindings = [$groupValue, "%{$groupValue}%", $groupValue];
 
         return ['sql' => $sql, 'bindings' => $bindings];

@@ -253,4 +253,73 @@ class SqlBuilderTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertEquals('DESC', $result['order']); // falls back to DESC
     }
+
+    /**
+     * ILIKE is PostgreSQL-only. The named-record lookup used it unconditionally,
+     * so on MySQL and MariaDB — both officially supported — every "details for
+     * X" query died with a syntax error. Nothing caught it because the builder
+     * never consulted the dialect and MySQL had no integration coverage.
+     */
+    #[Test]
+    public function the_named_record_lookup_uses_portable_sql_not_postgres_only_ilike()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 5,
+            'order' => 'desc',
+            'district' => 'Acme',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringNotContainsStringIgnoringCase(
+            'ILIKE',
+            $result['sql'],
+            'ILIKE is a hard syntax error on MySQL/MariaDB'
+        );
+        $this->assertStringContainsString('LOWER(', $result['sql']);
+        $this->assertStringContainsString('LIKE', $result['sql']);
+    }
+
+    /** The value must stay a binding — never interpolated into the SQL. */
+    #[Test]
+    public function the_named_record_lookup_parameterises_the_value()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 5,
+            'order' => 'desc',
+            'district' => 'Acme Traders',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringNotContainsString('Acme Traders', $result['sql']);
+        $this->assertContains('Acme Traders', $result['bindings']);
+        $this->assertContains('%Acme Traders%', $result['bindings']);
+    }
+
+    /**
+     * Belt and braces on top of the bindings: quotes, semicolons, backslashes
+     * and LIKE wildcards are stripped from the value before it is ever used,
+     * and anything that stops looking like a name is dropped entirely.
+     */
+    #[Test]
+    public function a_dangerous_looking_name_is_sanitised_away_rather_than_bound()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 5,
+            'order' => 'desc',
+            'district' => "Acme'; DROP TABLE orders; --",
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringNotContainsStringIgnoringCase('DROP', $result['sql']);
+        foreach ($result['bindings'] as $binding) {
+            $this->assertStringNotContainsString(';', (string) $binding);
+            $this->assertStringNotContainsString("'", (string) $binding);
+        }
+    }
 }
