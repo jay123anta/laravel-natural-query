@@ -140,6 +140,31 @@ php artisan naturalquery:discover --dry-run          # preview, write nothing
 php artisan naturalquery:discover --table=orders     # just one table
 php artisan naturalquery:discover --all-tables       # include framework tables
 php artisan naturalquery:discover --ai --no-verify   # skip EXPLAIN checking
+php artisan naturalquery:discover --merge            # update after a migration, keep your edits
+php artisan naturalquery:discover --force            # regenerate, DISCARDING your edits
+```
+
+### Keeping schema files current after a migration
+
+A schema file has two layers. The **structural** layer — which columns exist
+and their types — comes from your database. The **human** layer — descriptions,
+aliases, `llm_instructions`, `computed_metrics`, `example_queries`, and the
+judgement about which column is a measure — is what actually makes the dataset
+usable, and nothing can recover it from the database.
+
+So when a migration changes a table, use `--merge`:
+
+```bash
+php artisan naturalquery:discover --merge --table=orders
+```
+
+It refreshes the structural layer around your curation:
+
+```
+  [table] public.orders
+    Merged — your descriptions, aliases, instructions, metrics and examples kept
+      + new column(s): region
+      - column(s) gone from the database: legacy_ref
 ```
 
 Framework plumbing (`migrations`, `jobs`, `sessions`, `cache`,

@@ -37,7 +37,8 @@ class DiscoverSchemaCommand extends Command
                             {--schema=* : Schema names to scan (default: public/dbo)}
                             {--table=* : Specific tables to discover (default: all)}
                             {--output= : Output directory (default: config/naturalquery-schemas)}
-                            {--force : Overwrite existing schema files}
+                            {--force : Overwrite existing schema files, discarding any hand-written curation}
+                            {--merge : Update existing files from the database while keeping descriptions, aliases, instructions, metrics and examples}
                             {--views : Include database views}
                             {--all-tables : Include framework/system tables normally skipped}
                             {--dry-run : Show what would be generated without writing files}
@@ -134,10 +135,24 @@ class DiscoverSchemaCommand extends Command
             $schemaKey = $this->generateSchemaKey($shortName);
             $outputFile = rtrim($outputPath, '/\\') . DIRECTORY_SEPARATOR . $schemaKey . '.php';
 
-            if (file_exists($outputFile) && !$this->option('force') && !$dryRun) {
-                $this->line("    Skipping — {$schemaKey}.php already exists (use --force)");
-                $skipped++;
-                continue;
+            // What the human wrote into an existing file is the part that makes
+            // the dataset usable, and it cannot be recovered from the database.
+            // --merge refreshes the structural layer around it; --force starts
+            // over and throws it away.
+            $existing = null;
+            if (file_exists($outputFile) && !$dryRun) {
+                if ($this->option('merge')) {
+                    $existing = $this->readExistingSchema($outputFile);
+                    if ($existing === null) {
+                        $this->warn("    Cannot merge — {$schemaKey}.php did not parse; leaving it untouched");
+                        $skipped++;
+                        continue;
+                    }
+                } elseif (!$this->option('force')) {
+                    $this->line("    Skipping — {$schemaKey}.php already exists (--merge to update it, --force to regenerate)");
+                    $skipped++;
+                    continue;
+                }
             }
 
             $aiMeta = null;
@@ -154,12 +169,16 @@ class DiscoverSchemaCommand extends Command
                 }
             }
 
-            $content = $this->generateSchemaFile($fullName, $shortName, $columns, $relationships, $table, $aiMeta);
+            $content = $this->generateSchemaFile($fullName, $shortName, $columns, $relationships, $table, $aiMeta, $existing);
 
             if ($dryRun) {
                 $this->line("    Would create {$schemaKey}.php (" . count($columns) . ' columns)');
                 $created++;
                 continue;
+            }
+
+            if ($existing !== null) {
+                $this->reportMerge($existing, $columns);
             }
 
             file_put_contents($outputFile, $content);
@@ -350,7 +369,8 @@ class DiscoverSchemaCommand extends Command
         array $columns,
         array $relationships,
         array $tableMeta,
-        ?array $aiMeta = null
+        ?array $aiMeta = null,
+        ?array $existing = null
     ): string {
         $humanName = $aiMeta['name'] ?? ucwords(str_replace(['_', '-'], ' ', $shortName));
         $comment = $tableMeta['comment'] ?? '';
@@ -416,6 +436,11 @@ class DiscoverSchemaCommand extends Command
             ],
         ];
 
+        if ($existing !== null) {
+            $schema = $this->mergeSchema($schema, $existing);
+            $humanName = $schema["name"] ?? $humanName;
+        }
+
         $header = $this->fileHeader($humanName, $fullName, $relationships, $aiMeta);
 
         // Rendered programmatically rather than string-interpolated: any value
@@ -423,6 +448,140 @@ class DiscoverSchemaCommand extends Command
         // routinely do), and one unescaped apostrophe would produce a file
         // that fatals the application on every request.
         return $header . 'return ' . $this->renderValue($schema, 0) . ";\n";
+    }
+
+    /**
+     * Read an existing schema file so its curation can be carried forward.
+     *
+     * Syntax-checked before including, for the same reason
+     * verifyGeneratedFile() does it: a parse error inside include is a fatal
+     * compile error, not a catchable exception, and would take the command
+     * down instead of reporting a bad file.
+     *
+     * @return array<string, mixed>|null null when the file is unusable
+     */
+    protected function readExistingSchema(string $path): ?array
+    {
+        $code = @file_get_contents($path);
+
+        if ($code === false) {
+            return null;
+        }
+
+        try {
+            token_get_all($code, TOKEN_PARSE);
+            $value = include $path;
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return is_array($value) ? $value : null;
+    }
+
+    /**
+     * Keys a human curates and the database cannot tell us.
+     *
+     * Everything else — types, which columns exist — is refreshed from the
+     * live schema, because that is the whole point of re-running discovery.
+     */
+    protected const CURATED_TOP_LEVEL = [
+        'name', 'description', 'aliases', 'connection', 'llm_instructions',
+        'computed_metrics', 'example_queries', 'max_limit', 'default_metric',
+        'defaults', 'query_routing',
+    ];
+
+    protected const CURATED_TABLE_KEYS = [
+        'description', 'group_column', 'required_join', 'select_override',
+        'required_filter',
+    ];
+
+    /** Per-column keys that are judgement calls, not facts. */
+    protected const CURATED_COLUMN_KEYS = [
+        'description', 'aliases', 'unit', 'filterable', 'groupable',
+        'aggregatable', 'sortable',
+    ];
+
+    /**
+     * Fold a freshly generated schema into what is already on disk.
+     *
+     * Structure wins for facts; the existing file wins for judgement. A column
+     * dropped from the database is dropped here too — leaving it would keep
+     * telling the model about a column that no longer exists, which is exactly
+     * the silent failure `doctor` reports.
+     *
+     * @param array<string, mixed> $generated
+     * @param array<string, mixed> $existing
+     * @return array<string, mixed>
+     */
+    protected function mergeSchema(array $generated, array $existing): array
+    {
+        $merged = $generated;
+
+        foreach (self::CURATED_TOP_LEVEL as $key) {
+            if (array_key_exists($key, $existing)) {
+                $merged[$key] = $existing[$key];
+            }
+        }
+
+        $existingTable = $existing['tables']['primary'] ?? [];
+
+        foreach (self::CURATED_TABLE_KEYS as $key) {
+            if (array_key_exists($key, $existingTable)) {
+                $merged['tables']['primary'][$key] = $existingTable[$key];
+            }
+        }
+
+        // Any extra table-level keys the user added by hand survive too.
+        foreach ($existingTable as $key => $value) {
+            if ($key !== 'name' && $key !== 'columns' && !array_key_exists($key, $merged['tables']['primary'])) {
+                $merged['tables']['primary'][$key] = $value;
+            }
+        }
+
+        $existingColumns = $existingTable['columns'] ?? [];
+
+        foreach ($merged['tables']['primary']['columns'] as $name => $definition) {
+            if (!isset($existingColumns[$name]) || !is_array($existingColumns[$name])) {
+                continue;
+            }
+
+            foreach (self::CURATED_COLUMN_KEYS as $key) {
+                if (array_key_exists($key, $existingColumns[$name])) {
+                    $definition[$key] = $existingColumns[$name][$key];
+                } else {
+                    // The user removed a flag deliberately; do not put it back.
+                    unset($definition[$key]);
+                }
+            }
+
+            $merged['tables']['primary']['columns'][$name] = $definition;
+        }
+
+        return $merged;
+    }
+
+    /** Tell the user exactly what the merge changed. */
+    protected function reportMerge(array $existing, array $columns): void
+    {
+        $before = array_keys($existing['tables']['primary']['columns'] ?? []);
+        $after = array_column($columns, 'name');
+
+        $added = array_diff($after, $before);
+        $removed = array_diff($before, $after);
+
+        $this->line('    Merged — your descriptions, aliases, instructions, metrics and examples kept');
+
+        if ($added) {
+            $this->line('      + new column(s): ' . implode(', ', $added));
+        }
+
+        if ($removed) {
+            $this->line('      - column(s) gone from the database: ' . implode(', ', $removed));
+        }
+
+        if (!$added && !$removed) {
+            $this->line('      no column changes');
+        }
     }
 
     protected function guessGroupColumn(array $columns): string
