@@ -44,8 +44,10 @@ First public release.
   refused; override with `privacy.ai_guard.enforce`.
 - Supports **Laravel 12 and 13** on **PHP 8.2–8.5**.
 - CI across PHP 8.2–8.5 × Laravel 12/13, prefer-lowest jobs at both ends of the
-  range, a lint job, and a PostgreSQL integration job running against
-  PostgreSQL 16 and 18.
+  range, a lint job, and integration jobs that execute the real generated SQL
+  against PostgreSQL 16 and 18, MySQL 8.4 and 9, and MariaDB 11. Those jobs
+  fail if their tests skip rather than run, because a skipped test is not a
+  passing test.
 
   Laravel 10 and 11 are intentionally not supported. Both are past security
   support, so every published version carries advisories and Composer refuses
@@ -70,6 +72,16 @@ First public release.
   keeps working. The `district` query type is likewise now `group_detail`.
 
 ### Fixed
+- **A question about one specific record could be answered with the
+  top-ranked row instead.** The value naming that record was rejected unless it
+  was purely ASCII letters, spaces, hyphens and dots — so `A-01`, `Bin 7`,
+  `3M`, `H&M`, `INV-2024-88` and `Zürich` were all thrown away, and
+  `ACME_CORP` was rewritten to `ACMECORP`. A rejected value meant no filter,
+  and no filter meant a ranking query, so the wrong answer came back with no
+  warning. The value is bound as a parameter, which is what actually prevents
+  injection, so it is no longer mangled; only control characters are removed
+  and the length is capped. LIKE wildcards inside the value are escaped
+  (`ESCAPE '!'`) so they match literally instead of being deleted.
 - **`ILIKE` broke every named-record lookup on MySQL and MariaDB.** It is
   PostgreSQL-only syntax, emitted unconditionally without consulting the
   dialect, and the prompts instructed models to generate it too. Replaced with

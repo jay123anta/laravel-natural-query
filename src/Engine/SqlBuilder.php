@@ -237,8 +237,8 @@ class SqlBuilder
         // also supports — every named-record lookup failed there. The LOWER()
         // form is ANSI and behaves identically on all of them. It does forgo
         // an index, but this query is a single-record lookup with LIMIT 1.
-        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE LOWER({$groupColumnRef}) = LOWER(?) OR LOWER({$groupColumnRef}) LIKE LOWER(?){$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
-        $bindings = [$groupValue, "%{$groupValue}%", $groupValue];
+        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE LOWER({$groupColumnRef}) = LOWER(?) OR LOWER({$groupColumnRef}) LIKE LOWER(?) ESCAPE '!'{$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
+        $bindings = [$groupValue, '%' . $this->escapeLikeValue($groupValue) . '%', $groupValue];
 
         return ['sql' => $sql, 'bindings' => $bindings];
     }
@@ -331,24 +331,52 @@ class SqlBuilder
     }
 
     /**
-     * Sanitize group value (e.g., district name) to prevent SQL injection.
+     * Clean the value naming a single record, without destroying it.
+     *
+     * This used to strip quotes, %, _ and backslashes, then reject anything
+     * that was not purely ASCII letters, spaces, hyphens and dots. That threw
+     * away most real identifiers — "A-01", "Bin 7", "3M", "H&M",
+     * "INV-2024-88", "Zürich" were all rejected, and "ACME_CORP" was silently
+     * rewritten to "ACMECORP".
+     *
+     * Rejecting was the dangerous part. A null value means no filter, so the
+     * builder fell through to a ranking query and answered a question about
+     * one specific record with the top-ranked row instead — confidently, with
+     * no warning. That is the worst thing this package can do.
+     *
+     * Injection is already prevented by binding the value as a parameter, not
+     * by mangling it, so this now only removes control characters and caps the
+     * length. LIKE wildcards inside the value are escaped where the LIKE
+     * pattern is built, so they match literally rather than being deleted.
      */
     protected function sanitizeGroupValue(?string $value): ?string
     {
-        if (!$value) {
+        if ($value === null) {
             return null;
         }
 
-        // Remove SQL-dangerous characters
-        $value = preg_replace('/[;\'"\\\\%_]/', '', $value);
-        $value = trim($value);
+        // Control characters (including NUL) have no place in an identifier
+        // and can confuse logging and drivers.
+        $value = preg_replace('/[\x00-\x1F\x7F]/u', '', $value);
+        $value = trim((string) $value);
 
-        // Validate it looks like a name (letters, spaces, hyphens, dots)
-        if (!preg_match('/^[a-zA-Z\s\-\.]+$/u', $value)) {
+        if ($value === '') {
             return null;
         }
 
-        return $value;
+        return mb_substr($value, 0, 255);
+    }
+
+    /**
+     * Escape LIKE wildcards so the value matches literally.
+     *
+     * Without this, an underscore in something like ACME_CORP is a
+     * single-character wildcard. ESCAPE is given explicitly because the
+     * default escape character is not consistent across engines.
+     */
+    protected function escapeLikeValue(string $value): string
+    {
+        return str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $value);
     }
 
     /**

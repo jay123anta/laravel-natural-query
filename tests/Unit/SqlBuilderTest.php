@@ -244,7 +244,7 @@ class SqlBuilderTest extends TestCase
     }
 
     #[Test]
-    public function it_sanitizes_district_with_dangerous_chars()
+    public function it_keeps_a_dangerous_group_value_out_of_the_sql_string()
     {
         $result = $this->builder->buildQuery([
             'scheme' => 'test_orders',
@@ -254,11 +254,16 @@ class SqlBuilderTest extends TestCase
             'group_value' => "Kamrup'; DROP TABLE--",
         ]);
 
-        // Should either sanitize to safe value or reject
-        if ($result['success']) {
-            $this->assertStringNotContainsString('DROP', $result['sql']);
-            $this->assertStringNotContainsString("'", $result['bindings'][0] ?? '');
-        }
+        $this->assertTrue($result['success']);
+
+        // The payload must never reach the SQL text; it goes to the driver as
+        // a bound parameter. This test used to require the quote be stripped
+        // from the binding as well, which sounds safer but is not: mangling
+        // the value is what made legitimate identifiers unusable, and a bound
+        // parameter is not executable SQL no matter what it contains.
+        $this->assertStringNotContainsStringIgnoringCase('DROP', $result['sql']);
+        $this->assertStringNotContainsString('Kamrup', $result['sql']);
+        $this->assertContains("Kamrup'; DROP TABLE--", $result['bindings']);
     }
 
     #[Test]
@@ -322,12 +327,11 @@ class SqlBuilderTest extends TestCase
     }
 
     /**
-     * Belt and braces on top of the bindings: quotes, semicolons, backslashes
-     * and LIKE wildcards are stripped from the value before it is ever used,
-     * and anything that stops looking like a name is dropped entirely.
+     * Injection is prevented by binding the value, not by mangling it: the
+     * payload never reaches the SQL string, it goes to the driver as data.
      */
     #[Test]
-    public function a_dangerous_looking_name_is_sanitised_away_rather_than_bound()
+    public function an_injection_payload_stays_out_of_the_sql_string()
     {
         $result = $this->builder->buildQuery([
             'scheme' => 'test_orders',
@@ -339,9 +343,85 @@ class SqlBuilderTest extends TestCase
 
         $this->assertTrue($result['success']);
         $this->assertStringNotContainsStringIgnoringCase('DROP', $result['sql']);
-        foreach ($result['bindings'] as $binding) {
-            $this->assertStringNotContainsString(';', (string) $binding);
-            $this->assertStringNotContainsString("'", (string) $binding);
+        $this->assertStringContainsString('?', $result['sql']);
+    }
+
+    /**
+     * The worst bug this package can have: a question about ONE record
+     * answered with the top-ranked row instead.
+     *
+     * The sanitiser rejected anything that was not ASCII letters, spaces,
+     * hyphens or dots. A rejected value became null, null meant no filter, and
+     * no filter meant the builder quietly produced a ranking query — so "units
+     * in bin A-01" returned whichever bin had the most units, presented as the
+     * answer, with no warning. Digits alone were enough to trigger it, which
+     * covers most real identifiers.
+     */
+    #[Test]
+    public function realistic_identifiers_are_not_silently_dropped()
+    {
+        $identifiers = [
+            'A-01',            // bin / seat / ward code
+            'Bin 7',           // digits in a plain name
+            '3M',              // company starting with a digit
+            'H&M',             // ampersand
+            'INV-2024-88',     // invoice or order number
+            'Zürich',          // non-ASCII letter
+            "O'Brien",         // apostrophe
+            'ACME_CORP',       // underscore
+        ];
+
+        foreach ($identifiers as $identifier) {
+            $result = $this->builder->buildQuery([
+                'scheme' => 'test_orders',
+                'metric' => 'amount',
+                'limit' => 1,
+                'order' => 'desc',
+                'group_value' => $identifier,
+            ]);
+
+            $this->assertTrue($result['success']);
+            $this->assertSame(
+                'group_detail',
+                $result['query_type'],
+                "'{$identifier}' was dropped, so this became a ranking query answering a different question"
+            );
+            $this->assertSame($identifier, $result['bindings'][0]);
         }
+    }
+
+    /** An underscore is a LIKE wildcard; it must match literally. */
+    #[Test]
+    public function like_wildcards_inside_the_value_are_escaped_not_removed()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 1,
+            'order' => 'desc',
+            'group_value' => 'ACME_CORP',
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringContainsString("ESCAPE '!'", $result['sql']);
+        // Exact-match binding keeps the value; the LIKE binding escapes it.
+        $this->assertSame('ACME_CORP', $result['bindings'][0]);
+        $this->assertSame('%ACME!_CORP%', $result['bindings'][1]);
+    }
+
+    /** Control characters are still removed, and an empty value means no filter. */
+    #[Test]
+    public function control_characters_are_stripped_and_blank_values_mean_no_filter()
+    {
+        $result = $this->builder->buildQuery([
+            'scheme' => 'test_orders',
+            'metric' => 'amount',
+            'limit' => 5,
+            'order' => 'desc',
+            'group_value' => "  \x00\x07  ",
+        ]);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('ranking', $result['query_type']);
     }
 }
