@@ -174,10 +174,17 @@ jobs:
         include:
           - label: MySQL 8.4
             image: mysql:8.4
+            health_cmd: mysqladmin ping -h 127.0.0.1 -uroot -proot
           - label: MySQL 9
             image: mysql:9
+            health_cmd: mysqladmin ping -h 127.0.0.1 -uroot -proot
+          # MariaDB ships its own healthcheck.sh and does not guarantee the
+          # mysqladmin alias. It also reads the MYSQL_* variables for backwards
+          # compatibility, so one set of env vars covers both families —
+          # supplying MARIADB_* as well made the entrypoint refuse to start.
           - label: MariaDB 11
             image: mariadb:11
+            health_cmd: healthcheck.sh --connect --innodb_initialized
 
     services:
       db:
@@ -185,15 +192,14 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: root
           MYSQL_DATABASE: nq_mysql_test
-          MARIADB_ROOT_PASSWORD: root
-          MARIADB_DATABASE: nq_mysql_test
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-cmd="${{ matrix.health_cmd }}"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=10
+          --health-retries=12
+          --health-start-period=30s
 
     env:
       NQ_MYSQL_HOST: 127.0.0.1
