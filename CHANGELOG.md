@@ -59,71 +59,25 @@ First public release.
   `sql.introspectors`. The built-in map lives in code, not in the publishable
   config, so apps that published their config under an earlier version keep
   working across upgrades — Laravel merges package config only one level deep.
+- `naturalquery:discover --merge` — after a migration, refresh the structural
+  layer of an existing schema file while keeping everything you wrote by hand:
+  descriptions, aliases, `llm_instructions`, `computed_metrics`,
+  `example_queries`, per-column flags, `group_column`, `required_join`,
+  `required_filter`. New columns appear, dropped columns are removed, and the
+  change is reported. `--force` still regenerates from scratch.
 
-### Changed
-- The intent field naming a single record to filter to is now `group_value`,
-  not `district`. The old name was vocabulary from the project this package was
-  extracted from: meaningless on anyone else's database, and models mis-filled
-  it on other domains — "top 5 customers by revenue" was observed coming back
-  with it set to `"customers"`, producing a `WHERE` that matched nothing. This
-  affects `parsed_query`, the prompts, the provider contract and the cache
-  table column. `district` is still read on input, so a cached intent, a custom
-  prompt override or a third-party provider written against the old contract
-  keeps working. The `district` query type is likewise now `group_detail`.
+### Notes
 
-### Fixed
-- **A question about one specific record could be answered with the
-  top-ranked row instead.** The value naming that record was rejected unless it
-  was purely ASCII letters, spaces, hyphens and dots — so `A-01`, `Bin 7`,
-  `3M`, `H&M`, `INV-2024-88` and `Zürich` were all thrown away, and
-  `ACME_CORP` was rewritten to `ACMECORP`. A rejected value meant no filter,
-  and no filter meant a ranking query, so the wrong answer came back with no
-  warning. The value is bound as a parameter, which is what actually prevents
-  injection, so it is no longer mangled; only control characters are removed
-  and the length is capped. LIKE wildcards inside the value are escaped
-  (`ESCAPE '!'`) so they match literally instead of being deleted.
-- **`ILIKE` broke every named-record lookup on MySQL and MariaDB.** It is
-  PostgreSQL-only syntax, emitted unconditionally without consulting the
-  dialect, and the prompts instructed models to generate it too. Replaced with
-  the ANSI `LOWER(col) LIKE LOWER(?)`.
-- **A name filter matching nothing became a dead end.** When the model names a
-  record that does not exist, the query now runs again without the filter and
-  says so — "No match for "X", so this covers everything" — instead of
-  reporting no data for a question that has a perfectly good answer.
-- **Dataset detection in conversations used a hardcoded word list** carried
-  over from one project, so short follow-ups were mis-handled on every other
-  application. It now reads the schema registry.
-- **A schema file without `group_column` assumed a column called `name`,**
-  producing `SELECT name … GROUP BY name` and a hard SQL error on any table
-  without one. The grouping column is now derived from the schema's own
-  columns.
-- **Schema discovery crashed on any PostgreSQL database with the same table
-  name in two schemas.** `listTables()` estimated row counts with a subquery
-  matching `pg_class.relname` alone, but `pg_class` is database-wide, so a
-  second matching row raised `more than one row returned by a subquery used as
-  an expression` and `naturalquery:discover` died. One schema per subject area
-  is an ordinary Postgres layout. The subquery now joins `pg_namespace` and
-  matches on schema as well as name.
-- **Table and column comments were unreadable for mixed-case or
-  reserved-word names.** `obj_description()` and `col_description()` were fed
-  raw concatenated identifiers, so the `::regclass` cast threw
-  `relation does not exist` and aborted the listing. Identifiers are now
-  quoted with `format('%I.%I', …)`.
-- `{prefix}/widget.js` returned 500 on any database driver the package cannot
-  introspect. The route was handled by the controller that pulls in the whole
-  engine, so serving a static JavaScript file required a supported database and
-  every page embedding `<x-naturalquery::widget />` broke. Laravel 11+ defaults
-  to SQLite, so this was the out-of-the-box experience for many new apps. The
-  widget asset and the demo page now live in a dependency-free controller.
-- `naturalquery:doctor` reported "✓ Connected (sqlite …)" and exited 0 on a
-  setup where every query and every route would fail. It now checks that the
-  driver is introspectable, checks the connection NaturalQuery is actually
-  configured to use rather than the app default, and prints the exact fix.
-- The unsupported-driver exception now names the driver, the supported list,
-  the SQLite-specific fix, and points at `naturalquery:doctor`.
-- `ResponseFormatter::formatClarification` read intent keys unguarded, so a
-  provider returning only the keys it resolved produced an undefined-key error
-  that surfaced as a generic failure instead of a clarification.
+- **This is a first release; there is nothing to upgrade from.** The bugs found
+  and fixed before publishing — including a case where a question about one
+  specific record could be answered with the top-ranked row, and PostgreSQL-only
+  `ILIKE` breaking named-record lookups on MySQL — are recorded in the
+  repository history rather than here, because no published version ever
+  carried them.
+- Requires PostgreSQL or MySQL/MariaDB. **SQLite is not supported** — the
+  engine introspects your schema — and Laravel 11+ defaults to it, so
+  `naturalquery:doctor` reports that explicitly rather than letting queries
+  fail mysteriously.
 
 ### Security
 - `guzzlehttp/guzzle` is floored at `^7.15.1`. The package makes authenticated
