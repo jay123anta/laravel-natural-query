@@ -424,6 +424,12 @@ class DiscoverSchemaCommand extends Command
                     'description' => $description,
                     'group_column' => $groupColumn,
                     'columns' => $columnDefs,
+                    // Real foreign keys, as config rather than a comment. The
+                    // prompt lists these so the model can join to reach a name
+                    // that lives in another table — without them, "top
+                    // customers by revenue" on a normalised schema can only be
+                    // answered with raw customer_id values.
+                    'relationships' => $this->normalizeRelationships($relationships),
                 ],
             ],
             'computed_metrics' => $this->normalizeComputedMetrics($aiMeta['computed_metrics'] ?? []),
@@ -584,15 +590,78 @@ class DiscoverSchemaCommand extends Command
         }
     }
 
+    /**
+     * Turn introspected foreign keys into the shape the schema file carries.
+     *
+     * Kept minimal on purpose — column, the table it points at, and the column
+     * there. That is everything needed to write a JOIN, and nothing that would
+     * go stale differently from the rest of the file.
+     *
+     * @param array<int, array<string, mixed>> $relationships
+     * @return array<int, array{column: string, references_table: string, references_column: string}>
+     */
+    protected function normalizeRelationships(array $relationships): array
+    {
+        $out = [];
+
+        foreach ($relationships as $rel) {
+            $column = $rel['column'] ?? null;
+            $table = $rel['referenced_table'] ?? null;
+            $refColumn = $rel['referenced_column'] ?? null;
+
+            if (!$column || !$table || !$refColumn) {
+                continue;
+            }
+
+            $out[] = [
+                'column' => (string) $column,
+                'references_table' => (string) $table,
+                'references_column' => (string) $refColumn,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Pick the column results should be grouped and labelled by.
+     *
+     * "First dimension wins" chose `status` for an orders table, because
+     * status is the first text column — so every answer came back grouped by
+     * "settled" rather than by customer. Prefer a column that reads like a
+     * label; fall back to the first dimension only when there isn't one.
+     */
     protected function guessGroupColumn(array $columns): string
     {
-        foreach ($columns as $col) {
-            if (($col['suggested_role'] ?? null) === 'dimension') {
+        $dimensions = array_values(array_filter(
+            $columns,
+            fn ($c) => ($c['suggested_role'] ?? null) === 'dimension'
+        ));
+
+        // A column literally called name/title/label is what a human would
+        // label a row with.
+        foreach ($dimensions as $col) {
+            if (preg_match('/^(name|title|label|full_name|display_name)$/i', $col['name'])) {
                 return $col['name'];
             }
         }
 
-        return $columns[0]['name'] ?? 'id';
+        // Then anything ending that way: customer_name, product_title, …
+        foreach ($dimensions as $col) {
+            if (preg_match('/(_name|_title|_label)$/i', $col['name'])) {
+                return $col['name'];
+            }
+        }
+
+        // Codes and references identify a row; a status or type merely buckets
+        // it, so prefer the former when both are present.
+        foreach ($dimensions as $col) {
+            if (!preg_match('/(status|state|type|category|kind|flag)$/i', $col['name'])) {
+                return $col['name'];
+            }
+        }
+
+        return $dimensions[0]['name'] ?? ($columns[0]['name'] ?? 'id');
     }
 
     /**

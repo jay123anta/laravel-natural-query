@@ -1,0 +1,115 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Feature;
+
+use Jayanta\NaturalQuery\Engine\PromptBuilder;
+use Jayanta\NaturalQuery\Schema\Introspectors\Concerns\SuggestsColumnRoles;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+/**
+ * Most Laravel applications have a normalised schema, and the first realistic
+ * question about one spans tables: the name lives in `customers`, the money
+ * lives in `orders`.
+ *
+ * Tested against a real three-table database, that used to fail in four ways
+ * at once. Foreign keys were classified as measures, so the model was told
+ * `customer_id` was a number worth totalling. The foreign keys themselves were
+ * written into a PHP comment, so the prompt never mentioned that the tables
+ * related at all. Routing matched the table NAMED in the question — the
+ * dimension table — and produced a single-table prompt with no revenue in it.
+ * And rows were labelled "?" whenever the result did not contain the schema's
+ * group_column.
+ *
+ * The outcome was either "which dataset did you mean?" or an answer listing
+ * raw id values. These cases pin each part of the fix.
+ */
+class RelatedTablesTest extends TestCase
+{
+    use SuggestsColumnRoles;
+
+    /** Exposed so the trait's helper can be exercised directly. */
+    protected function normalizeType(string $type): string
+    {
+        return strtolower($type);
+    }
+
+    protected function getEnvironmentSetUp($app): void
+    {
+        parent::getEnvironmentSetUp($app);
+        $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/related-schemas');
+        $app['config']->set(
+            'naturalquery.sql.introspectors.sqlite',
+            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
+        );
+    }
+
+    #[Test]
+    public function a_foreign_key_is_not_treated_as_a_number_to_total()
+    {
+        $this->assertSame('foreign_key', $this->suggestRole('customer_id', 'integer', false));
+        $this->assertSame('foreign_key', $this->suggestRole('product_uuid', 'varchar', false));
+        $this->assertSame('identifier', $this->suggestRole('id', 'integer', true));
+    }
+
+    #[Test]
+    public function genuine_measures_are_still_measures()
+    {
+        // The exclusion must not swallow columns that merely end in a noun.
+        $this->assertSame('measure', $this->suggestRole('quantity', 'integer', false));
+        $this->assertSame('measure', $this->suggestRole('unit_price', 'decimal', false));
+        $this->assertSame('measure', $this->suggestRole('order_count', 'integer', false));
+        $this->assertSame('measure', $this->suggestRole('total_paid', 'decimal', false));
+    }
+
+    #[Test]
+    public function text_columns_are_dimensions_on_every_driver()
+    {
+        // The MySQL copy of this heuristic never handled TEXT before the two
+        // implementations were merged.
+        $this->assertSame('dimension', $this->suggestRole('notes', 'text', false));
+        $this->assertSame('dimension', $this->suggestRole('region', 'varchar', false));
+    }
+
+    #[Test]
+    public function the_prompt_tells_the_model_how_the_tables_join()
+    {
+        $prompt = $this->app->make(PromptBuilder::class)->buildSqlPrompt('rel_orders', 'top customers by revenue');
+
+        $this->assertStringContainsString('RELATED:', $prompt);
+        $this->assertStringContainsString('rel_customers', $prompt);
+        $this->assertStringContainsString('customer_id', $prompt);
+    }
+
+    #[Test]
+    public function the_multi_table_prompt_says_the_tables_may_be_joined()
+    {
+        // Listing them as separate "datasets" with no further comment made
+        // models answer a cross-table question with "which one did you mean?".
+        $prompt = $this->app->make(PromptBuilder::class)->buildMultiSchemePrompt('top customers by revenue');
+
+        $this->assertStringContainsString('SAME database', $prompt);
+        $this->assertStringContainsString('JOIN across them', $prompt);
+        $this->assertStringContainsString('RELATED:', $prompt);
+    }
+
+    #[Test]
+    public function related_datasets_are_recognised_as_linked()
+    {
+        $registry = $this->app->make(SchemaRegistry::class);
+
+        $this->assertTrue($registry->hasLinkedSchemas());
+    }
+
+    #[Test]
+    public function a_single_dataset_is_never_treated_as_linked()
+    {
+        // With one table there is nothing to join to, and the focused prompt
+        // is both cheaper and more accurate.
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/unfamiliar-schemas']);
+        $this->app->forgetInstance(SchemaRegistry::class);
+
+        $this->assertFalse($this->app->make(SchemaRegistry::class)->hasLinkedSchemas());
+    }
+}

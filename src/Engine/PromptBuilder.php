@@ -163,7 +163,12 @@ PROMPT;
             $prompt .= "QUERY ROUTING (use these to pick the correct dataset):\n{$routingHints}\n\n";
         }
 
-        $prompt .= "AVAILABLE DATASETS (these are the ONLY tables you can query):\n\n{$allSchemaInfo}\n";
+        // Spell out that these are tables in ONE database. Listing them as
+        // "datasets" made models treat them as mutually exclusive and answer a
+        // cross-table question with "which dataset did you mean?" instead of
+        // joining — which is most questions on a normalised schema.
+        $prompt .= "AVAILABLE TABLES — all in the SAME database, and you may JOIN across them\n"
+            . "(these are the ONLY tables you can query):\n\n{$allSchemaInfo}\n";
 
         $prompt .= <<<PROMPT
 
@@ -176,6 +181,11 @@ IMPORTANT RULES:
 6. {$limitRule}
 7. If a JOIN is specified for a dataset, ALWAYS include it.
 8. Column aliases tell you what users might call a column — match user words.
+8b. When a question needs columns from more than one table, JOIN them using the
+    RELATED lines above. Do NOT ask which table to use, and do NOT answer with a
+    raw id column when the name it points to is available through a join:
+    "top customers by revenue" means joining orders to customers and selecting
+    the customer's name, not grouping by customer_id.
 9. For specific record lookup, match with LOWER(column) = LOWER('value'), falling
    back to LOWER(column) LIKE LOWER('%value%'). Never use ILIKE — it is
    PostgreSQL-only and a syntax error on MySQL.
@@ -243,6 +253,23 @@ PROMPT;
         if ($joinClause) {
             $lines[] = "  REQUIRED JOIN: {$joinClause}";
             $lines[] = "  Use \"{$selectOverride}\" in SELECT for the group column (alias it AS {$groupColumn})";
+        }
+
+        // Foreign keys, so a question whose answer spans tables can be joined
+        // rather than answered with raw id values. Without this the model sees
+        // `customer_id` as just another integer and groups by it.
+        foreach ($primary['relationships'] ?? [] as $rel) {
+            if (empty($rel['column']) || empty($rel['references_table'])) {
+                continue;
+            }
+
+            $refColumn = $rel['references_column'] ?? 'id';
+            $lines[] = sprintf(
+                '  RELATED: %s.%s references %s.%s — JOIN %s ON %s.%s = %s.%s to use its columns',
+                $tableName, $rel['column'], $rel['references_table'], $refColumn,
+                $rel['references_table'], $rel['references_table'], $refColumn,
+                $tableName, $rel['column']
+            );
         }
 
         // Columns with full detail

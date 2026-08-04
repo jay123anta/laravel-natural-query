@@ -374,8 +374,21 @@ class QueryOrchestrator
             }
         }
 
-        // Step 2: Build prompt — prefer single-scheme (more accurate)
-        if ($scheme && $this->registry->has($scheme)) {
+        // Step 2: Build the prompt.
+        //
+        // A single-table prompt is sharper when it is the right table. But on a
+        // normalised schema the routing above matches the table NAMED in the
+        // question, which is often a dimension table rather than the one
+        // holding the numbers: "top customers by revenue" routes to
+        // `customers`, whose prompt has no revenue in it, and the model
+        // correctly replies that it does not know which metric is meant.
+        //
+        // So when the tables are linked by foreign keys, any question may
+        // legitimately span them and the multi-table prompt — which lists every
+        // table, their relationships, and permission to join — is the only one
+        // that can answer. Fall back to the focused prompt when there is one
+        // dataset, or when nothing is related and a join is impossible anyway.
+        if ($scheme && $this->registry->has($scheme) && !$this->registry->hasLinkedSchemas()) {
             $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
         } else {
             $prompt = $this->promptBuilder->buildMultiSchemePrompt($query);

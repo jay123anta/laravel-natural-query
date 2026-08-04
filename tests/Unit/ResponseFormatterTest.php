@@ -124,4 +124,54 @@ class ResponseFormatterTest extends TestCase
         $this->assertArrayHasKey('insights', $result);
         $this->assertEquals(3, $result['insights']['count']);
     }
+
+    /**
+     * When a query joins, the model aliases the label column to whatever it
+     * likes, so the schema's group_column is often absent from the result.
+     * Every row then rendered as "?" — a correct answer that looked broken.
+     */
+    #[Test]
+    public function rows_are_labelled_even_when_the_group_column_is_not_in_the_result()
+    {
+        $result = $this->formatter->format(
+            [
+                'scheme' => 'orders',
+                'scheme_name' => 'Orders',
+                'metric' => 'revenue',
+                'group_column' => 'status',   // not present in the rows below
+                'order' => 'desc',
+                'query_type' => 'ranking',
+            ],
+            [
+                ['customer_name' => 'Acme Industrial', 'revenue' => 2500],
+                ['customer_name' => 'Northwind Traders', 'revenue' => 450],
+            ]
+        );
+
+        $this->assertStringContainsString('Acme Industrial', $result['answer']);
+        $this->assertStringNotContainsString('?', $result['answer']);
+    }
+
+    /** With nothing but numbers, an id still beats a question mark. */
+    #[Test]
+    public function a_row_of_only_numbers_falls_back_to_an_identifier()
+    {
+        $result = $this->formatter->format(
+            [
+                'scheme' => 'orders',
+                'scheme_name' => 'Orders',
+                'metric' => 'revenue',
+                'group_column' => 'status',
+                'order' => 'desc',
+                'query_type' => 'ranking',
+            ],
+            [
+                ['customer_id' => 7, 'revenue' => 2500],
+                ['customer_id' => 9, 'revenue' => 450],
+            ]
+        );
+
+        $this->assertStringContainsString('7', $result['answer']);
+        $this->assertStringNotContainsString('?', $result['answer']);
+    }
 }

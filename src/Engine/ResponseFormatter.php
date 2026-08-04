@@ -152,6 +152,44 @@ class ResponseFormatter
     }
 
     /**
+     * Work out what to call a row.
+     *
+     * The schema's group_column is the intended label, but the query does not
+     * always return it — a model that groups by something else, or joins and
+     * aliases the column, produces rows without it. Emitting "?" for every row
+     * made an otherwise correct answer look broken, so fall back to the first
+     * value in the row that reads like a label rather than a number.
+     *
+     * @param array<string, mixed> $row
+     */
+    protected function labelFor(array $row, string $groupColumn, string $metric): string
+    {
+        if (isset($row[$groupColumn]) && $row[$groupColumn] !== null && $row[$groupColumn] !== '') {
+            return (string) $row[$groupColumn];
+        }
+
+        foreach ($row as $column => $value) {
+            if ($column === $metric || $value === null || $value === '') {
+                continue;
+            }
+
+            if (!is_numeric($value)) {
+                return (string) $value;
+            }
+        }
+
+        // Everything in the row is a number: an id is still a better label
+        // than a question mark.
+        foreach ($row as $column => $value) {
+            if ($column !== $metric && $value !== null && $value !== '') {
+                return (string) $value;
+            }
+        }
+
+        return '—';
+    }
+
+    /**
      * Generate answer text (both display and speech versions).
      */
     protected function generateAnswerText(array $queryResult, array $rows, string $type): array
@@ -167,7 +205,7 @@ class ResponseFormatter
 
         if ($type === 'single_result' && $count === 1) {
             $row = (array) $rows[0];
-            $name = $row[$groupColumn] ?? 'Unknown';
+            $name = $this->labelFor($row, $groupColumn, $metric);
             $value = $row[$metric] ?? 'N/A';
             $formattedValue = is_numeric($value) ? $this->formatNumber($value, $numberFormat) : $value;
 
@@ -192,7 +230,7 @@ class ResponseFormatter
         // Ranking
         $direction = $order === 'desc' ? 'highest' : 'lowest';
         $topRows = array_slice($rows, 0, 3);
-        $topNames = array_map(fn($r) => ((array) $r)[$groupColumn] ?? '?', $topRows);
+        $topNames = array_map(fn ($r) => $this->labelFor((array) $r, $groupColumn, $metric), $topRows);
         $topList = implode(', ', $topNames);
 
         return [

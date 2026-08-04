@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
  */
 class MysqlIntrospector implements SchemaIntrospectorInterface
 {
+    use Concerns\SuggestsColumnRoles;
+
     public function listTables(?string $connection = null, array $schemas = []): array
     {
         $conn = DB::connection($connection ?? $this->defaultConnection());
@@ -176,19 +178,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
         };
     }
 
-    protected function suggestRole(string $name, string $type, bool $isPrimary): string
-    {
-        if ($isPrimary) return 'identifier';
-        $nameLower = strtolower($name);
-
-        if (preg_match('/(_at|_date|_time|date$|time$|timestamp)/i', $nameLower)) {
-            return 'date_filter';
-        }
-
-        $normalizedType = $this->normalizeType($type);
-        if (in_array($normalizedType, ['integer', 'decimal'])) return 'measure';
-        if (in_array($normalizedType, ['varchar'])) return 'dimension';
-
-        return 'unknown';
-    }
+    // suggestRole() lives in the SuggestsColumnRoles trait — it was duplicated
+    // here and in PostgresIntrospector, and this copy had already drifted:
+    // it never treated TEXT columns as dimensions.
 }

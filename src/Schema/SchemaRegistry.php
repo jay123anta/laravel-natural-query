@@ -120,6 +120,36 @@ class SchemaRegistry
     }
 
     /**
+     * Are there several datasets, at least one of which points at another?
+     *
+     * When true, a question can legitimately need columns from more than one
+     * table, so narrowing the prompt to a single dataset can make it
+     * unanswerable. Discovery records real foreign keys, so this is a fact
+     * about the database rather than a guess.
+     */
+    public function hasLinkedSchemas(): bool
+    {
+        $schemas = $this->all();
+
+        if (count($schemas) < 2) {
+            return false;
+        }
+
+        foreach ($schemas as $schema) {
+            if (!empty($schema['tables']['primary']['relationships'])) {
+                return true;
+            }
+
+            // A hand-written join counts too.
+            if (!empty($schema['tables']['primary']['required_join'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * The column results are grouped and labelled by.
      *
      * When a schema file does not declare `group_column`, this used to assume
