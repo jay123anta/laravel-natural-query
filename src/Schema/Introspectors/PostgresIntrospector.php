@@ -116,19 +116,36 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
         $conn = DB::connection($connection ?? $this->defaultConnection());
         [$schema, $table] = $this->parseTableName($tableName);
 
+        // Columns are paired by position within the constraint.
+        //
+        // Joining key_column_usage to constraint_column_usage on the
+        // constraint name alone is the widely copied version of this query,
+        // and it is wrong for any composite foreign key: it returns the
+        // cartesian product of the two column lists. A two-column key came
+        // back as four "relationships", two of them pairing entirely unrelated
+        // columns — which would then be handed to the model as join
+        // conditions. referential_constraints lets each local column be
+        // matched to the referenced column in the same ordinal position.
         $fks = $conn->select("
             SELECT
                 kcu.column_name AS column,
-                ccu.table_schema || '.' || ccu.table_name AS referenced_table,
-                ccu.column_name AS referenced_column,
+                target.table_schema || '.' || target.table_name AS referenced_table,
+                target.column_name AS referenced_column,
                 tc.constraint_name
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu
-                ON tc.constraint_name = kcu.constraint_name
-            JOIN information_schema.constraint_column_usage ccu
-                ON ccu.constraint_name = tc.constraint_name
+                ON kcu.constraint_name = tc.constraint_name
+                AND kcu.constraint_schema = tc.constraint_schema
+            JOIN information_schema.referential_constraints rc
+                ON rc.constraint_name = tc.constraint_name
+                AND rc.constraint_schema = tc.constraint_schema
+            JOIN information_schema.key_column_usage target
+                ON target.constraint_name = rc.unique_constraint_name
+                AND target.constraint_schema = rc.unique_constraint_schema
+                AND target.ordinal_position = kcu.position_in_unique_constraint
             WHERE tc.constraint_type = 'FOREIGN KEY'
                 AND tc.table_schema = ? AND tc.table_name = ?
+            ORDER BY tc.constraint_name, kcu.ordinal_position
         ", [$schema, $table]);
 
         return array_map(fn($fk) => (array) $fk, $fks);

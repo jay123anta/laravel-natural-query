@@ -170,6 +170,52 @@ class PostgresIntrospectorTest extends TestCase
         );
     }
 
+    /**
+     * A composite foreign key must yield one pair per column, matched by
+     * position — not the cartesian product of the two column lists.
+     *
+     * The widely copied form of this query joins key_column_usage to
+     * constraint_column_usage on the constraint name alone, which for a
+     * two-column key returns four rows: two correct pairs and two pairing
+     * unrelated columns. Those go into the prompt as join conditions, so the
+     * model is handed nonsense like `tenant_id = region_code`.
+     */
+    #[Test]
+    public function a_composite_foreign_key_pairs_columns_by_position()
+    {
+        $conn = DB::connection(self::CONNECTION);
+        $conn->statement('drop table if exists nq_child cascade');
+        $conn->statement('drop table if exists nq_parent cascade');
+        $conn->statement('create table nq_parent (
+            tenant_id integer not null,
+            region_code varchar(10) not null,
+            primary key (tenant_id, region_code)
+        )');
+        $conn->statement('create table nq_child (
+            id serial primary key,
+            tenant_id integer not null,
+            region_code varchar(10) not null,
+            foreign key (tenant_id, region_code) references nq_parent(tenant_id, region_code)
+        )');
+
+        try {
+            $rels = $this->introspector()->getRelationships('nq_child', self::CONNECTION);
+
+            $this->assertCount(2, $rels, 'a two-column key must not expand to four');
+
+            $pairs = [];
+            foreach ($rels as $r) {
+                $pairs[$r['column']] = $r['referenced_column'];
+            }
+
+            $this->assertSame('tenant_id', $pairs['tenant_id']);
+            $this->assertSame('region_code', $pairs['region_code']);
+        } finally {
+            $conn->statement('drop table if exists nq_child cascade');
+            $conn->statement('drop table if exists nq_parent cascade');
+        }
+    }
+
     #[Test]
     public function it_lists_user_schemas_without_the_system_ones()
     {
