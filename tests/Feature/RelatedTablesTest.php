@@ -139,6 +139,35 @@ class RelatedTablesTest extends TestCase
         $this->assertTrue($registry->hasLinkedSchemas());
     }
 
+    /**
+     * `discover --table=orders` writes one schema file whose foreign keys
+     * still point at tables that were never discovered. The allowed-table list
+     * the SqlValidator enforces is built from schema files, so those tables are
+     * not queryable — and advertising the join anyway produced the worst kind
+     * of failure: "query validation failed" on SQL the package's own prompt had
+     * instructed the model to write.
+     */
+    #[Test]
+    public function a_join_is_never_suggested_to_a_table_the_validator_forbids()
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/subset-schemas']);
+        $this->app->forgetInstance(SchemaRegistry::class);
+        $this->app->forgetInstance(PromptBuilder::class);
+
+        $registry = $this->app->make(SchemaRegistry::class);
+        $this->assertNotContains(
+            'sub_customers',
+            $registry->getAllowedTables(),
+            'precondition: the referenced table must be outside the whitelist'
+        );
+
+        $prompt = $this->app->make(PromptBuilder::class)
+            ->buildSqlPrompt('sub_orders', 'top customers by quantity');
+
+        $this->assertStringNotContainsString('sub_customers', $prompt);
+        $this->assertStringNotContainsString('RELATED:', $prompt);
+    }
+
     #[Test]
     public function a_single_dataset_is_never_treated_as_linked()
     {

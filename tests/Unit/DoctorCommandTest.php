@@ -96,6 +96,50 @@ class DoctorCommandTest extends TestCase
             ->expectsOutputToContain('status');
     }
 
+    /**
+     * Discovering a subset of tables leaves foreign keys pointing at tables
+     * with no schema file. Those joins are deliberately never offered — the
+     * validator would reject the SQL — but a user seeing only the symptom
+     * concludes the AI cannot do joins. Doctor names the cause instead.
+     */
+    #[Test]
+    public function it_flags_foreign_keys_pointing_at_tables_that_were_never_described()
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/subset-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        Schema::create('sub_orders', function ($table) {
+            $table->id();
+            $table->integer('customer_id');
+            $table->integer('quantity');
+            $table->string('status');
+        });
+
+        // Captured rather than expectsOutputToContain(): that helper matches
+        // one expectation per write, so asserting on both the warning and its
+        // fix line is order-sensitive and brittle.
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('no schema file', $output);
+        $this->assertStringContainsString('sub_customers', $output);
+        $this->assertStringContainsString(
+            'naturalquery:discover --table=sub_customers --merge',
+            $output,
+            'the warning must print the exact command that fixes it'
+        );
+    }
+
+    #[Test]
+    public function it_stays_quiet_when_every_related_table_has_a_schema_file()
+    {
+        $this->createStubTables();
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('no schema file', Artisan::output());
+    }
+
     #[Test]
     public function it_flags_a_missing_api_key()
     {

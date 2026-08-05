@@ -347,6 +347,17 @@ PROMPT;
                 continue;
             }
 
+            // Never advertise a join the validator will refuse. Discovering a
+            // subset of tables (`discover --table=orders`) leaves foreign keys
+            // pointing at tables that have no schema file, and the allowed-table
+            // list is built from schema files. Suggesting those joins turned a
+            // partial install into "query validation failed" on SQL this package
+            // had itself asked the model to write. The whitelist is where the
+            // user drew the line; the prompt follows it.
+            if (!$this->registry->allowsTable($rel['references_table'])) {
+                continue;
+            }
+
             $key = $rel['constraint'] ?? ('table:' . $rel['references_table']);
             $byConstraint[$key]['table'] = $rel['references_table'];
             $byConstraint[$key]['on'][] = sprintf(

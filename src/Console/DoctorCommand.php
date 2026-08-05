@@ -370,9 +370,40 @@ class DoctorCommand extends Command
             );
         }
 
+        $this->checkRelationshipTargets($registry);
+
         foreach ($schemas as $key => $schema) {
             $this->checkSchemaAgainstDatabase($registry, $key);
         }
+    }
+
+    /**
+     * A foreign key pointing at a table nobody described is a join the package
+     * will not offer, because generated SQL is validated against the tables
+     * your schema files declare. That is the right call, but silently doing it
+     * looks like the AI is simply bad at joins — so say it out loud.
+     */
+    protected function checkRelationshipTargets(SchemaRegistry $registry): void
+    {
+        $missing = $registry->undescribedRelationshipTargets();
+
+        if (empty($missing)) {
+            return;
+        }
+
+        $tables = array_unique(array_merge(...array_values($missing)));
+        sort($tables);
+
+        $discover = implode(' ', array_map(
+            fn ($t) => '--table=' . (str_contains($t, '.') ? substr(strrchr($t, '.'), 1) : $t),
+            $tables
+        ));
+
+        $this->warn_(
+            'Foreign keys point at tables with no schema file: ' . implode(', ', $tables),
+            'Questions needing those tables cannot be answered, and no join to them will be suggested. '
+                . "To include them: php artisan naturalquery:discover {$discover} --merge"
+        );
     }
 
     /**

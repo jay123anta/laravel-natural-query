@@ -22,6 +22,9 @@ class SchemaRegistry
     protected string $configPath;
     protected ?array $schemas = null;
 
+    /** Lazily built lookup of validator-permitted tables, keyed lowercase. */
+    protected ?array $allowedTableLookup = null;
+
     public function __construct(string $configPath)
     {
         $this->configPath = $configPath;
@@ -248,6 +251,63 @@ class SchemaRegistry
     }
 
     /**
+     * Will the SQL validator accept a query touching this table?
+     *
+     * Matched on the unqualified name as well as the exact string: Postgres
+     * reports foreign key targets schema-qualified (`public.customers`) while a
+     * hand-written schema file may simply say `customers`, and the two mean the
+     * same table.
+     */
+    public function allowsTable(string $table): bool
+    {
+        if ($this->allowedTableLookup === null) {
+            $this->allowedTableLookup = [];
+
+            foreach ($this->getAllowedTables() as $allowed) {
+                $this->allowedTableLookup[strtolower($allowed)] = true;
+                $this->allowedTableLookup[strtolower($this->unqualify($allowed))] = true;
+            }
+        }
+
+        return isset($this->allowedTableLookup[strtolower($table)])
+            || isset($this->allowedTableLookup[strtolower($this->unqualify($table))]);
+    }
+
+    /**
+     * Tables that a schema file points at through a foreign key but that have
+     * no schema file of their own, as [schema key => [table, ...]].
+     *
+     * These are joins the package deliberately will not offer, because the
+     * validator would reject the resulting SQL. Surfaced by `naturalquery:doctor`
+     * so a partial discovery run is visible rather than silently limiting.
+     */
+    public function undescribedRelationshipTargets(): array
+    {
+        $missing = [];
+
+        foreach ($this->all() as $key => $schema) {
+            foreach ($schema['tables'] ?? [] as $table) {
+                foreach ($table['relationships'] ?? [] as $rel) {
+                    $target = $rel['references_table'] ?? null;
+
+                    if ($target && !$this->allowsTable($target)) {
+                        $missing[$key][$target] = true;
+                    }
+                }
+            }
+        }
+
+        return array_map(fn ($t) => array_keys($t), $missing);
+    }
+
+    protected function unqualify(string $table): string
+    {
+        $parts = explode('.', $table);
+
+        return end($parts);
+    }
+
+    /**
      * Get scheme list formatted for LLM providers.
      *
      * Returns an array of schemes with key, name, aliases, and metrics
@@ -419,5 +479,6 @@ class SchemaRegistry
     public function flush(): void
     {
         $this->schemas = null;
+        $this->allowedTableLookup = null;
     }
 }

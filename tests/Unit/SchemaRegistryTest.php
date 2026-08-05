@@ -121,4 +121,43 @@ class SchemaRegistryTest extends TestCase
         $all = $this->registry->all();
         $this->assertNotEmpty($all);
     }
+
+    /**
+     * The allowed-table lookup is memoized separately from the schemas, and a
+     * stale copy decides which joins the prompt may offer. Flushing one without
+     * the other would keep answering from the previous schema set.
+     */
+    #[Test]
+    public function flushing_also_clears_the_allowed_table_lookup()
+    {
+        // The schema declares `public.orders`; the unqualified form means the
+        // same table, and Postgres reports foreign keys in the qualified form.
+        $this->assertTrue($this->registry->allowsTable('orders'));
+        $this->assertTrue($this->registry->allowsTable('public.orders'));
+
+        $empty = sys_get_temp_dir() . '/nq-no-schemas-' . getmypid();
+        if (!is_dir($empty)) {
+            mkdir($empty, 0777, true);
+        }
+
+        config(['naturalquery.schema.config_path' => $empty]);
+        $fresh = new SchemaRegistry($empty);
+
+        $this->assertFalse($fresh->allowsTable('orders'));
+
+        // And the same instance must forget what it learned.
+        $this->registry->flush();
+        $reloaded = new SchemaRegistry($empty);
+        $this->assertFalse($reloaded->allowsTable('orders'));
+
+        rmdir($empty);
+    }
+
+    #[Test]
+    public function a_table_reached_only_through_a_foreign_key_is_not_silently_allowed()
+    {
+        // Whitelisting is built from schema files, never from relationships —
+        // otherwise describing one table would quietly expose its neighbours.
+        $this->assertFalse($this->registry->allowsTable('some_unlisted_table'));
+    }
 }

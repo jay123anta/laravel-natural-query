@@ -446,23 +446,29 @@ All queries go to that schema. No scheme detection needed.
 
 ### Multi-Schema Projects
 
-For projects with multiple datasets, configure query routing:
+With several schema files loaded, the package works out which one a question is
+about. Routing is for the cases where the wording alone is not a giveaway - map
+a word users say to the dataset that answers it:
 
 ```php
 // config/naturalquery.php
 'query_routing' => [
-    'toilet' => 'sbmu',
-    'housing' => 'pmayg',
-    'revenue' => 'sales',
+    'ticket'    => 'support_tickets',
+    'churn'     => 'subscriptions',
+    'revenue'   => 'orders',
 ],
 
 'system_instructions' => "
-    This is a dashboard with 3 datasets.
-    Toilet/sanitation queries use the sbmu dataset.
-    Housing queries use pmayg.
-    Sales/revenue queries use the sales dataset.
+    This app has 3 datasets.
+    Support and helpdesk questions use support_tickets.
+    Anything about plans, renewals or churn uses subscriptions.
+    Sales and revenue questions use orders.
 ",
 ```
+
+Routing picks the dataset a question *starts* from; it does not stop a query
+from reaching other tables. If the tables are related, the answer can still span
+them - see [Working with many tables](#working-with-many-tables).
 
 ## Schema Config Reference
 
@@ -526,20 +532,70 @@ When your data table uses IDs instead of names:
 ],
 ```
 
+### Relationships
+
+`required_join` above is unconditional - it is applied to every query for that
+dataset. `relationships` is the opposite: a list of joins the model *may* use
+when a question needs a column from another table.
+
+```php
+'tables' => [
+    'primary' => [
+        'name' => 'orders',
+        'columns' => [...],
+        'relationships' => [
+            [
+                'column' => 'customer_id',        // column on THIS table
+                'references_table' => 'customers', // table it points at
+                'references_column' => 'id',
+                'constraint' => 'orders_customer_id_fkey', // optional
+            ],
+        ],
+    ],
+],
+```
+
+`php artisan naturalquery:discover` writes this for you from the real foreign
+keys in your database, so most people never type it by hand.
+
+**Composite keys** are several entries that share one `constraint` name. They
+are rendered to the model as a single join with `AND`, because joining on half
+a composite key silently matches rows it should not and inflates every total:
+
+```php
+'relationships' => [
+    ['column' => 'tenant_id',   'references_table' => 'regions',
+     'references_column' => 'tenant_id',   'constraint' => 'sales_region_fkey'],
+    ['column' => 'region_code', 'references_table' => 'regions',
+     'references_column' => 'region_code', 'constraint' => 'sales_region_fkey'],
+],
+```
+
+**A join is only offered for a table that has its own schema file.** Generated
+SQL is checked against a whitelist built from your schema files, so a join to a
+table you have not described would be rejected. Rather than suggest a join that
+cannot run, the package stays quiet about it. If a relationship you expected is
+being ignored, the referenced table has no schema file yet:
+
+```bash
+php artisan naturalquery:discover --table=customers --merge
+```
+
 ### LLM Instructions
 
 The most important field for accuracy. Plain English instructions for the AI:
 
 ```php
 'llm_instructions' => "
-    This data has 4 components with DIFFERENT tables:
-    1. Waste data → waste_table (JOIN districts for names)
-    2. Ward data → ward_table (has district_name directly)
-    3. Toilet data → toilet_table
+    Revenue means SUM(quantity * unit_price), never the 'amount' column -
+    'amount' is stored in cents and excludes tax.
 
-    Always exclude type='cnd' for waste queries.
+    Always exclude cancelled orders (status = 'cancelled') unless the
+    question asks about cancellations.
+
+    Customer names live in the customers table; join it rather than
+    grouping by customer_id.
     Use ROUND(value::numeric, 2) for PostgreSQL decimals.
-    'Constructed' means project_status = 'Constructed'.
 ",
 ```
 
@@ -564,6 +620,58 @@ More examples = fewer AI errors. Cover every query pattern:
 ],
 ```
 
+## Working with many tables
+
+A realistic Laravel application has dozens of tables, and the first question
+anyone asks spans several of them - the name is in `customers`, the money is in
+`orders`. Here is what the package does on its own and where you come in.
+
+**Discovery does the mechanical part.** One command reads every table, its
+columns, and its real foreign keys, and writes one schema file per table:
+
+```bash
+php artisan naturalquery:discover
+```
+
+Foreign keys become [`relationships`](#relationships), so the model is told how
+the tables connect rather than being left to guess that `customer_id` is a
+number worth totalling. Re-run it after a migration with `--merge` to pick up
+schema changes without discarding descriptions and aliases you have written.
+
+**Every table goes into the prompt, and that is affordable.** A 40-table
+database produces a prompt of roughly 4,200 tokens, against about 600 for a
+single table. At current flagship prices that is a fraction of a cent per
+question, and well inside every provider's context window. Tested on a 40-table
+database, questions requiring a ten-table join chain were answered correctly
+without any hand-written configuration.
+
+**Cost is not the limit; ambiguity is.** What actually causes wrong answers at
+this scale is a schema the model cannot interpret from names alone - two
+plausible join paths between the same tables, a status column whose codes are
+undocumented, or a column named `amount` that is stored in cents. Three fields
+fix nearly all of it, in increasing order of effort:
+
+| Field | Use it when |
+|---|---|
+| `aliases` on a column | Users say "revenue", the column is `total_amt` |
+| `llm_instructions` | A rule the model cannot infer: "always exclude cancelled orders", "amounts are in cents" |
+| `example_queries` | One correct SQL example of the join path you want preferred |
+
+**Narrow the surface if you want to.** You do not have to expose everything:
+
+```bash
+php artisan naturalquery:discover --table=orders --table=customers
+```
+
+Only tables with a schema file are queryable - the generated SQL is validated
+against a whitelist built from those files. Joins are only suggested between
+tables you have described, so a partial install stays coherent rather than
+producing SQL the validator then rejects.
+
+**When an answer is wrong, correct it once.** Submitted corrections are stored
+and fed back into later prompts as examples, so a join path you fix by hand
+becomes the one the model reuses. See [Feedback / Training](#feedback--training).
+
 ## Multi-Turn Conversation
 
 ```php
@@ -572,11 +680,11 @@ use Jayanta\NaturalQuery\Conversation\ConversationManager;
 $conv = app(ConversationManager::class);
 
 // Turn 1
-$r1 = $conv->query('session-123', 'top 5 by pending in basundhara');
-// Turn 2 - inherits scheme context
-$r2 = $conv->query('session-123', 'filter by Kamrup');
-// Turn 3 - inherits scheme + district
-$r3 = $conv->query('session-123', 'compare with Nagaon');
+$r1 = $conv->query('session-123', 'top 5 customers by revenue');
+// Turn 2 - inherits the dataset from turn 1
+$r2 = $conv->query('session-123', 'only in Europe');
+// Turn 3 - inherits dataset + filter
+$r3 = $conv->query('session-123', 'compare with last year');
 ```
 
 ## Feedback / Training
@@ -585,7 +693,7 @@ Users can submit corrections. These are fed into future prompts so the AI learns
 
 ```bash
 curl -X POST /naturalquery/feedback \
-  -d '{"query":"show performance","scheme":"sbmu","correction":"Should use performance column, not pending","feedback_type":"wrong_metric"}'
+  -d '{"query":"show top customers","scheme":"orders","correction":"Should rank by SUM(quantity * unit_price), not the amount column","feedback_type":"wrong_metric"}'
 ```
 
 ## Artisan Commands
