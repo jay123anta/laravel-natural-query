@@ -222,7 +222,7 @@ AVAILABLE DATASETS WITH THEIR METRICS:
 
 TASK: Extract:
 1. scheme: One of the available dataset keys
-2. metric: What measurement the user wants (use exact metric names)
+2. metric: What measurement the user wants (use exact metric names). When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status", "ticket volume by month" — the measurement is a count of records, so use record_count. Only pick a money or quantity metric when the user actually names one.
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
@@ -265,7 +265,7 @@ AVAILABLE DATASETS WITH THEIR METRICS:
 
 TASK: Extract from the audio:
 1. scheme: One of the available dataset keys
-2. metric: What measurement the user wants
+2. metric: What measurement the user wants. When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — use record_count.
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.

@@ -276,10 +276,50 @@ class SchemaRegistry
     /**
      * Get computed metrics for a schema.
      */
+    /**
+     * The counting metric every dataset has, whether or not anyone declared it.
+     *
+     * "How many orders by status" has no answer built from aggregatable
+     * columns — counting rows is not summing a measure. Without this, such a
+     * question resolved to no metric, fell through to the default, and was
+     * answered with revenue per status: right grouping, wrong question, and a
+     * number that looks entirely reasonable.
+     */
+    public const COUNT_METRIC = 'record_count';
+
     public function getComputedMetrics(string $key): array
     {
         $schema = $this->get($key);
-        return $schema['computed_metrics'] ?? [];
+        $metrics = $schema['computed_metrics'] ?? [];
+
+        if (!config('naturalquery.sql.implicit_count_metric', true)) {
+            return $metrics;
+        }
+
+        // A schema that defines its own counting metric wins — it may need to
+        // count something other than rows (DISTINCT, or filtered).
+        foreach (array_keys($metrics) as $declared) {
+            if (strtolower($declared) === self::COUNT_METRIC || strtolower($declared) === 'count') {
+                return $metrics;
+            }
+        }
+
+        // "Number of orders" reads better than "Number of orders records",
+        // and this description is shown to the user in the answer sentence.
+        $label = trim(strtolower($schema['name'] ?? ''));
+        $description = $label !== '' ? "Number of {$label}" : 'Number of records';
+
+        return $metrics + [
+            self::COUNT_METRIC => [
+                'expression' => 'COUNT(*)',
+                'description' => $description,
+                'unit' => 'records',
+                'aliases' => [
+                    'count', 'counts', 'number', 'how many', 'total count',
+                    'number of records', 'record count', 'rows', 'volume',
+                ],
+            ],
+        ];
     }
 
     /**

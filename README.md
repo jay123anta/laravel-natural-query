@@ -516,6 +516,34 @@ For calculated values that don't exist as columns:
 ],
 ```
 
+**Counting is built in.** Every dataset gets a `record_count` metric
+(`COUNT(*)`) without declaring anything, so "how many orders by status" is
+answered by counting rows rather than by falling back to whichever measure is
+default and reporting revenue per status instead. Declare your own
+`record_count` in `computed_metrics` to override it - counting distinct
+customers is not counting rows:
+
+```php
+'computed_metrics' => [
+    'record_count' => [
+        'expression' => 'COUNT(DISTINCT customer_id)',
+        'description' => 'Number of distinct customers',
+        'unit' => 'customers',
+    ],
+],
+```
+
+Set `sql.implicit_count_metric` to `false` in the config to remove the built-in
+entirely.
+
+### Breakdowns
+
+Any column marked `groupable` can be the dimension of a question: "revenue by
+region", "orders per status". The schema's `group_column` is only the default
+used when the question does not name one. A breakdown by a column that is not
+`groupable` is refused with the list of what is available, rather than being
+quietly answered with the default grouping.
+
 ### JOINs
 
 When your data table uses IDs instead of names:

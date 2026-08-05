@@ -106,6 +106,8 @@ AVAILABLE DATASETS:
 
 Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), group_by (or null), confidence (0.0-1.0).
 
+When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — the metric is record_count. Only pick a money or quantity metric when the user names one.
+
 group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
 
 If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".

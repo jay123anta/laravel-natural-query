@@ -64,6 +64,7 @@ DATASETS:
 {$schemeInfo}
 
 group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
+metric = record_count when the user asks HOW MANY ("how many orders", "orders by status"), otherwise the named measure.
 
 Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;

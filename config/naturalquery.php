@@ -306,6 +306,15 @@ return [
         // unlimited. A cap keeps "list everything" from returning 200k rows.
         'max_limit' => null,
 
+        // Every dataset gets an implicit "record_count" metric (COUNT(*)), so
+        // "how many orders by status" can be answered by counting rows rather
+        // than by falling through to whichever measure is default and
+        // reporting, say, revenue per status instead.
+        //
+        // A schema that declares its own 'count' or 'record_count' metric
+        // always wins — set this to false only to remove the built-in entirely.
+        'implicit_count_metric' => true,
+
         // SQL keywords that are NEVER allowed in generated queries
         'forbidden_keywords' => [
             'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE',
