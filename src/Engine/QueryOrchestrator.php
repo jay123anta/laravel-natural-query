@@ -221,21 +221,37 @@ class QueryOrchestrator
         }
 
         // Handle clarification
-        $hasScheme = !empty($intent['scheme']);
+        $availableSchemes = $this->registry->getAvailableSchemes();
         $hasGroupValue = !empty($intent['group_value']);
-        $needsScheme = !$hasScheme || ($intent['clarification_type'] ?? null) === 'scheme';
 
-        if ($needsScheme) {
-            return $this->formatter->formatClarification($intent, $this->registry->getAvailableSchemes());
+        // With exactly one dataset there is nothing to choose between, so a
+        // model that says "which dataset?" is really saying "I could not tell
+        // what you meant" — about the metric, usually.
+        if (empty($intent['scheme']) && count($availableSchemes) === 1) {
+            $intent['scheme'] = $availableSchemes[0]['key'];
+        }
+
+        $hasScheme = !empty($intent['scheme']);
+
+        // Asking which dataset is only meaningful when the dataset is genuinely
+        // unresolved AND there is more than one to pick from. Asking it once
+        // the scheme is known produced a card whose only button re-sent the
+        // same question and redrew the same card — indistinguishable, from the
+        // outside, from the widget being broken.
+        if (!$hasScheme && count($availableSchemes) > 1) {
+            return $this->formatter->formatClarification($intent, $availableSchemes);
         }
 
         if ($hasScheme && $hasGroupValue && empty($intent['metric'])) {
             // District detail — SqlBuilder handles this
-        } elseif ($intent['needs_clarification'] ?? false) {
+        } elseif (($intent['needs_clarification'] ?? false) || !$hasScheme) {
+            // The dataset is settled; whatever is still unclear is a metric.
+            $intent['clarification_type'] = 'metric';
+
             return $this->formatter->formatClarification(
                 $intent,
-                $this->registry->getAvailableSchemes(),
-                $this->registry->getSchemeMetrics($intent['scheme'])
+                $availableSchemes,
+                $hasScheme ? $this->registry->getSchemeMetrics($intent['scheme']) : []
             );
         }
 

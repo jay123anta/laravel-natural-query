@@ -512,8 +512,13 @@
             var label = typeof m === 'string' ? m : (m.name || m.key);
             var b = h('button', 'nq-btn nq-btn-ghost', titleCase(label));
             b.type = 'button';
+            if (typeof m === 'object' && m.description) b.title = m.description;
             b.addEventListener('click', function () {
-                self.input.value = self.input.value + ' ' + label;
+                var current = self.input.value.trim();
+                // Clicking twice must not build "best? revenue revenue".
+                if (current.toLowerCase().indexOf(label.toLowerCase()) === -1) {
+                    self.input.value = current + ' ' + label;
+                }
                 self.submit();
             });
             optsWrap.appendChild(b);
