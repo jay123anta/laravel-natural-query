@@ -94,6 +94,43 @@ class RelatedTablesTest extends TestCase
         $this->assertStringContainsString('RELATED:', $prompt);
     }
 
+    /**
+     * A composite key is ONE join with an AND. Rendering a line per column
+     * invites the model to join the same table twice, or to join on half the
+     * key — and half a composite key matches rows it should not, so the total
+     * comes back silently too large.
+     */
+    #[Test]
+    public function a_composite_key_is_rendered_as_a_single_join_with_and()
+    {
+        $prompt = $this->app->make(PromptBuilder::class)->buildSqlPrompt('rel_sales', 'revenue by region');
+
+        $related = array_values(array_filter(
+            explode("\n", $prompt),
+            fn ($l) => str_contains($l, 'RELATED:')
+        ));
+
+        $this->assertCount(1, $related, 'a two-column key must not produce two JOIN lines');
+        $this->assertStringContainsString(' AND ', $related[0]);
+        $this->assertStringContainsString('tenant_id = rel_sales.tenant_id', $related[0]);
+        $this->assertStringContainsString('region_code = rel_sales.region_code', $related[0]);
+        $this->assertStringContainsString('ALL conditions are required', $related[0]);
+    }
+
+    #[Test]
+    public function a_single_column_key_stays_a_plain_join()
+    {
+        $prompt = $this->app->make(PromptBuilder::class)->buildSqlPrompt('rel_orders', 'top customers');
+
+        $related = array_values(array_filter(
+            explode("\n", $prompt),
+            fn ($l) => str_contains($l, 'RELATED:')
+        ));
+
+        $this->assertCount(1, $related);
+        $this->assertStringNotContainsString(' AND ', $related[0]);
+    }
+
     #[Test]
     public function related_datasets_are_recognised_as_linked()
     {

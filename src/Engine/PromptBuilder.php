@@ -258,18 +258,8 @@ PROMPT;
         // Foreign keys, so a question whose answer spans tables can be joined
         // rather than answered with raw id values. Without this the model sees
         // `customer_id` as just another integer and groups by it.
-        foreach ($primary['relationships'] ?? [] as $rel) {
-            if (empty($rel['column']) || empty($rel['references_table'])) {
-                continue;
-            }
-
-            $refColumn = $rel['references_column'] ?? 'id';
-            $lines[] = sprintf(
-                '  RELATED: %s.%s references %s.%s — JOIN %s ON %s.%s = %s.%s to use its columns',
-                $tableName, $rel['column'], $rel['references_table'], $refColumn,
-                $rel['references_table'], $rel['references_table'], $refColumn,
-                $tableName, $rel['column']
-            );
+        foreach ($this->joinsFor($tableName, $primary['relationships'] ?? []) as $line) {
+            $lines[] = $line;
         }
 
         // Columns with full detail
@@ -333,6 +323,60 @@ PROMPT;
     /**
      * Build full schema info for ALL schemes — used in multi-scheme prompts.
      */
+    /**
+     * Render foreign keys as ready-to-use JOIN clauses.
+     *
+     * Grouped by constraint, because a composite key is ONE join with an AND,
+     * not several. Emitting a line per column invited two joins to the same
+     * table, or a join on half the key — and half a composite key matches rows
+     * it should not, producing a total that is silently too large.
+     *
+     * Hand-written relationships without a constraint name fall back to
+     * grouping by referenced table, which is right in every case except two
+     * separate single-column keys pointing at the same table.
+     *
+     * @param array<int, array<string, mixed>> $relationships
+     * @return string[]
+     */
+    protected function joinsFor(string $tableName, array $relationships): array
+    {
+        $byConstraint = [];
+
+        foreach ($relationships as $rel) {
+            if (empty($rel['column']) || empty($rel['references_table'])) {
+                continue;
+            }
+
+            $key = $rel['constraint'] ?? ('table:' . $rel['references_table']);
+            $byConstraint[$key]['table'] = $rel['references_table'];
+            $byConstraint[$key]['on'][] = sprintf(
+                '%s.%s = %s.%s',
+                $rel['references_table'],
+                $rel['references_column'] ?? 'id',
+                $tableName,
+                $rel['column']
+            );
+        }
+
+        $lines = [];
+
+        foreach ($byConstraint as $join) {
+            $conditions = implode(' AND ', $join['on']);
+            $note = count($join['on']) > 1
+                ? ' (composite key — ALL conditions are required)'
+                : '';
+
+            $lines[] = sprintf(
+                '  RELATED: JOIN %s ON %s%s — do this to use its columns',
+                $join['table'],
+                $conditions,
+                $note
+            );
+        }
+
+        return $lines;
+    }
+
     protected function buildAllSchemasFullInfo(): string
     {
         $sections = [];

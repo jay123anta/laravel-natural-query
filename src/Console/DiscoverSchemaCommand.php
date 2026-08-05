@@ -613,11 +613,19 @@ class DiscoverSchemaCommand extends Command
                 continue;
             }
 
-            $out[] = [
+            $entry = [
                 'column' => (string) $column,
                 'references_table' => (string) $table,
                 'references_column' => (string) $refColumn,
             ];
+
+            // Keep the constraint name so a composite key can be rendered as
+            // ONE join with AND rather than several joins to the same table.
+            if (!empty($rel['constraint_name'])) {
+                $entry['constraint'] = (string) $rel['constraint_name'];
+            }
+
+            $out[] = $entry;
         }
 
         return $out;
