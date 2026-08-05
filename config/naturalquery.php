@@ -395,6 +395,42 @@ return [
     ],
 
     // ==========================================================================
+    // CHAT / MULTI-STEP
+    // ==========================================================================
+    // Features for conversational front-ends: questions that need more than one
+    // query, and suggested follow-ups so a bot can offer the user somewhere to
+    // go next.
+    'chat' => [
+        // Answer questions that need several queries — "revenue this year vs
+        // last year" runs two and reports both plus the change.
+        //
+        // Costs ONE extra API call, and only for questions whose wording
+        // suggests a comparison ("vs", "compare", "difference between", "year
+        // on year"). An ordinary question never triggers planning and costs
+        // exactly what it costs with this turned off.
+        'multi_step' => env('NATURALQUERY_MULTI_STEP', true),
+
+        // Hard ceiling on steps per question. Each step is a real query and a
+        // real intent parse, so this bounds both latency and spend.
+        'max_steps' => 4,
+
+        // Suggested follow-up questions on every answer. Derived from your
+        // schema — no API call, no added latency — and they can only suggest
+        // breakdowns the validator would allow.
+        'suggest_next_steps' => true,
+        'max_next_steps' => 4,
+
+        // Whether a suggestion may name a value from the results, e.g.
+        // "Break West down by category" after West came top.
+        //
+        // These are built and returned locally like every other suggestion.
+        // Clicking one sends that question to the provider as the user's own
+        // query text — the same as typing it. Set false if you would rather no
+        // value from your data ever reach a prompt, even by the user's hand.
+        'suggest_drilldown_values' => true,
+    ],
+
+    // ==========================================================================
     // QUERY CACHE (Two-Tier)
     // ==========================================================================
     // Caches parsed intents to avoid repeated AI API calls for similar queries

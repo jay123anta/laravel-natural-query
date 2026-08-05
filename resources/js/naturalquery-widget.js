@@ -125,6 +125,15 @@
             + '.nq-clarify{margin-top:8px}'
             + '.nq-clarify-msg{font-size:.92rem;color:#374151;margin-bottom:10px}'
             + '.nq-options{display:flex;flex-wrap:wrap;gap:8px}'
+            + '.nq-steps{margin-top:12px;display:flex;flex-direction:column;gap:10px}'
+            + '.nq-step{border-left:3px solid color-mix(in srgb,var(--nq) 45%,white);padding:6px 0 6px 12px}'
+            + '.nq-step-q{font-size:.82rem;color:#6b7280;margin-bottom:4px}'
+            + '.nq-step-q b{color:var(--nq);font-weight:600}'
+            + '.nq-step-a{font-size:.9rem;color:#1f2937}'
+            + '.nq-step-failed{border-left-color:#fecaca}'
+            + '.nq-step-failed .nq-step-a{color:#b91c1c}'
+            + '.nq-next{margin-top:14px;padding-top:12px;border-top:1px solid #f1f3f5}'
+            + '.nq-next-label{font-size:.75rem;color:#9ca3af;margin-bottom:8px}'
             + '.nq-error{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:12px 14px;font-size:.9rem}'
             + '.nq-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid #f1f3f5;font-size:.75rem;color:#9ca3af;flex-wrap:wrap}'
             + '.nq-hidden{display:none!important}';
@@ -385,7 +394,13 @@
             card.appendChild(ans);
         }
 
-        var rows = data.rows || [];
+        // A decomposed question: show the working, not just the conclusion.
+        // A combined number nobody can trace is worth less than two they can.
+        if (data.type === 'multi_step' && (data.steps || []).length) {
+            this.renderSteps(card, data.steps);
+        }
+
+        var rows = data.type === 'multi_step' ? [] : (data.rows || []);
         var viz = data.visualization || 'table';
 
         if (viz === 'message' || rows.length === 0) {
@@ -411,6 +426,10 @@
             });
             if (count) card.appendChild(ins);
         }
+
+        // Somewhere to go next. The hardest part of a chat box is knowing what
+        // it can answer, and an empty prompt gives no clue.
+        this.renderNextSteps(card, data.next_steps || []);
 
         // Footer: provenance + timing. (No SQL here — server-side logs only.)
         var foot = h('div', 'nq-footer');
@@ -492,6 +511,55 @@
         });
         table.appendChild(tbody);
         wrap.appendChild(table);
+        card.appendChild(wrap);
+    };
+
+    /** One block per step, so a combined answer can be traced back. */
+    Widget.prototype.renderSteps = function (card, steps) {
+        var wrap = h('div', 'nq-steps');
+
+        steps.forEach(function (step) {
+            var failed = step.status !== 'success';
+            var el = h('div', 'nq-step' + (failed ? ' nq-step-failed' : ''));
+
+            var q = h('div', 'nq-step-q');
+            var n = h('b', null, 'Step ' + step.n + ': ');
+            q.appendChild(n);
+            q.appendChild(document.createTextNode(step.question || ''));
+            el.appendChild(q);
+
+            el.appendChild(h('div', 'nq-step-a', step.answer || (failed ? 'Could not be answered.' : '')));
+            wrap.appendChild(el);
+        });
+
+        card.appendChild(wrap);
+    };
+
+    /** Follow-up questions, as buttons that ask them. */
+    Widget.prototype.renderNextSteps = function (card, nextSteps) {
+        if (!nextSteps.length) return;
+
+        var self = this;
+        var wrap = h('div', 'nq-next');
+        wrap.appendChild(h('div', 'nq-next-label', 'Ask next'));
+
+        var opts = h('div', 'nq-options');
+
+        nextSteps.forEach(function (step) {
+            if (!step || !step.query) return;
+            var b = h('button', 'nq-btn nq-btn-ghost', step.label || step.query);
+            b.type = 'button';
+            b.title = step.query;
+            b.addEventListener('click', function () {
+                self.input.value = step.query;
+                self.submit();
+            });
+            opts.appendChild(b);
+        });
+
+        if (!opts.children.length) return;
+
+        wrap.appendChild(opts);
         card.appendChild(wrap);
     };
 

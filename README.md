@@ -700,6 +700,90 @@ producing SQL the validator then rejects.
 and fed back into later prompts as examples, so a join path you fix by hand
 becomes the one the model reuses. See [Feedback / Training](#feedback--training).
 
+## Chatbots: multi-step answers and follow-ups
+
+Two features exist for conversational front-ends. Both are on by default and
+both appear in the ordinary `/text` and `/conversation` responses - there is no
+separate endpoint to call.
+
+### Questions that need more than one query
+
+"Compare revenue this year with last year" is two queries and a subtraction.
+Answered as one it returns whichever half the model wrote SQL for, and drops
+the other silently. So a question like that is split, each part is answered
+independently, and the results are combined:
+
+```json
+{
+  "status": "success",
+  "type": "multi_step",
+  "answer": "Line revenue is 21,011,088 (revenue in 2026) versus 18,244,900 (revenue in 2025) — up 15.2%.",
+  "steps": [
+    { "n": 1, "question": "revenue in 2026", "status": "success",
+      "answer": "Total revenue: 21,011,088", "rows": [ ... ] },
+    { "n": 2, "question": "revenue in 2025", "status": "success",
+      "answer": "Total revenue: 18,244,900", "rows": [ ... ] }
+  ],
+  "comparison": { "change_pct": 15.2, "direction": "up",
+                  "first_value": 21011088, "second_value": 18244900 }
+}
+```
+
+Three things worth knowing:
+
+**Every step is a real query with every guard applied.** Each one is intent
+parsed, validated against the schema-derived table whitelist, and executed like
+a question typed on its own. Decomposition adds a planning call; it does not
+add a second route into your database.
+
+**Ordinary questions cost exactly what they cost today.** Planning only runs
+when the wording suggests a comparison - "vs", "compare", "difference between",
+"year on year". "Top 5 customers by revenue" never triggers it. A missed
+decomposition simply behaves as it did before; that is the safer direction to
+fail in.
+
+**The arithmetic is done in PHP, on values already fetched.** A percentage is
+never produced by asking a model to subtract two numbers, and never at all
+unless the two steps measure the same metric and each returned a single value.
+A ranking compared against a total yields `"comparison": null` rather than an
+invented figure.
+
+### Suggested follow-ups
+
+The hard part of asking your data questions in words is not phrasing one - it
+is knowing what can be asked at all. Every answer carries a few concrete next
+questions:
+
+```json
+"next_steps": [
+  { "label": "Break West down by product category",
+    "query": "revenue by product_category for West" },
+  { "label": "Show order counts by region", "query": "how many by region" },
+  { "label": "Bottom 5 instead",            "query": "bottom 5 regions by revenue" }
+]
+```
+
+These are derived from your schema, not from the model: no API call, no added
+latency, and they can only propose breakdowns the validator would accept. The
+bundled widget renders them as buttons; a custom chat UI can do the same.
+
+```php
+// config/naturalquery.php
+'chat' => [
+    'multi_step' => true,               // decompose comparison questions
+    'max_steps' => 4,                   // ceiling on queries per question
+    'suggest_next_steps' => true,
+    'max_next_steps' => 4,
+    'suggest_drilldown_values' => true, // may a suggestion name a value from the results?
+],
+```
+
+`suggest_drilldown_values` is the one worth a thought. "Break West down by
+category" contains a value read from your data. It is built and returned
+locally like every other suggestion, and clicking it sends that question as the
+user's own query text - the same as typing it. Set it to `false` if you would
+rather no value from your data ever reach a prompt, even by the user's hand.
+
 ## Multi-Turn Conversation
 
 ```php

@@ -51,6 +51,19 @@ class QueryOrchestrator
     protected InputGuard $inputGuard;
     protected QueryVerifier $verifier;
 
+    protected ?QueryPlanner $planner;
+    protected ?StepSynthesizer $synthesizer;
+    protected ?NextStepSuggester $suggester;
+
+    /**
+     * True while the steps of a decomposed question are being answered.
+     *
+     * Each step re-enters query(), and a step must never be decomposed again:
+     * "compare A and B" would plan into "A" and "B", and if "A" were planned in
+     * turn the recursion has no floor.
+     */
+    protected bool $inStepExecution = false;
+
     public function __construct(
         LlmProviderInterface $llmProvider,
         QueryCacheInterface $cache,
@@ -60,7 +73,10 @@ class QueryOrchestrator
         PromptBuilder $promptBuilder,
         ResponseFormatter $formatter,
         InputGuard $inputGuard,
-        QueryVerifier $verifier
+        QueryVerifier $verifier,
+        ?QueryPlanner $planner = null,
+        ?StepSynthesizer $synthesizer = null,
+        ?NextStepSuggester $suggester = null
     ) {
         $this->llmProvider = $llmProvider;
         $this->cache = $cache;
@@ -71,6 +87,13 @@ class QueryOrchestrator
         $this->formatter = $formatter;
         $this->inputGuard = $inputGuard;
         $this->verifier = $verifier;
+
+        // Optional so an orchestrator built by hand — in a test, or in code
+        // written against the previous constructor — keeps working, simply
+        // without chat features.
+        $this->planner = $planner;
+        $this->synthesizer = $synthesizer;
+        $this->suggester = $suggester;
     }
 
     /**
@@ -107,6 +130,20 @@ class QueryOrchestrator
                 if ($defaultScheme && $this->registry->has($defaultScheme)) {
                     $schemeHint = $defaultScheme;
                     $metadata['default_scheme_applied'] = true;
+                }
+            }
+
+            // A question about two things needs two queries. Gated by a local
+            // pattern check, so an ordinary question costs exactly what it
+            // costs today and takes exactly the path it takes today.
+            if (!$this->inStepExecution
+                && $this->planner
+                && $this->synthesizer
+                && $this->planner->looksMultiStep($naturalLanguageQuery)) {
+                $plan = $this->planner->plan($naturalLanguageQuery);
+
+                if ($plan['success']) {
+                    return $this->runSteps($naturalLanguageQuery, $plan, $schemeHint, $metadata, $startTime);
                 }
             }
 
@@ -268,6 +305,94 @@ class QueryOrchestrator
         $response = $this->validateAndExecute($queryResult, $intent['scheme'], $metadata);
 
         return $this->retryWithoutUnmatchedNameFilter($response, $intent, $metadata);
+    }
+
+    /**
+     * Answer each step of a decomposed question, then combine them.
+     *
+     * Every step goes back through query() unchanged, so each one is intent
+     * parsed, validated against the table whitelist and executed exactly like
+     * a question typed on its own. Decomposition adds a planning call; it does
+     * not add a second way into the database.
+     *
+     * A step that fails does not fail the whole answer — three of four numbers
+     * is more useful than none, provided the response says so, which it does.
+     */
+    protected function runSteps(
+        string $originalQuery,
+        array $plan,
+        ?string $schemeHint,
+        array $metadata,
+        float $startTime
+    ): array {
+        $steps = [];
+
+        $this->inStepExecution = true;
+
+        try {
+            foreach ($plan['steps'] as $i => $question) {
+                $result = $this->query($question, $schemeHint);
+                $succeeded = ($result['status'] ?? '') === 'success';
+
+                $steps[] = [
+                    'n' => $i + 1,
+                    'question' => $question,
+                    'status' => $succeeded ? 'success' : 'error',
+                    'answer' => $result['answer'] ?? ($result['error'] ?? null),
+                    'rows' => $result['rows'] ?? [],
+                    'metric' => $result['parsed_query']['metric'] ?? null,
+                    'group_by' => $result['parsed_query']['group_by'] ?? null,
+                    'insights' => $result['insights'] ?? null,
+                    'next_steps' => $result['next_steps'] ?? [],
+                ];
+            }
+        } finally {
+            // Restored even if a step throws, or the next ordinary question
+            // silently loses the ability to be decomposed.
+            $this->inStepExecution = false;
+        }
+
+        $synthesis = $this->synthesizer->synthesize($originalQuery, $steps, $plan['comparison'] ?? false);
+        $successful = array_values(array_filter($steps, fn ($s) => $s['status'] === 'success'));
+
+        $response = [
+            'status' => empty($successful) ? 'error' : 'success',
+            'type' => 'multi_step',
+            'answer' => $synthesis['answer'],
+            'steps' => $steps,
+            'comparison' => $synthesis['comparison'],
+            // Kept for clients that render a single result table: the last
+            // step's rows are the ones a follow-up would build on.
+            'rows' => empty($successful) ? [] : end($successful)['rows'],
+            'visualization' => 'steps',
+            'parsed_query' => [
+                'scheme' => $schemeHint,
+                'multi_step' => true,
+                'step_count' => count($steps),
+            ],
+            'metadata' => array_merge($metadata, [
+                'multi_step' => true,
+                'steps_planned' => count($plan['steps']),
+                'steps_succeeded' => count($successful),
+                'processing_time_ms' => round((microtime(true) - $startTime) * 1000, 2),
+            ]),
+        ];
+
+        // The conversation continues from where it ended, so the follow-ups
+        // offered are the last successful step's.
+        if (!empty($successful)) {
+            $last = end($successful);
+
+            if (!empty($last['next_steps'])) {
+                $response['next_steps'] = $last['next_steps'];
+            }
+        }
+
+        if (config('naturalquery.response.include_speech_text', true)) {
+            $response['speech_text'] = $synthesis['answer'];
+        }
+
+        return $response;
     }
 
     /**
@@ -693,6 +818,15 @@ class QueryOrchestrator
             'scheme_name' => $queryResult['scheme_name'] ?? null,
             'metric_unit' => $queryResult['metric_unit'] ?? null,
         ]);
+
+        // What to ask next. Derived from the schema, so it costs no API call.
+        if ($this->suggester) {
+            $nextSteps = $this->suggester->suggest($queryResult, $rows);
+
+            if ($nextSteps) {
+                $response['next_steps'] = $nextSteps;
+            }
+        }
 
         return $response;
     }

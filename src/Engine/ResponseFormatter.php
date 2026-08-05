@@ -13,6 +13,8 @@ namespace Jayanta\NaturalQuery\Engine;
  */
 class ResponseFormatter
 {
+    use \Jayanta\NaturalQuery\Engine\Concerns\HumanizesNames;
+
     /**
      * Format a complete query response.
      */
@@ -248,40 +250,10 @@ class ResponseFormatter
         ];
     }
 
-    /**
-     * Turn a column name into a plural noun for the answer sentence:
-     * region → regions, customer_name → customers, status → statuses.
-     */
+    /** @see HumanizesNames::humanizePlural() */
     protected function humanizeDimension(string $column): string
     {
-        $words = str_replace('_', ' ', trim($column));
-
-        // "customer_name" describes customers, not customer names.
-        $words = (string) preg_replace('/\s+(name|title|label)$/i', '', $words);
-
-        if ($words === '') {
-            return 'entries';
-        }
-
-        return $this->pluralize($words);
-    }
-
-    protected function pluralize(string $phrase): string
-    {
-        $parts = explode(' ', $phrase);
-        $last = array_pop($parts);
-
-        if (preg_match('/(s|x|z|ch|sh)$/i', $last)) {
-            $last .= 'es';
-        } elseif (preg_match('/[^aeiou]y$/i', $last)) {
-            $last = substr($last, 0, -1) . 'ies';
-        } elseif (!preg_match('/s$/i', $last)) {
-            $last .= 's';
-        }
-
-        $parts[] = $last;
-
-        return implode(' ', $parts);
+        return $this->humanizePlural($column);
     }
 
     /**
