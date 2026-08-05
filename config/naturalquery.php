@@ -176,9 +176,9 @@ return [
     // Longer phrases are checked first for best matching.
     //
     // Example:
-    //   'toilet' => 'sbmu',           // any toilet query → SBMU
-    //   'housing' => 'pmayg',         // housing → PMAY-G
-    //   'pending applications' => 'basundhara_rtps',
+    //   'ticket' => 'support_tickets',      // any helpdesk wording → tickets
+    //   'churn' => 'subscriptions',
+    //   'abandoned cart' => 'carts',        // longer phrases win over 'cart'
     'query_routing' => [
         // 'keyword' => 'schema_key',
     ],
@@ -192,8 +192,8 @@ return [
     // Per-schema examples go in the schema config files.
     // Global examples go here — for routing/disambiguation.
     'global_examples' => [
-        // ['natural' => 'Compare housing and land services', 'note' => 'Use pmayg for housing, basundhara_rtps for land services'],
-        // ['natural' => 'Show overall status of all schemes', 'note' => 'Query each schema separately and combine results'],
+        // ['natural' => 'Compare support load and revenue', 'note' => 'Use support_tickets for load, orders for revenue'],
+        // ['natural' => 'Show overall status of everything', 'note' => 'Query each schema separately and combine results'],
     ],
 
     // ==========================================================================
@@ -302,7 +302,8 @@ return [
 
         // Global maximum limit. Set to null for no global cap.
         // Individual schemas can override this with their own max_limit.
-        // Example: 35 for Assam districts, 500 for products, null for unlimited
+        // Example: 500 for a product catalogue, 50 for a dashboard, null for
+        // unlimited. A cap keeps "list everything" from returning 200k rows.
         'max_limit' => null,
 
         // SQL keywords that are NEVER allowed in generated queries
@@ -394,8 +395,21 @@ return [
         // Cache TTL in seconds (default: 24 hours)
         'ttl' => env('NATURALQUERY_CACHE_TTL', 86400),
 
-        // Fuzzy match threshold (0.0 to 1.0)
-        // Higher = more strict matching, lower = more lenient
+        // Fuzzy match threshold (0.0 to 1.0) for reusing a cached intent.
+        //
+        // This is a LEXICAL comparison — shared words and edit distance. It
+        // catches re-runs and near-identical wording ("top 5 customers" vs
+        // "top five customers"), which is what it is for. It does NOT
+        // understand meaning, so genuine paraphrases mostly miss the cache and
+        // cost an API call.
+        //
+        // Do not lower this to try to catch paraphrases. Measured on this
+        // implementation, "top 10 customers by revenue" and "bottom 10
+        // customers by revenue" score 0.65 — higher than most real
+        // paraphrases. Any threshold low enough to catch the paraphrases is
+        // also low enough to answer a question with its opposite, from cache,
+        // with no API call to correct it. Raise it if you want fewer reuses;
+        // set cache.enabled to false if you want none.
         'similarity_threshold' => env('NATURALQUERY_CACHE_SIMILARITY', 0.85),
 
         // Tier 1 cache store (null = auto-detect from config/cache.php)
@@ -423,7 +437,7 @@ return [
     // ==========================================================================
     // MULTI-TURN CONVERSATION
     // ==========================================================================
-    // Enables follow-up queries: "show basundhara pending" → "now filter by Kamrup"
+    // Enables follow-up queries: "top 5 customers by revenue" → "now just Europe"
     'conversation' => [
         'enabled' => env('NATURALQUERY_CONVERSATION_ENABLED', true),
         // How long conversation context is remembered (seconds)

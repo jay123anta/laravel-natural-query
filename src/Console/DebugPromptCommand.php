@@ -3,8 +3,8 @@
 namespace Jayanta\NaturalQuery\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Engine\PromptBuilder;
-use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
@@ -16,7 +16,7 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
  *
  * Usage:
  *   php artisan naturalquery:debug "your query here"
- *   php artisan naturalquery:debug "your query" --scheme=sbmu
+ *   php artisan naturalquery:debug "your query" --scheme=orders
  *   php artisan naturalquery:debug "your query" --execute
  */
 class DebugPromptCommand extends Command
@@ -32,8 +32,7 @@ class DebugPromptCommand extends Command
     public function handle(
         PromptBuilder $promptBuilder,
         SchemaRegistry $registry,
-        LlmProviderInterface $llm,
-        QueryOrchestrator $orchestrator
+        LlmProviderInterface $llm
     ): int {
         $query = $this->argument('query');
         $scheme = $this->option('scheme');
@@ -128,8 +127,8 @@ class DebugPromptCommand extends Command
 
                     try {
                         $rows = $connection
-                            ? \DB::connection($connection)->select($data['sql'])
-                            : \DB::select($data['sql']);
+                            ? DB::connection($connection)->select($data['sql'])
+                            : DB::select($data['sql']);
 
                         $this->info("Results: " . count($rows) . " rows");
                         foreach (array_slice($rows, 0, 5) as $row) {
