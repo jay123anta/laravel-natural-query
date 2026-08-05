@@ -167,6 +167,58 @@ class SchemaRegistry
      * measure, else simply the first column. Any of those produce valid SQL on
      * any table.
      */
+    /**
+     * Resolve a dimension the user asked to break results down by.
+     *
+     * "revenue by region" must group by region, not by whatever the schema
+     * nominates as its default group_column. Only columns the schema marks
+     * `groupable` qualify — grouping by a measure produces one row per distinct
+     * amount, which is noise, and grouping by an unlisted column is how a typo
+     * or a hallucinated name would reach the database.
+     *
+     * Returns null when the request cannot be honoured, so the caller can say
+     * so rather than quietly answering a different question.
+     */
+    public function resolveGroupColumn(string $key, ?string $userDimension): ?string
+    {
+        if (!$userDimension) {
+            return null;
+        }
+
+        $wanted = strtolower(trim($userDimension));
+        $columns = $this->get($key)['tables']['primary']['columns'] ?? [];
+
+        foreach ($columns as $name => $column) {
+            if (empty($column['groupable'])) {
+                continue;
+            }
+
+            if (strtolower($name) === $wanted) {
+                return $name;
+            }
+
+            foreach ($column['aliases'] ?? [] as $alias) {
+                if (strtolower($alias) === $wanted) {
+                    return $name;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Columns the schema allows grouping by, for error messages and prompts.
+     *
+     * @return array<int, string>
+     */
+    public function getGroupableColumns(string $key): array
+    {
+        $columns = $this->get($key)['tables']['primary']['columns'] ?? [];
+
+        return array_keys(array_filter($columns, fn ($c) => !empty($c['groupable'])));
+    }
+
     public function getGroupColumn(string $key): string
     {
         $primary = $this->get($key)['tables']['primary'] ?? [];
@@ -328,6 +380,12 @@ class SchemaRegistry
                 'name' => $schema['name'] ?? $key,
                 'aliases' => $schema['aliases'] ?? [],
                 'metrics' => $allMetrics,
+                // Without these, intent mode cannot answer "revenue by region":
+                // the model has no way to know region is a column it may group
+                // by, so the breakdown is dropped and the default grouping is
+                // returned as though it had been asked for.
+                'dimensions' => $this->getGroupableColumns($key),
+                'default_dimension' => $this->getGroupColumn($key),
                 'description' => $schema['description'] ?? '',
             ];
         }

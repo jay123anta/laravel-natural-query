@@ -464,6 +464,39 @@ abstract class AbstractProvider
      *                         preserved so callers can react to e.g. 429
      *                         (rate limit) without string-matching messages
      */
+    /**
+     * Render the dataset list for an intent-parsing prompt.
+     *
+     * Shared by every provider so the intent contract is described one way.
+     * `dimensions` matters as much as `metrics`: without it the model cannot
+     * know that "by region" is a breakdown this dataset supports, and the
+     * request is silently answered with the default grouping instead.
+     */
+    protected function buildSchemeInfo(array $schemeList): string
+    {
+        $lines = [];
+
+        foreach ($schemeList as $scheme) {
+            $aliases = implode(', ', array_slice($scheme['aliases'] ?? [], 0, 3));
+            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
+            $dimensions = implode(', ', $scheme['dimensions'] ?? []);
+
+            $line = "- {$scheme['key']} ({$scheme['name']}): aliases=[{$aliases}], metrics=[{$metrics}]";
+
+            if ($dimensions !== '') {
+                $line .= ", group_by=[{$dimensions}]";
+            }
+
+            if (!empty($scheme['default_dimension'])) {
+                $line .= ", default group_by={$scheme['default_dimension']}";
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
     protected function errorResponse(string $message, ?int $status = null): array
     {
         $response = [
@@ -474,6 +507,7 @@ abstract class AbstractProvider
             'limit' => 10,
             'order' => 'desc',
             'group_value' => null,
+            'group_by' => null,
             'confidence' => 0.0,
             'needs_clarification' => true,
             'clarification_type' => 'error',

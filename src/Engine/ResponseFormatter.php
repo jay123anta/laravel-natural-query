@@ -31,6 +31,10 @@ class ResponseFormatter
                 'scheme' => $queryResult['scheme'],
                 'metric' => $queryResult['metric'],
                 'group_value' => $queryResult['group_value'] ?? null,
+                // The dimension the rows are actually broken down by. Exposed
+                // so "revenue by region" answered as a customer ranking is
+                // visible in the response instead of only in the row labels.
+                'group_by' => $queryResult['group_column'] ?? null,
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',
@@ -233,10 +237,51 @@ class ResponseFormatter
         $topNames = array_map(fn ($r) => $this->labelFor((array) $r, $groupColumn, $metric), $topRows);
         $topList = implode(', ', $topNames);
 
+        // Naming the dimension is what tells the reader which question was
+        // answered. "Top 5 by revenue: West, Central" reads the same whether
+        // the rows are regions or customers.
+        $noun = $this->humanizeDimension($groupColumn);
+
         return [
-            'display' => "Top {$count} by {$metricDesc} ({$direction}): {$topList}" . ($count > 3 ? '...' : ''),
-            'speech' => "Here are the {$count} entries with the {$direction} {$metricDesc} in {$schemeName}. Top entries are {$topList}.",
+            'display' => "Top {$count} {$noun} by {$metricDesc} ({$direction}): {$topList}" . ($count > 3 ? '...' : ''),
+            'speech' => "Here are the {$count} {$noun} with the {$direction} {$metricDesc} in {$schemeName}. Top entries are {$topList}.",
         ];
+    }
+
+    /**
+     * Turn a column name into a plural noun for the answer sentence:
+     * region → regions, customer_name → customers, status → statuses.
+     */
+    protected function humanizeDimension(string $column): string
+    {
+        $words = str_replace('_', ' ', trim($column));
+
+        // "customer_name" describes customers, not customer names.
+        $words = (string) preg_replace('/\s+(name|title|label)$/i', '', $words);
+
+        if ($words === '') {
+            return 'entries';
+        }
+
+        return $this->pluralize($words);
+    }
+
+    protected function pluralize(string $phrase): string
+    {
+        $parts = explode(' ', $phrase);
+        $last = array_pop($parts);
+
+        if (preg_match('/(s|x|z|ch|sh)$/i', $last)) {
+            $last .= 'es';
+        } elseif (preg_match('/[^aeiou]y$/i', $last)) {
+            $last = substr($last, 0, -1) . 'ies';
+        } elseif (!preg_match('/s$/i', $last)) {
+            $last .= 's';
+        }
+
+        $parts[] = $last;
+
+        return implode(' ', $parts);
     }
 
     /**

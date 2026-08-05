@@ -63,7 +63,9 @@ Parse this query: "{$text}"
 DATASETS:
 {$schemeInfo}
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
+
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -132,16 +134,6 @@ PROMPT;
         return false;
     }
 
-    protected function buildSchemeInfo(array $schemeList): string
-    {
-        $lines = [];
-        foreach ($schemeList as $scheme) {
-            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
-            $lines[] = "- {$scheme['key']} ({$scheme['name']}): metrics=[{$metrics}]";
-        }
-        return implode("\n", $lines);
-    }
-
     protected function normalizeIntent(array $parsed, array $schemeList): array
     {
         $scheme = $parsed['scheme'] ?? null;
@@ -161,6 +153,7 @@ PROMPT;
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
+            'group_by' => $parsed['group_by'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

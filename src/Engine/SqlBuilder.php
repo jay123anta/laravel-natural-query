@@ -47,7 +47,25 @@ class SqlBuilder
                 return $this->errorResponse("No table configured for scheme: {$schemeKey}");
             }
 
-            $groupColumn = $this->registry->getGroupColumn($schemeKey);
+            // "revenue by region" asks for a different breakdown than the
+            // schema's default. Without this the dimension was dropped and the
+            // answer came back grouped by group_column — correctly formatted,
+            // confidently worded, and about a question nobody asked.
+            $requestedDimension = $intent['group_by'] ?? null;
+            $groupColumn = $requestedDimension
+                ? $this->registry->resolveGroupColumn($schemeKey, $requestedDimension)
+                : $this->registry->getGroupColumn($schemeKey);
+
+            if ($requestedDimension && !$groupColumn) {
+                $groupable = $this->registry->getGroupableColumns($schemeKey);
+
+                return $this->errorResponse(
+                    "Cannot group by '{$requestedDimension}'."
+                    . ($groupable
+                        ? ' Available breakdowns: ' . implode(', ', $groupable) . '.'
+                        : ' This dataset has no columns marked groupable.')
+                );
+            }
 
             // Resolve metric
             $metric = $this->registry->resolveMetric($schemeKey, $intent['metric'] ?? null);
@@ -82,12 +100,17 @@ class SqlBuilder
             $joinClause = $schema['tables']['primary']['required_join'] ?? null;
             $selectOverride = $schema['tables']['primary']['select_override'] ?? null;
 
-            // If JOIN is needed, the group column reference comes from the joined table
+            // If JOIN is needed, the group column reference comes from the
+            // joined table. select_override maps the schema's DEFAULT group
+            // column through that join, so it must not be applied when the user
+            // asked to group by something else — doing so would label region
+            // totals with district names.
             $fromClause = $tableName . ($joinClause ? ' ' . $joinClause : '');
-            $groupColumnSelect = $selectOverride
+            $useOverride = $selectOverride && !$requestedDimension;
+            $groupColumnSelect = $useOverride
                 ? "{$selectOverride} AS {$groupColumn}"
                 : $groupColumn;
-            $groupColumnRef = $selectOverride ?? $groupColumn;
+            $groupColumnRef = $useOverride ? $selectOverride : $groupColumn;
 
             // Transactional tables (many rows per group value, e.g. one row per
             // order) need GROUP BY + SUM; pre-aggregated tables (one row per

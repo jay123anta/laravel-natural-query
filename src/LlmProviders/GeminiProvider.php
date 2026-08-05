@@ -210,22 +210,6 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
     }
 
     /**
-     * Build scheme info string for prompts.
-     */
-    protected function buildSchemeInfo(array $schemeList): string
-    {
-        $lines = [];
-        foreach ($schemeList as $scheme) {
-            $key = $scheme['key'];
-            $name = $scheme['name'];
-            $aliases = implode(', ', array_slice($scheme['aliases'] ?? [], 0, 3));
-            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
-            $lines[] = "- {$key} ({$name}): aliases=[{$aliases}], metrics=[{$metrics}]";
-        }
-        return implode("\n", $lines);
-    }
-
-    /**
      * Build the intent parsing prompt for text input.
      */
     protected function buildIntentPrompt(string $queryText, string $schemeInfo): string
@@ -242,12 +226,14 @@ TASK: Extract:
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-6. confidence: Your confidence 0.0 to 1.0
+6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
+7. confidence: Your confidence 0.0 to 1.0
 
 IMPORTANT RULES:
 - Match the user's query to the correct dataset key
 - If dataset is unclear, set needs_clarification=true and clarification_type="scheme"
 - If metric is unclear for identified dataset, set needs_clarification=true and clarification_type="metric"
+- If the user asks to break results down by something that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous". Never silently fall back to the default breakdown.
 
 RETURN FORMAT (JSON only, no markdown):
 {
@@ -256,6 +242,7 @@ RETURN FORMAT (JSON only, no markdown):
     "limit": 10,
     "order": "desc",
     "group_value": null,
+    "group_by": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -282,7 +269,8 @@ TASK: Extract from the audio:
 3. limit: Number of results requested (default 10)
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-6. confidence: Your confidence 0.0 to 1.0
+6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
+7. confidence: Your confidence 0.0 to 1.0
 
 RETURN FORMAT (JSON only, no markdown):
 {
@@ -292,6 +280,7 @@ RETURN FORMAT (JSON only, no markdown):
     "limit": 10,
     "order": "desc",
     "group_value": null,
+    "group_by": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -335,6 +324,7 @@ PROMPT;
             'limit' => $limit,
             'order' => $order,
             'group_value' => $parsed['group_value'] ?? null,
+            'group_by' => $parsed['group_by'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

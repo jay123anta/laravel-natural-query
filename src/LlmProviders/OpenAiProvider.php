@@ -104,10 +104,14 @@ Parse this natural language query about datasets: "{$text}"
 AVAILABLE DATASETS:
 {$schemeInfo}
 
-Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), confidence (0.0-1.0).
-If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
+Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), group_by (or null), confidence (0.0-1.0).
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
+
+If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
+If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
+
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -199,17 +203,6 @@ PROMPT;
         return false;
     }
 
-    protected function buildSchemeInfo(array $schemeList): string
-    {
-        $lines = [];
-        foreach ($schemeList as $scheme) {
-            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
-            $aliases = implode(', ', array_slice($scheme['aliases'] ?? [], 0, 3));
-            $lines[] = "- {$scheme['key']} ({$scheme['name']}): aliases=[{$aliases}], metrics=[{$metrics}]";
-        }
-        return implode("\n", $lines);
-    }
-
     protected function normalizeIntent(array $parsed, array $schemeList): array
     {
         $scheme = $parsed['scheme'] ?? null;
@@ -229,6 +222,7 @@ PROMPT;
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
+            'group_by' => $parsed['group_by'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

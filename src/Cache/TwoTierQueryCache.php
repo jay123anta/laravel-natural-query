@@ -291,9 +291,20 @@ class TwoTierQueryCache implements QueryCacheInterface
         return implode(' ', $words);
     }
 
+    /**
+     * Version of the parsed-intent contract these entries were built against.
+     *
+     * Bump whenever a field is added to or reinterpreted in the intent, so an
+     * upgrade misses the old rows instead of serving them. Intents cached
+     * before `group_by` existed answer "revenue by region" with the default
+     * grouping; without this they would keep doing so until the TTL expired,
+     * and the upgrade would look like it had changed nothing.
+     */
+    protected const INTENT_CONTRACT_VERSION = 2;
+
     protected function generateHash(string $normalizedQuery): string
     {
-        return hash('sha256', $normalizedQuery);
+        return hash('sha256', static::INTENT_CONTRACT_VERSION . '|' . $normalizedQuery);
     }
 
     protected function getCacheStore()
