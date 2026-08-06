@@ -306,6 +306,21 @@ return [
         // unlimited. A cap keeps "list everything" from returning 200k rows.
         'max_limit' => null,
 
+        // In 'auto' query mode, send a question straight to SQL generation when
+        // its wording needs SQL the intent contract cannot express — a HAVING
+        // ("customers with more than 10 orders"), a numeric filter ("orders
+        // over 5000"), an exclusion ("excluding cancelled"), a ratio, a
+        // DISTINCT, or a per-group top-N.
+        //
+        // Intent mode does not FAIL on these — it answers a narrower question
+        // and says nothing about the part it dropped, which is the most
+        // dangerous thing this package can do. Escalating costs nothing: intent
+        // parsing and SQL generation are one API call each.
+        //
+        // Only affects 'auto'. An explicit query_mode of 'intent' is honoured
+        // as written.
+        'escalate_beyond_intent' => true,
+
         // Every dataset gets an implicit "record_count" metric (COUNT(*)), so
         // "how many orders by status" can be answered by counting rows rather
         // than by falling through to whichever measure is default and

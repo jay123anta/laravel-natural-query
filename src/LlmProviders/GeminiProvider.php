@@ -214,6 +214,8 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
      */
     protected function buildIntentPrompt(string $queryText, string $schemeInfo): string
     {
+        $today = $this->today();
+
         return <<<PROMPT
 Parse this natural language query about datasets: "{$queryText}"
 
@@ -227,7 +229,13 @@ TASK: Extract:
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
 6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-7. confidence: Your confidence 0.0 to 1.0
+7. date_from / date_to: If the user named a period — "last month", "in 2025",
+   "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
+   form, using TODAY'S DATE below. Both null when no period is mentioned.
+   Never guess a period the user did not ask for.
+8. confidence: Your confidence 0.0 to 1.0
+
+TODAY'S DATE: {$today}
 
 IMPORTANT RULES:
 - Match the user's query to the correct dataset key
@@ -243,6 +251,8 @@ RETURN FORMAT (JSON only, no markdown):
     "order": "desc",
     "group_value": null,
     "group_by": null,
+    "date_from": null,
+    "date_to": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -257,6 +267,8 @@ PROMPT;
      */
     protected function buildVoicePrompt(string $schemeInfo): string
     {
+        $today = $this->today();
+
         return <<<PROMPT
 Listen to the audio query about datasets. Extract the user's intent and return ONLY valid JSON.
 
@@ -270,7 +282,13 @@ TASK: Extract from the audio:
 4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
 6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-7. confidence: Your confidence 0.0 to 1.0
+7. date_from / date_to: If the user named a period — "last month", "in 2025",
+   "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
+   form, using TODAY'S DATE below. Both null when no period is mentioned.
+   Never guess a period the user did not ask for.
+8. confidence: Your confidence 0.0 to 1.0
+
+TODAY'S DATE: {$today}
 
 RETURN FORMAT (JSON only, no markdown):
 {
@@ -281,6 +299,8 @@ RETURN FORMAT (JSON only, no markdown):
     "order": "desc",
     "group_value": null,
     "group_by": null,
+    "date_from": null,
+    "date_to": null,
     "confidence": 0.85,
     "needs_clarification": false,
     "clarification_type": null
@@ -325,6 +345,8 @@ PROMPT;
             'order' => $order,
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'date_from' => $parsed['date_from'] ?? null,
+            'date_to' => $parsed['date_to'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

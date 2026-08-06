@@ -128,15 +128,27 @@ class SqlBuilder
                 }
             }
 
+            // "Revenue last month" narrows on a date. Without this the filter
+            // had nowhere to live in the intent, was dropped, and the answer
+            // came back covering all time — correctly totalled, confidently
+            // worded, and about a period nobody asked for.
+            $time = $this->resolveTimeFilter($schemeKey, $intent);
+
+            if (isset($time['error'])) {
+                return $this->errorResponse($time['error']);
+            }
+
             // Determine query type and build SQL
             $bindings = [];
             if ($groupValue) {
-                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey);
+                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'group_detail';
             } else {
-                $sql = $this->buildRankingQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $order, $limit, $aggregate);
+                $result = $this->buildRankingQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $order, $limit, $aggregate, $time);
+                $sql = $result['sql'];
+                $bindings = $result['bindings'];
                 $queryType = 'ranking';
             }
 
@@ -161,6 +173,8 @@ class SqlBuilder
                 'order' => $order,
                 'query_type' => $queryType,
                 'group_column' => $groupColumn,
+                'time_filter' => $time['label'] ?? null,
+                'time_column' => $time['column'] ?? null,
             ];
 
         } catch (\Exception $e) {
@@ -190,11 +204,118 @@ class SqlBuilder
         string $metricAlias,
         string $order,
         int $limit,
-        bool $aggregate = false
-    ): string {
+        bool $aggregate = false,
+        array $time = []
+    ): array {
         $groupBy = $aggregate ? " GROUP BY {$groupColumnRef}" : '';
+        $where = !empty($time['clause']) ? " WHERE {$time['clause']}" : '';
 
-        return "SELECT {$groupColumnSelect}, {$metricExpr} AS {$metricAlias} FROM {$fromClause}{$groupBy} ORDER BY {$metricExpr} {$order} LIMIT {$limit}";
+        return [
+            'sql' => "SELECT {$groupColumnSelect}, {$metricExpr} AS {$metricAlias} FROM {$fromClause}{$where}{$groupBy} ORDER BY {$metricExpr} {$order} LIMIT {$limit}",
+            'bindings' => $time['bindings'] ?? [],
+        ];
+    }
+
+    /**
+     * Turn a requested period into a bound WHERE fragment.
+     *
+     * Dates arrive from a model, so they are checked against a strict ISO
+     * pattern AND passed as bindings — the pattern keeps a malformed value from
+     * reaching the database at all, the bindings mean nothing is interpolated
+     * even if the pattern were ever loosened.
+     *
+     * A period asked for on a table with no date column is refused. Answering
+     * over all time instead is exactly the silent substitution this exists to
+     * stop.
+     *
+     * @return array{clause?: string, bindings?: array, label?: string, column?: string, error?: string}
+     */
+    protected function resolveTimeFilter(string $schemeKey, array $intent): array
+    {
+        $requestedFrom = $intent['date_from'] ?? null;
+        $requestedTo = $intent['date_to'] ?? null;
+
+        $from = $this->sanitizeDate($requestedFrom);
+        $to = $this->sanitizeDate($requestedTo);
+
+        // Rejection is checked BEFORE "no period requested". A period that was
+        // asked for but could not be parsed must be refused, not quietly
+        // treated as absent — treating it as absent answers over all time,
+        // which is the exact bug this exists to prevent.
+        if ($this->wasRequested($requestedFrom) && $from === null) {
+            return ['error' => 'Could not understand the start of that period.'];
+        }
+
+        if ($this->wasRequested($requestedTo) && $to === null) {
+            return ['error' => 'Could not understand the end of that period.'];
+        }
+
+        if ($from === null && $to === null) {
+            return [];
+        }
+
+        $column = $this->registry->getDateColumn($schemeKey);
+
+        if (!$column) {
+            return ['error' => 'This dataset has no date column, so it cannot be narrowed to a period.'];
+        }
+
+        if ($from !== null && $to !== null && $from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $conditions = [];
+        $bindings = [];
+
+        if ($from !== null) {
+            $conditions[] = "{$column} >= ?";
+            $bindings[] = $from;
+        }
+
+        if ($to !== null) {
+            $conditions[] = "{$column} <= ?";
+            $bindings[] = $to;
+        }
+
+        return [
+            'clause' => implode(' AND ', $conditions),
+            'bindings' => $bindings,
+            'column' => $column,
+            'label' => $this->describePeriod($from, $to),
+        ];
+    }
+
+    /** Did the caller actually ask for this bound? */
+    protected function wasRequested(mixed $value): bool
+    {
+        return $value !== null && trim((string) $value) !== '';
+    }
+
+    /** Only a plain ISO date is ever accepted. */
+    protected function sanitizeDate(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        [$y, $m, $d] = array_map('intval', explode('-', $value));
+
+        return checkdate($m, $d, $y) ? $value : null;
+    }
+
+    protected function describePeriod(?string $from, ?string $to): string
+    {
+        if ($from !== null && $to !== null) {
+            return "{$from} to {$to}";
+        }
+
+        return $from !== null ? "from {$from}" : "up to {$to}";
     }
 
     /**
@@ -215,7 +336,8 @@ class SqlBuilder
         string $metricExpr,
         string $metricAlias,
         string $groupValue,
-        string $schemeKey
+        string $schemeKey,
+        array $time = []
     ): array {
         // Transactional tables need per-group aggregation for the detail view
         // too — otherwise "revenue for <customer>" returns one arbitrary row.
@@ -260,8 +382,19 @@ class SqlBuilder
         // also supports — every named-record lookup failed there. The LOWER()
         // form is ANSI and behaves identically on all of them. It does forgo
         // an index, but this query is a single-record lookup with LIMIT 1.
-        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE LOWER({$groupColumnRef}) = LOWER(?) OR LOWER({$groupColumnRef}) LIKE LOWER(?) ESCAPE '!'{$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
-        $bindings = [$groupValue, '%' . $this->escapeLikeValue($groupValue) . '%', $groupValue];
+        // The name match is parenthesised before AND-ing the period on, or the
+        // OR inside it would swallow the date and "revenue for West last month"
+        // would quietly cover all time again.
+        $nameMatch = "(LOWER({$groupColumnRef}) = LOWER(?) OR LOWER({$groupColumnRef}) LIKE LOWER(?) ESCAPE '!')";
+        $bindings = [$groupValue, '%' . $this->escapeLikeValue($groupValue) . '%'];
+
+        if (!empty($time['clause'])) {
+            $nameMatch .= " AND {$time['clause']}";
+            $bindings = array_merge($bindings, $time['bindings'] ?? []);
+        }
+
+        $sql = "SELECT {$columnsStr} FROM {$fromClause} WHERE {$nameMatch}{$groupBy} ORDER BY CASE WHEN LOWER({$groupColumnRef}) = LOWER(?) THEN 0 ELSE 1 END LIMIT 1";
+        $bindings[] = $groupValue;
 
         return ['sql' => $sql, 'bindings' => $bindings];
     }

@@ -465,6 +465,18 @@ abstract class AbstractProvider
      *                         (rate limit) without string-matching messages
      */
     /**
+     * Today, for resolving relative periods.
+     *
+     * A model has no reliable idea what day it is, so "last month" cannot be
+     * turned into dates without being told. Sent on every intent prompt: it is
+     * a date, not data.
+     */
+    protected function today(): string
+    {
+        return date('Y-m-d');
+    }
+
+    /**
      * Render the dataset list for an intent-parsing prompt.
      *
      * Shared by every provider so the intent contract is described one way.
@@ -508,6 +520,8 @@ abstract class AbstractProvider
             'order' => 'desc',
             'group_value' => null,
             'group_by' => null,
+            'date_from' => null,
+            'date_to' => null,
             'confidence' => 0.0,
             'needs_clarification' => true,
             'clarification_type' => 'error',

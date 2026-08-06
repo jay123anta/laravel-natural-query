@@ -54,6 +54,7 @@ class QueryOrchestrator
     protected ?QueryPlanner $planner;
     protected ?StepSynthesizer $synthesizer;
     protected ?NextStepSuggester $suggester;
+    protected ?IntentCoverage $coverage;
 
     /**
      * True while the steps of a decomposed question are being answered.
@@ -76,7 +77,8 @@ class QueryOrchestrator
         QueryVerifier $verifier,
         ?QueryPlanner $planner = null,
         ?StepSynthesizer $synthesizer = null,
-        ?NextStepSuggester $suggester = null
+        ?NextStepSuggester $suggester = null,
+        ?IntentCoverage $coverage = null
     ) {
         $this->llmProvider = $llmProvider;
         $this->cache = $cache;
@@ -94,6 +96,7 @@ class QueryOrchestrator
         $this->planner = $planner;
         $this->synthesizer = $synthesizer;
         $this->suggester = $suggester;
+        $this->coverage = $coverage;
     }
 
     /**
@@ -162,14 +165,32 @@ class QueryOrchestrator
             } elseif ($queryMode === 'intent') {
                 $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
             } else {
-                // AUTO mode: try intent first, fall back to SQL generation
-                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                // AUTO mode: intent first — unless the question plainly needs
+                // SQL the intent contract cannot express.
+                //
+                // Falling back on ERROR is not enough, and that was the whole
+                // problem: intent mode did not fail on these questions, it
+                // succeeded at a narrower one. "Customers with more than 10
+                // orders" quietly became "customers", ranked. Deciding up front
+                // costs nothing — both modes are a single API call.
+                $beyond = $this->coverage ? $this->coverage->exceeds($naturalLanguageQuery) : null;
 
-                // If intent mode returned an error (not clarification), try SQL generation
-                if (($result['status'] ?? '') === 'error' && ($result['_fallback_eligible'] ?? false)) {
-                    Log::info('[NaturalQuery] Auto mode: intent failed, falling back to sql_generation');
+                if ($beyond) {
+                    Log::info('[NaturalQuery] Question needs SQL beyond the intent contract', [
+                        'component' => $beyond,
+                    ]);
                     $metadata['query_mode'] = 'auto→sql_generation';
+                    $metadata['escalated_for'] = $beyond;
                     $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                } else {
+                    $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+
+                    // If intent mode returned an error (not clarification), try SQL generation
+                    if (($result['status'] ?? '') === 'error' && ($result['_fallback_eligible'] ?? false)) {
+                        Log::info('[NaturalQuery] Auto mode: intent failed, falling back to sql_generation');
+                        $metadata['query_mode'] = 'auto→sql_generation';
+                        $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                    }
                 }
             }
 

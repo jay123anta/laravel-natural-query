@@ -536,6 +536,57 @@ customers is not counting rows:
 Set `sql.implicit_count_metric` to `false` in the config to remove the built-in
 entirely.
 
+### Time periods
+
+Declare which column a period applies to. A table often has several dates -
+`order_date`, `shipped_at`, `created_at` - and they answer different questions,
+so the choice is yours rather than a guess from the wording:
+
+```php
+'tables' => [
+    'primary' => [
+        'name' => 'orders',
+        'date_column' => 'order_date',   // falls back to the first date column
+        'columns' => [ ... ],
+    ],
+],
+```
+
+"Revenue last month", "orders in 2025", "sales since April" then narrow
+properly. The model resolves the wording to actual dates (it is told today's
+date, since it has no reliable idea what day it is); those dates are checked
+against a strict `YYYY-MM-DD` pattern and passed as bound parameters. A period
+that cannot be parsed, or one asked for on a dataset with no date column, is
+refused - answering over all time instead would be a confidently wrong number.
+
+### Beyond the intent contract
+
+Intent mode expresses a deliberate subset of SQL: one measure, one breakdown,
+one name filter, one period, an order and a limit. That covers most questions
+and is safer than free-form SQL - deterministic, no invented column names.
+
+Some questions need more, and the failure mode used to be silent. There is no
+`HAVING` in that list, so "customers with more than 10 orders" became
+"customers", ranked. No negation, so "excluding cancelled" was dropped and
+cancelled orders counted toward the total.
+
+In `auto` mode those questions now go straight to SQL generation, which can
+express arbitrary (still validated, still SELECT-only) SQL:
+
+| Wording | Needs | 
+|---|---|
+| "customers with more than 10 orders" | `HAVING` |
+| "orders over 5000" | numeric `WHERE` |
+| "revenue excluding cancelled" | negation |
+| "how many different customers" | `DISTINCT` |
+| "what percentage of orders were cancelled" | ratio of aggregates |
+| "top 2 customers in each region" | window function |
+
+This costs nothing - intent parsing and SQL generation are one API call each -
+and `metadata.escalated_for` reports which of these triggered it. Set
+`sql.escalate_beyond_intent` to `false` to disable. An explicit `query_mode`
+of `intent` is always honoured as written.
+
 ### Breakdowns
 
 Any column marked `groupable` can be the dimension of a question: "revenue by

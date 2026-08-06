@@ -168,6 +168,34 @@ class SchemaRegistry
      * any table.
      */
     /**
+     * The column a time filter applies to.
+     *
+     * "Revenue last month" has to narrow on something, and which column that
+     * is cannot be guessed from the question — a table may carry order_date,
+     * shipped_at and created_at, and they answer different questions. The
+     * schema decides, explicitly via `date_column` on the primary table, or by
+     * falling back to the first date-like column declared.
+     */
+    public function getDateColumn(string $key): ?string
+    {
+        $primary = $this->get($key)['tables']['primary'] ?? [];
+
+        if (!empty($primary['date_column'])) {
+            return (string) $primary['date_column'];
+        }
+
+        foreach ($primary['columns'] ?? [] as $name => $column) {
+            $type = strtolower((string) ($column['type'] ?? ''));
+
+            if (in_array($type, ['date', 'datetime', 'timestamp'], true)) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve a dimension the user asked to break results down by.
      *
      * "revenue by region" must group by region, not by whatever the schema

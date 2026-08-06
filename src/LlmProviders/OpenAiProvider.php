@@ -97,6 +97,7 @@ class OpenAiProvider extends AbstractProvider implements LlmProviderInterface
     public function parseIntent(string $text, array $schemeList): array
     {
         $schemeInfo = $this->buildSchemeInfo($schemeList);
+        $today = $this->today();
 
         $prompt = <<<PROMPT
 Parse this natural language query about datasets: "{$text}"
@@ -110,10 +111,12 @@ When the user asks HOW MANY — "how many orders", "number of tickets", "orders 
 
 group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
 
+date_from / date_to: if the user named a period — "last month", "in 2025", "since April" — resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
+
 If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
 If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -225,6 +228,8 @@ PROMPT;
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'date_from' => $parsed['date_from'] ?? null,
+            'date_to' => $parsed['date_to'] ?? null,
             'confidence' => $confidence,
             'needs_clarification' => $parsed['needs_clarification'] ?? ($confidence < 0.7),
             'clarification_type' => $parsed['clarification_type'] ?? null,

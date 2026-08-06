@@ -109,6 +109,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\QueryPlanner::class);
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\StepSynthesizer::class);
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\NextStepSuggester::class);
+        $this->app->singleton(\Jayanta\NaturalQuery\Engine\IntentCoverage::class);
         $this->app->singleton(QueryOrchestrator::class);
         $this->app->singleton(ConversationManager::class);
     }
