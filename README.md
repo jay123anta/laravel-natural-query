@@ -926,6 +926,33 @@ Three layers of defense:
 
 **Layer 3: SQL Validator** - validates AI-generated SQL. Forbidden keywords (DROP, DELETE, etc), table whitelist (every FROM/JOIN table checked), injection patterns, LIMIT enforcement, no stacked queries, no PL/pgSQL.
 
+### Spending
+
+Every question is a paid API call, so the routes carry a ceiling as well as a
+rate. `throttle:60,1` stops a burst; it does not stop a slow drain - sixty a
+minute sustained is roughly 86,000 questions a day.
+
+```php
+// config/naturalquery.php
+'limits' => [
+    'queries_per_day' => 200,   // per user, or per IP when routes are public
+],
+```
+
+Counted per authenticated user, or per IP when there is none, and reset at
+midnight. Reaching it returns HTTP 429 naming the limit, so clients that
+already handle rate limiting handle this too. Set it to `null` for no ceiling -
+a choice worth making deliberately.
+
+The limit is applied by the package itself rather than through
+`routes.middleware`, so customising that array - the first thing anyone does to
+make the widget public - cannot drop the ceiling by accident.
+
+**Removing `auth` deserves a moment's thought.** Without it the widget is an
+LLM proxy anyone who finds the URL can use, and the daily ceiling falls back to
+counting by IP, which is easy to get around. `naturalquery:doctor` says so if
+you do it.
+
 **Optional Layer 4: AI Guard** - install [jayanta/laravel-ai-guard](https://github.com/jay123anta/laravel-ai-guard) for additional protection. NaturalQuery auto-detects it - no configuration needed.
 
 ```bash

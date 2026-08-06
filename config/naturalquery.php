@@ -509,6 +509,21 @@ return [
     // ==========================================================================
     // ROUTES
     // ==========================================================================
+    // ==========================================================================
+    // SPENDING LIMITS
+    // ==========================================================================
+    // Every question is a paid API call, so the routes above have a ceiling as
+    // well as a rate. 'throttle:60,1' stops a burst; this stops a slow drain —
+    // sixty a minute sustained is roughly 86,000 questions a day.
+    'limits' => [
+        // Questions per person per day. Counted per authenticated user, or per
+        // IP when the routes are public. Set to null for no ceiling — a
+        // deliberate choice rather than the default.
+        //
+        // 200/day is generous for a person and ruinous for a script.
+        'queries_per_day' => env('NATURALQUERY_QUERIES_PER_DAY', 200),
+    ],
+
     'routes' => [
         // Enable/disable package routes
         'enabled' => true,
@@ -517,7 +532,12 @@ return [
         'prefix' => 'naturalquery',
 
         // Middleware applied to all NaturalQuery routes
-        // Includes throttle for rate limiting (60 requests/minute per user)
+        // Includes throttle for rate limiting (60 requests/minute per user).
+        //
+        // Keep 'auth' unless you have thought hard about removing it. These
+        // routes spend money on your API key: without authentication the widget
+        // is an LLM proxy anyone can use, and limits.queries_per_day below is
+        // then counted per IP, which is easy to get around.
         'middleware' => ['web', 'auth', 'throttle:60,1'],
 
         // Route name prefix

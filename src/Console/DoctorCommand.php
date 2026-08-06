@@ -558,7 +558,25 @@ class DoctorCommand extends Command
                 "Add 'throttle:60,1' (and auth middleware for private data) to routes.middleware in config/naturalquery.php."
             );
         } elseif (!$hasAuth) {
-            $this->pass('Throttled, no auth — fine for public/demo data');
+            // Throttling bounds the rate, not the spend, and without auth the
+            // daily ceiling falls back to counting by IP — which is the weakest
+            // form of it, on the one configuration where it matters most.
+            $perDay = config('naturalquery.limits.queries_per_day');
+
+            if ($perDay && (int) $perDay > 0) {
+                $this->warn_(
+                    "Endpoints are public (no auth). Daily ceiling: {$perDay} questions per IP",
+                    'Every question spends your API key, and an IP is easy to change. Fine for a demo on '
+                        . 'non-sensitive data; add auth middleware in config/naturalquery.php before this '
+                        . 'faces the open internet.'
+                );
+            } else {
+                $this->problem(
+                    'Endpoints are public AND have no daily limit',
+                    "Anyone who finds the URL can spend your API key without bound. Set "
+                        . "'limits.queries_per_day' in config/naturalquery.php, add auth middleware, or both."
+                );
+            }
         } else {
             $this->pass('Protected by auth middleware');
 
