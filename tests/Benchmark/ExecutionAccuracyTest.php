@@ -34,26 +34,23 @@ class ExecutionAccuracyTest extends TestCase
 {
     private string $schemaPath;
 
-    protected function setUp(): void
+    /**
+     * Prepare the provider, the database and the schema files.
+     *
+     * Deliberately NOT in setUp(): skipping from setUp() aborts after Laravel
+     * has installed its exception handlers but before the framework tears them
+     * down, which PHPUnit reports as an error on every ordinary run of the
+     * suite. Nothing here happens unless the benchmark is actually being run.
+     */
+    private function prepare(): void
     {
-        parent::setUp();
-
-        if (env('NATURALQUERY_BENCHMARK') !== '1') {
-            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK=1 to run the benchmark (uses live API calls).');
-        }
-
         // The base TestCase pins a fake key so nothing calls out by accident.
         // The benchmark needs a real provider, taken from the environment.
         $driver = env('NATURALQUERY_LLM_DRIVER', 'gemini');
-        $key = env('NATURALQUERY_BENCHMARK_KEY');
-
-        if (!$key) {
-            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK_KEY to the provider API key.');
-        }
 
         config([
             'naturalquery.llm.driver' => $driver,
-            "naturalquery.llm.providers.{$driver}.api_key" => $key,
+            "naturalquery.llm.providers.{$driver}.api_key" => env('NATURALQUERY_BENCHMARK_KEY'),
         ]);
 
         // XAMPP and similar stacks ship no CA bundle, so an HTTPS call fails
@@ -79,17 +76,15 @@ class ExecutionAccuracyTest extends TestCase
         $this->buildDatabase();
     }
 
-    protected function tearDown(): void
+    private function cleanUp(): void
     {
-        foreach (glob($this->schemaPath . '/*.php') ?: [] as $file) {
+        foreach (glob(($this->schemaPath ?? '') . '/*.php') ?: [] as $file) {
             unlink($file);
         }
 
-        if (isset($this->schemaPath) && is_dir($this->schemaPath)) {
+        if (!empty($this->schemaPath) && is_dir($this->schemaPath)) {
             rmdir($this->schemaPath);
         }
-
-        parent::tearDown();
     }
 
     /** A small normalised shop: joins, dates, categories, statuses. */
@@ -163,19 +158,20 @@ class ExecutionAccuracyTest extends TestCase
     #[Test]
     public function it_answers_ordinary_questions_correctly()
     {
-        $questions = require __DIR__ . '/questions.php';
-        $orchestrator = $this->app->make(QueryOrchestrator::class);
+        if (env('NATURALQUERY_BENCHMARK') !== '1') {
+            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK=1 to run the benchmark (uses live API calls).');
+        }
 
-        $results = [];
+        if (!env('NATURALQUERY_BENCHMARK_KEY')) {
+            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK_KEY to the provider API key.');
+        }
 
-        foreach ($questions as $i => $case) {
-            // Free-tier providers rate limit by the minute. Pacing keeps the
-            // benchmark measuring accuracy rather than throttling.
-            if ($i > 0) {
-                sleep(5);
-            }
+        $this->prepare();
 
-            $results[] = $this->score($orchestrator, $case);
+        try {
+            $results = $this->runQuestions();
+        } finally {
+            $this->cleanUp();
         }
 
         $this->report($results);
@@ -191,6 +187,27 @@ class ExecutionAccuracyTest extends TestCase
             $correct,
             'execution accuracy fell below 50% — see the breakdown above'
         );
+    }
+
+    /** @return array<int, array> one scored result per question */
+    private function runQuestions(): array
+    {
+        $questions = require __DIR__ . '/questions.php';
+        $orchestrator = $this->app->make(QueryOrchestrator::class);
+
+        $results = [];
+
+        foreach ($questions as $i => $case) {
+            // Free-tier providers rate limit by the minute. Pacing keeps the
+            // benchmark measuring accuracy rather than throttling.
+            if ($i > 0) {
+                sleep(5);
+            }
+
+            $results[] = $this->score($orchestrator, $case);
+        }
+
+        return $results;
     }
 
     private function score(QueryOrchestrator $orchestrator, array $case): array
