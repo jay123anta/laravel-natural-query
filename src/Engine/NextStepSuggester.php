@@ -105,9 +105,14 @@ class NextStepSuggester
 
         $by = $other[0];
 
+        // The COLUMN is named, not just the value. "quantity by customer_name
+        // for Grocery" reads as a customer called Grocery — which is how this
+        // suggestion used to come back with the filter silently dropped and
+        // every customer listed. Saying "where product_category is Grocery"
+        // tells the model which column the value belongs to.
         return [[
             'label' => "Break {$label} down by " . $this->humanize($by),
-            'query' => trim("{$metric} by {$by} for {$label}"),
+            'query' => trim("{$metric} by {$by} where {$groupColumn} is {$label}"),
         ]];
     }
 

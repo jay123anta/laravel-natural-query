@@ -173,8 +173,47 @@ class SqlBuilder
                 && !$groupValue
                 && !$requestedDimension;
 
+            // A filter on a column OTHER than the one being grouped by.
+            //
+            // group_value alone always matched against the group column, so
+            // "quantity by customer_name for Grocery" looked for a CUSTOMER
+            // called Grocery, found none, and fell back to every customer —
+            // with the category filter silently gone. The package's own
+            // drill-down suggestions generate exactly that shape, so it was
+            // offering questions it could not answer.
+            $filterColumn = $this->registry->resolveGroupColumn($schemeKey, $intent['filter_column'] ?? null);
+            $filtersAnotherColumn = $groupValue && $filterColumn && $filterColumn !== $groupColumn;
+
+            if (($intent['filter_column'] ?? null) && !$filterColumn) {
+                $groupable = $this->registry->getGroupableColumns($schemeKey);
+
+                return $this->errorResponse(
+                    "Cannot filter by '{$intent['filter_column']}'."
+                    . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')
+                );
+            }
+
             $bindings = [];
-            if ($wantsTotal) {
+            if ($filtersAnotherColumn) {
+                // Still a ranking — "quantity by customer for Grocery" wants
+                // every customer within that category, not one row.
+                $result = $this->buildFilteredRankingQuery(
+                    $fromClause,
+                    $groupColumnSelect,
+                    $groupColumnRef,
+                    $metricExpr,
+                    $metric,
+                    $order,
+                    $limit,
+                    $aggregate,
+                    $filterColumn,
+                    $groupValue,
+                    $time
+                );
+                $sql = $result['sql'];
+                $bindings = $result['bindings'];
+                $queryType = 'ranking';
+            } elseif ($wantsTotal) {
                 $result = $this->buildTotalQuery($fromClause, $metricExpr, $metric, $aggregate, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
@@ -214,6 +253,7 @@ class SqlBuilder
                 'group_column' => $groupColumn,
                 'time_filter' => $time['label'] ?? null,
                 'time_column' => $time['column'] ?? null,
+                'filter_column' => $filtersAnotherColumn ? $filterColumn : null,
             ];
 
         } catch (\Exception $e) {
@@ -252,6 +292,47 @@ class SqlBuilder
         return [
             'sql' => "SELECT {$groupColumnSelect}, {$metricExpr} AS {$metricAlias} FROM {$fromClause}{$where}{$groupBy} ORDER BY {$metricExpr} {$order} LIMIT {$limit}",
             'bindings' => $time['bindings'] ?? [],
+        ];
+    }
+
+    /**
+     * A ranking narrowed to one value of a DIFFERENT column.
+     *
+     * "Quantity by customer for Grocery": group by customer, filter on
+     * product_category. The filter and the grouping are separate columns, which
+     * is the case group_value alone could not express.
+     *
+     * @return array{sql: string, bindings: array}
+     */
+    protected function buildFilteredRankingQuery(
+        string $fromClause,
+        string $groupColumnSelect,
+        string $groupColumnRef,
+        string $metricExpr,
+        string $metricAlias,
+        string $order,
+        int $limit,
+        bool $aggregate,
+        string $filterColumn,
+        string $filterValue,
+        array $time
+    ): array {
+        // Parenthesised before anything is AND-ed on, so the OR inside cannot
+        // swallow a following condition.
+        $conditions = ["(LOWER({$filterColumn}) = LOWER(?) OR LOWER({$filterColumn}) LIKE LOWER(?) ESCAPE '!')"];
+        $bindings = [$filterValue, '%' . $this->escapeLikeValue($filterValue) . '%'];
+
+        if (!empty($time['clause'])) {
+            $conditions[] = $time['clause'];
+            $bindings = array_merge($bindings, $time['bindings'] ?? []);
+        }
+
+        $where = ' WHERE ' . implode(' AND ', $conditions);
+        $groupBy = $aggregate ? " GROUP BY {$groupColumnRef}" : '';
+
+        return [
+            'sql' => "SELECT {$groupColumnSelect}, {$metricExpr} AS {$metricAlias} FROM {$fromClause}{$where}{$groupBy} ORDER BY {$metricExpr} {$order} LIMIT {$limit}",
+            'bindings' => $bindings,
         ];
     }
 

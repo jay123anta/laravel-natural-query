@@ -111,6 +111,8 @@ When the user asks HOW MANY — "how many orders", "number of tickets", "orders 
 
 query_type: "aggregation" when the user wants ONE number for the whole dataset ("total revenue", "how many orders are there") with no breakdown and no named record; "ranking" for a list, which is the usual case; "group_detail" when they named one record.
 
+filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
+
 group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
 
 date_from / date_to: if the user named a period — "last month", "in 2025", "since April" — resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
@@ -119,7 +121,7 @@ If unclear, set needs_clarification=true with clarification_type="scheme" or "me
 Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
 If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -231,6 +233,7 @@ PROMPT;
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'filter_column' => $parsed['filter_column'] ?? null,
             'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,

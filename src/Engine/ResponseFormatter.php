@@ -37,6 +37,10 @@ class ResponseFormatter
                 // so "revenue by region" answered as a customer ranking is
                 // visible in the response instead of only in the row labels.
                 'group_by' => $queryResult['group_column'] ?? null,
+                // Which column group_value was matched against, when it is not
+                // the one being grouped by. Without this in the response a
+                // filtered ranking and an unfiltered one look identical.
+                'filter_column' => $queryResult['filter_column'] ?? null,
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',

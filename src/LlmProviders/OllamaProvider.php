@@ -65,12 +65,13 @@ DATASETS:
 {$schemeInfo}
 
 query_type = "aggregation" for one number over the whole dataset ("total revenue", "how many orders"), else "ranking".
+filter_column = the column group_value belongs to when it is not the grouping column ("by customer_name where product_category is Grocery").
 group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
 Never ask for clarification on a HOW MANY question — record_count always exists.
 metric = record_count when the user asks HOW MANY ("how many orders", "orders by status"), otherwise the named measure.
 date_from / date_to = YYYY-MM-DD dates if the user named a period ("last month", "in 2025"), else null. TODAY IS {$today}.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -159,6 +160,7 @@ PROMPT;
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'filter_column' => $parsed['filter_column'] ?? null,
             'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,
