@@ -53,6 +53,9 @@ class IntentCoverage
         'distinct' => [
             '/\b(?:distinct|unique)\s+\w+/i',
             '/\bhow\s+many\s+different\b/i',
+            // "the different countries with singers above 20" wants the list
+            // of distinct values, not a count per country.
+            '/\bdifferent\s+\w+/i',
         ],
         // Ratios and shares — arithmetic between two aggregates
         'ratio' => [
@@ -60,6 +63,27 @@ class IntentCoverage
             '/\bwhat\s+(?:percent|percentage)\b/i',
             '/\bper\s+(?:customer|order|user|head|capita)\b/i',
         ],
+        // More than one aggregate in a single answer. The contract has ONE
+        // metric, so "the average, minimum and maximum age" came back as a
+        // single number with the other two silently missing.
+        'multi_aggregate' => [
+            '/\b(?:average|mean|minimum|maximum|min|max|total|sum|count)\b[^?]{0,40}?,\s*(?:and\s+)?(?:average|mean|minimum|maximum|min|max|total|sum|count)\b/i',
+            '/\b(?:average|mean|minimum|maximum|min|max|total|sum|count)\s+and\s+(?:the\s+)?(?:average|mean|minimum|maximum|min|max|total|sum|count)\b/i',
+        ],
+
+        // A list of columns to show. The contract projects one label and one
+        // measure, so "name, country and age" returned name and age — the
+        // missing column is not reported, it simply is not there.
+        'multi_column' => [
+            '/\b(?:show|list|display|give\s+me|what\s+are|return)\b[^?]{0,60}?\b\w+\s*,\s*\w+\s*,\s*(?:and\s+)?\w+/i',
+            '/\b\w+\s*,\s*\w+\s*,\s*and\s+\w+/i',
+            // Two columns joined by "and" and then attached to a subject:
+            // "the name and capacity FOR the stadium", "names and release
+            // years FOR all the songs". The trailing preposition is what keeps
+            // this from matching "revenue by region" or "orders and revenue".
+            '/\b(?:show|list|display|give\s+me|what\s+(?:is|are)|return)\b[^?]{0,40}?\b\w+\s+and\s+(?:the\s+)?\w+(?:\s+\w+)?\s+(?:for|of|by|from|in)\b/i',
+        ],
+
         // Per-group superlatives — a window function or correlated subquery
         'per_group_top' => [
             '/\btop\s+\d+\s+\w+\s+(?:in|for|per)\s+each\b/i',

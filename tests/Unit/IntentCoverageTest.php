@@ -100,6 +100,58 @@ class IntentCoverageTest extends TestCase
         $this->assertSame('per_group_top', $this->coverage()->exceeds('for each region the highest revenue customer'));
     }
 
+    /**
+     * Found by running real Spider dev questions rather than questions written
+     * here. Every failure in that run was intent mode and every SQL-generation
+     * run passed — the contract carries ONE metric and ONE label, while people
+     * routinely ask for several of each.
+     */
+    #[Test]
+    public function asking_for_several_aggregates_at_once_escalates()
+    {
+        // Answered as a single number, with the other two silently absent.
+        $this->assertSame(
+            'multi_aggregate',
+            $this->coverage()->exceeds('What is the average, minimum, and maximum age of all singers?')
+        );
+        $this->assertSame(
+            'multi_aggregate',
+            $this->coverage()->exceeds('What is the average and maximum capacities for all stadiums?')
+        );
+    }
+
+    #[Test]
+    public function asking_for_a_list_of_columns_escalates()
+    {
+        $this->assertSame(
+            'multi_column',
+            $this->coverage()->exceeds('Show name, country, age for all singers ordered by age')
+        );
+        $this->assertSame(
+            'multi_column',
+            $this->coverage()->exceeds('What are the names, countries, and ages for every singer?')
+        );
+    }
+
+    #[Test]
+    public function a_single_measure_by_a_single_dimension_still_stays_in_intent_mode()
+    {
+        // The new patterns must not swallow the questions intent mode handles
+        // well — it is cheaper, deterministic, and cannot invent a column.
+        foreach ([
+            'revenue by region',
+            'top 5 customers by revenue',
+            'how many singers are from each country',
+            'total revenue last month',
+            'average order value',
+        ] as $query) {
+            $this->assertNull(
+                $this->coverage()->exceeds($query),
+                "'{$query}' should stay in intent mode"
+            );
+        }
+    }
+
     #[Test]
     public function escalation_can_be_switched_off()
     {
