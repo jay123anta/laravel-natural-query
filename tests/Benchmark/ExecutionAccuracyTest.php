@@ -87,19 +87,49 @@ class ExecutionAccuracyTest extends TestCase
         }
     }
 
-    /** A small normalised shop: joins, dates, categories, statuses. */
+    /**
+     * A normalised schema of the size real applications actually have.
+     *
+     * Fourteen tables, not four. Everything that has gone wrong in this package
+     * went wrong once more than one table was involved, and a small fixture
+     * hides exactly those failures: the measure sits in one table, the label in
+     * another, the filter in a third, and several questions need three or four
+     * joins to answer. There are also tables that answer nothing at all —
+     * `bm_sessions`, `bm_jobs`, `bm_audit_log` — because a real database is
+     * mostly noise and choosing the right tables is half the problem.
+     */
     private function buildDatabase(): void
     {
-        Schema::create('bm_customers', function ($t) {
+        Schema::create('bm_regions', function ($t) {
             $t->id();
             $t->string('name');
-            $t->string('region');
+            $t->string('country');
+        });
+
+        Schema::create('bm_customers', function ($t) {
+            $t->id();
+            $t->foreignId('region_id')->constrained('bm_regions');
+            $t->string('name');
+            $t->string('segment');
+            $t->date('joined_on');
+        });
+
+        Schema::create('bm_categories', function ($t) {
+            $t->id();
+            $t->string('name');
+        });
+
+        Schema::create('bm_suppliers', function ($t) {
+            $t->id();
+            $t->string('name');
+            $t->string('country');
         });
 
         Schema::create('bm_products', function ($t) {
             $t->id();
+            $t->foreignId('category_id')->constrained('bm_categories');
+            $t->foreignId('supplier_id')->constrained('bm_suppliers');
             $t->string('name');
-            $t->string('category');
             $t->decimal('unit_price', 10, 2);
         });
 
@@ -118,16 +148,80 @@ class ExecutionAccuracyTest extends TestCase
             $t->decimal('line_total', 12, 2);
         });
 
+        Schema::create('bm_payments', function ($t) {
+            $t->id();
+            $t->foreignId('order_id')->constrained('bm_orders');
+            $t->decimal('amount', 12, 2);
+            $t->string('method');
+            $t->date('paid_on');
+        });
+
+        Schema::create('bm_shipments', function ($t) {
+            $t->id();
+            $t->foreignId('order_id')->constrained('bm_orders');
+            $t->string('carrier');
+            $t->date('shipped_on')->nullable();
+        });
+
+        Schema::create('bm_support_tickets', function ($t) {
+            $t->id();
+            $t->foreignId('customer_id')->constrained('bm_customers');
+            $t->string('subject');
+            $t->string('priority');
+            $t->date('opened_on');
+        });
+
+        // Tables that answer none of the questions. A real database is mostly
+        // these, and picking the right table out of the noise is half the job.
+        Schema::create('bm_sessions', function ($t) {
+            $t->id();
+            $t->string('token');
+            $t->date('created_on');
+        });
+
+        Schema::create('bm_jobs', function ($t) {
+            $t->id();
+            $t->string('queue');
+            $t->integer('attempts');
+        });
+
+        Schema::create('bm_audit_log', function ($t) {
+            $t->id();
+            $t->string('action');
+            $t->date('logged_on');
+        });
+
+        Schema::create('bm_settings', function ($t) {
+            $t->id();
+            $t->string('key_name');
+            $t->string('value');
+        });
+
+        DB::table('bm_regions')->insert([
+            ['name' => 'West', 'country' => 'UK'],
+            ['name' => 'East', 'country' => 'UK'],
+        ]);
+
         DB::table('bm_customers')->insert([
-            ['name' => 'Ada Lovelace', 'region' => 'West'],
-            ['name' => 'Grace Hopper', 'region' => 'East'],
-            ['name' => 'Alan Turing', 'region' => 'West'],
+            ['region_id' => 1, 'name' => 'Ada Lovelace', 'segment' => 'enterprise', 'joined_on' => '2025-01-10'],
+            ['region_id' => 2, 'name' => 'Grace Hopper', 'segment' => 'smb', 'joined_on' => '2025-03-02'],
+            ['region_id' => 1, 'name' => 'Alan Turing', 'segment' => 'smb', 'joined_on' => '2026-02-20'],
+        ]);
+
+        DB::table('bm_categories')->insert([
+            ['name' => 'Furniture'],
+            ['name' => 'Electronics'],
+        ]);
+
+        DB::table('bm_suppliers')->insert([
+            ['name' => 'Northwind', 'country' => 'UK'],
+            ['name' => 'Contoso', 'country' => 'DE'],
         ]);
 
         DB::table('bm_products')->insert([
-            ['name' => 'Desk', 'category' => 'Furniture', 'unit_price' => 250],
-            ['name' => 'Chair', 'category' => 'Furniture', 'unit_price' => 120],
-            ['name' => 'Monitor', 'category' => 'Electronics', 'unit_price' => 300],
+            ['category_id' => 1, 'supplier_id' => 1, 'name' => 'Desk', 'unit_price' => 250],
+            ['category_id' => 1, 'supplier_id' => 2, 'name' => 'Chair', 'unit_price' => 120],
+            ['category_id' => 2, 'supplier_id' => 2, 'name' => 'Monitor', 'unit_price' => 300],
         ]);
 
         DB::table('bm_orders')->insert([
@@ -145,6 +239,29 @@ class ExecutionAccuracyTest extends TestCase
             ['order_id' => 4, 'product_id' => 3, 'quantity' => 2, 'line_total' => 600],
             ['order_id' => 5, 'product_id' => 1, 'quantity' => 1, 'line_total' => 250],
         ]);
+
+        DB::table('bm_payments')->insert([
+            ['order_id' => 1, 'amount' => 500, 'method' => 'card', 'paid_on' => '2026-07-03'],
+            ['order_id' => 2, 'amount' => 120, 'method' => 'invoice', 'paid_on' => '2026-07-20'],
+            ['order_id' => 4, 'amount' => 600, 'method' => 'card', 'paid_on' => '2026-07-11'],
+        ]);
+
+        DB::table('bm_shipments')->insert([
+            ['order_id' => 1, 'carrier' => 'Royal Mail', 'shipped_on' => '2026-07-05'],
+            ['order_id' => 2, 'carrier' => 'DPD', 'shipped_on' => '2026-07-19'],
+            ['order_id' => 4, 'carrier' => 'Royal Mail', 'shipped_on' => '2026-07-13'],
+        ]);
+
+        DB::table('bm_support_tickets')->insert([
+            ['customer_id' => 1, 'subject' => 'Late delivery', 'priority' => 'high', 'opened_on' => '2026-07-06'],
+            ['customer_id' => 1, 'subject' => 'Invoice query', 'priority' => 'low', 'opened_on' => '2026-07-22'],
+            ['customer_id' => 2, 'subject' => 'Damaged item', 'priority' => 'high', 'opened_on' => '2026-07-14'],
+        ]);
+
+        DB::table('bm_sessions')->insert([['token' => 'abc', 'created_on' => '2026-07-01']]);
+        DB::table('bm_jobs')->insert([['queue' => 'default', 'attempts' => 0]]);
+        DB::table('bm_audit_log')->insert([['action' => 'login', 'logged_on' => '2026-07-01']]);
+        DB::table('bm_settings')->insert([['key_name' => 'timezone', 'value' => 'UTC']]);
 
         Artisan::call('naturalquery:discover', [
             '--output' => $this->schemaPath,
@@ -320,6 +437,24 @@ class ExecutionAccuracyTest extends TestCase
             }
             $b = $byHardness[$level];
             $lines[] = sprintf('  %-8s %d/%d', $level, $b['correct'], $b['total']);
+        }
+
+        // Accuracy by join depth. Single-table questions passing while
+        // four-table ones fail is the failure mode that matters most, and a
+        // headline percentage hides it completely.
+        $byJoins = [];
+
+        foreach ($results as $r) {
+            $n = $r['joins'] ?? 1;
+            $byJoins[$n]['total'] = ($byJoins[$n]['total'] ?? 0) + 1;
+            $byJoins[$n]['correct'] = ($byJoins[$n]['correct'] ?? 0) + ($r['correct'] ? 1 : 0);
+        }
+
+        ksort($byJoins);
+        $lines[] = '';
+
+        foreach ($byJoins as $n => $b) {
+            $lines[] = sprintf('  %d-table %d/%d', $n, $b['correct'], $b['total']);
         }
 
         $correct = count(array_filter($results, fn ($r) => $r['correct']));
