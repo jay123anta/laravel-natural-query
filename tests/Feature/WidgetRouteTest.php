@@ -65,6 +65,34 @@ class WidgetRouteTest extends TestCase
         $this->assertNotSame(500, $response->getStatusCode(), $response->getContent());
     }
 
+    /**
+     * The server formats the totals and the widget formats the rows, so they
+     * have to agree about how digits are grouped. They did not: the widget had
+     * 'en-IN' hardcoded while the package default is 'international', and one
+     * answer showed 20,28,763 in the bars and 15,474,683 in the totals —
+     * under a footer asking the reader to verify important figures.
+     */
+    #[Test]
+    public function the_widget_is_told_how_the_server_groups_numbers()
+    {
+        config(['naturalquery.response.number_format' => 'indian']);
+
+        $rendered = $this->blade('<x-naturalquery::widget />');
+
+        $rendered->assertSee('numberFormat', false);
+        $rendered->assertSee('indian', false);
+    }
+
+    #[Test]
+    public function the_widget_does_not_impose_a_speech_locale_of_its_own()
+    {
+        // null lets it follow <html lang> and then the browser. A hardcoded
+        // locale was a leftover from the project this package came out of.
+        config(['naturalquery.widget.language' => null]);
+
+        $this->blade('<x-naturalquery::widget />')->assertDontSee('"language"', false);
+    }
+
     #[Test]
     public function the_engine_still_refuses_an_unsupported_driver_with_an_actionable_message()
     {

@@ -14,7 +14,12 @@
         'baseUrl'     => rtrim(url(config('naturalquery.routes.prefix', 'naturalquery')), '/'),
         'title'       => $title ?? config('naturalquery.widget.title', 'Ask your data'),
         'placeholder' => $placeholder ?? config('naturalquery.widget.placeholder'),
-        'language'    => $language ?? config('naturalquery.widget.language', 'en-IN'),
+        // null lets the widget follow <html lang> and then the browser, rather
+        // than imposing one project's locale on everyone's users.
+        'language'    => $language ?? config('naturalquery.widget.language'),
+        // Taken from the SERVER's setting so the rows the widget formats and
+        // the totals the server formats group their digits the same way.
+        'numberFormat' => config('naturalquery.response.number_format', 'international'),
         'voice'       => $voice ?? config('naturalquery.widget.voice', true),
         'serverVoice' => config('naturalquery.widget.server_voice', true),
         'tts'         => $tts ?? config('naturalquery.widget.tts', true),

@@ -633,8 +633,13 @@ return [
         // Input placeholder text
         'placeholder' => 'Type a question or use the microphone…',
 
-        // BCP-47 locale for speech recognition + text-to-speech (e.g. en-IN, en-US, hi-IN)
-        'language' => env('NATURALQUERY_WIDGET_LANGUAGE', 'en-IN'),
+        // BCP-47 locale for speech recognition + text-to-speech
+        // (e.g. en-US, en-GB, en-IN, hi-IN, de-DE).
+        //
+        // null follows the page's <html lang> and then the browser, which is
+        // right for most apps. Set it only when your users speak a language
+        // your markup does not declare.
+        'language' => env('NATURALQUERY_WIDGET_LANGUAGE'),
 
         // Show the microphone button when the browser supports voice input
         'voice' => env('NATURALQUERY_WIDGET_VOICE', true),

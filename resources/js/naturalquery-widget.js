@@ -25,7 +25,18 @@
         csrfToken: null,          // auto-read from <meta name="csrf-token"> when null
         title: 'Ask your data',
         placeholder: 'Type a question or use the microphone…',
-        language: 'en-IN',        // BCP-47 locale for speech recognition + TTS
+        // BCP-47 locale for speech recognition + TTS. Null follows the page's
+        // <html lang>, then the browser. A hardcoded locale here was a leftover
+        // from the project this package came out of, and it is not a safe
+        // default for anyone else's users.
+        language: null,
+        // How numbers are grouped: 'international' (1,234,567), 'indian'
+        // (12,34,567), or any BCP-47 locale. Must match
+        // response.number_format in config/naturalquery.php — the server
+        // formats the insight figures and the widget formats the rows, and
+        // when the two disagreed the same answer showed 20,28,763 in the bars
+        // and 15,474,683 in the totals.
+        numberFormat: 'international',
         voice: true,              // show mic when supported
         serverVoice: true,        // allow MediaRecorder → /voice fallback
         tts: true,                // read answers aloud (toggleable by user)
@@ -47,12 +58,28 @@
         return el;
     }
 
+    // Set from the widget's numberFormat option so rows are grouped the same
+    // way the server groups the totals.
+    var numberLocale = 'en-US';
+
+    function numberLocaleFor(format) {
+        if (format === 'indian') return 'en-IN';
+        if (format === 'international' || !format) return 'en-US';
+        return format; // any BCP-47 locale
+    }
+
     function fmtNum(v) {
         if (v === null || v === undefined || v === '') return '—';
         var n = Number(v);
         if (isNaN(n)) return String(v);
-        var opts = Math.abs(n) < 100 && n % 1 !== 0 ? { maximumFractionDigits: 2 } : { maximumFractionDigits: 2 };
-        try { return n.toLocaleString('en-IN', opts); } catch (e) { return String(n); }
+        try { return n.toLocaleString(numberLocale, { maximumFractionDigits: 2 }); }
+        catch (e) { return String(n); }
+    }
+
+    function speechLocale(configured) {
+        if (configured) return configured;
+        var docLang = document.documentElement && document.documentElement.lang;
+        return docLang || navigator.language || 'en-US';
     }
 
     function titleCase(s) {
@@ -147,6 +174,8 @@
 
     function Widget(root, opts) {
         this.opts = Object.assign({}, DEFAULTS, opts || {});
+        this.opts.language = speechLocale(this.opts.language);
+        numberLocale = numberLocaleFor(this.opts.numberFormat);
         this.root = root;
         this.sessionId = uuid();
         this.listening = false;
