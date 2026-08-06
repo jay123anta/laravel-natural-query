@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Schema;
 
 use Jayanta\NaturalQuery\Schema\Introspectors\MysqlIntrospector;
 use Jayanta\NaturalQuery\Schema\Introspectors\PostgresIntrospector;
+use Jayanta\NaturalQuery\Schema\Introspectors\SqliteIntrospector;
 
 /**
  * Single source of truth for which database drivers can be introspected.
@@ -26,11 +27,19 @@ class IntrospectorRegistry
         'pgsql' => PostgresIntrospector::class,
         'mysql' => MysqlIntrospector::class,
         'mariadb' => MysqlIntrospector::class,
+        // Laravel 11+ creates new apps on SQLite, so this is the database most
+        // people who try the package already have.
+        'sqlite' => SqliteIntrospector::class,
     ];
 
     /**
      * Built-in drivers plus anything registered in
      * `naturalquery.sql.introspectors`. Config entries win on key conflicts.
+     *
+     * Mapping a driver to null removes it, so a built-in can be turned off as
+     * well as replaced. Nulls are stripped here rather than in each caller, so
+     * supports(), supportedDrivers() and classFor() cannot disagree about
+     * whether a disabled driver exists.
      *
      * @return array<string, class-string>
      */
@@ -38,7 +47,9 @@ class IntrospectorRegistry
     {
         $configured = config('naturalquery.sql.introspectors') ?: [];
 
-        return array_merge(self::BUILT_IN, is_array($configured) ? $configured : []);
+        $merged = array_merge(self::BUILT_IN, is_array($configured) ? $configured : []);
+
+        return array_filter($merged, fn ($class) => is_string($class) && $class !== '');
     }
 
     /** @return string[] */

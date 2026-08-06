@@ -24,10 +24,6 @@ class ClarificationTest extends TestCase
         parent::getEnvironmentSetUp($app);
         $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/groupby-schemas');
         $app['config']->set('naturalquery.query_mode', 'intent');
-        $app['config']->set(
-            'naturalquery.sql.introspectors.sqlite',
-            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
-        );
     }
 
     /** Answer every intent parse with the given payload. */

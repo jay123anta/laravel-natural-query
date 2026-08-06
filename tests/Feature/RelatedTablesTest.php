@@ -39,10 +39,6 @@ class RelatedTablesTest extends TestCase
     {
         parent::getEnvironmentSetUp($app);
         $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/related-schemas');
-        $app['config']->set(
-            'naturalquery.sql.introspectors.sqlite',
-            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
-        );
     }
 
     #[Test]

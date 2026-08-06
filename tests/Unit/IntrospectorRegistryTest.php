@@ -34,10 +34,38 @@ class IntrospectorRegistryTest extends TestCase
     {
         config(['naturalquery.sql.introspectors' => []]);
 
-        $this->assertSame(['pgsql', 'mysql', 'mariadb'], IntrospectorRegistry::supportedDrivers());
-        $this->assertFalse(IntrospectorRegistry::supports('sqlite'));
+        $this->assertSame(['pgsql', 'mysql', 'mariadb', 'sqlite'], IntrospectorRegistry::supportedDrivers());
+        $this->assertFalse(IntrospectorRegistry::supports('sqlsrv'));
         $this->assertSame(PostgresIntrospector::class, IntrospectorRegistry::classFor('pgsql'));
         $this->assertSame(MysqlIntrospector::class, IntrospectorRegistry::classFor('mariadb'));
+    }
+
+    /**
+     * SQLite is what `laravel new` creates, so it has to work out of the box.
+     * Requiring a database swap before the package does anything at all was
+     * the single biggest barrier to a first successful install.
+     */
+    #[Test]
+    public function sqlite_works_out_of_the_box()
+    {
+        config(['naturalquery.sql.introspectors' => []]);
+
+        $this->assertTrue(IntrospectorRegistry::supports('sqlite'));
+        $this->assertSame(
+            \Jayanta\NaturalQuery\Schema\Introspectors\SqliteIntrospector::class,
+            IntrospectorRegistry::classFor('sqlite')
+        );
+    }
+
+    /** A built-in can be turned off, not only replaced. */
+    #[Test]
+    public function a_built_in_driver_can_be_disabled_with_null()
+    {
+        config(['naturalquery.sql.introspectors' => ['sqlite' => null]]);
+
+        $this->assertFalse(IntrospectorRegistry::supports('sqlite'));
+        $this->assertNotContains('sqlite', IntrospectorRegistry::supportedDrivers());
+        $this->assertNull(IntrospectorRegistry::classFor('sqlite'));
     }
 
     #[Test]

@@ -28,10 +28,6 @@ class MultiStepOrchestrationTest extends TestCase
         $app['config']->set('naturalquery.query_mode', 'intent');
         $app['config']->set('naturalquery.cache.enabled', false);
         $app['config']->set('naturalquery.feedback.enabled', false);
-        $app['config']->set(
-            'naturalquery.sql.introspectors.sqlite',
-            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
-        );
     }
 
     protected function setUp(): void

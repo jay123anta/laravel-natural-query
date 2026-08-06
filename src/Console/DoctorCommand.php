@@ -294,12 +294,9 @@ class DoctorCommand extends Command
                 "Driver '{$driver}' is connected but NaturalQuery cannot introspect it. "
                 . 'Supported: ' . implode(', ', IntrospectorRegistry::supportedDrivers())
                 . '. Every query and every package route will fail.',
-                $driver === 'sqlite'
-                    ? "Laravel 11+ defaults to SQLite. Either set DB_CONNECTION=mysql (or pgsql) in .env, "
-                      . "or keep your app on SQLite and point only NaturalQuery elsewhere by setting "
-                      . "'sql.database_connection' in config/naturalquery.php to a MySQL/PostgreSQL connection."
-                    : "Set DB_CONNECTION to a supported driver in .env, or point 'sql.database_connection' "
-                      . 'in config/naturalquery.php at a supported connection.'
+                "Set DB_CONNECTION to a supported driver in .env, or point 'sql.database_connection' "
+                . 'in config/naturalquery.php at a supported connection. To add a driver of your own, '
+                . "map it to a class implementing SchemaIntrospectorInterface under 'sql.introspectors'."
             );
             // Deliberately no early return: the remaining checks still work and
             // the point of this command is to surface every problem in one pass.

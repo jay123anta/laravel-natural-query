@@ -29,10 +29,6 @@ class ConversationSchemeDetectionTest extends TestCase
 
         // Resolving ConversationManager pulls in the whole engine, which
         // refuses an unsupported driver. The suite runs on SQLite.
-        $app['config']->set(
-            'naturalquery.sql.introspectors.sqlite',
-            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
-        );
     }
 
     private function manager(): ConversationManager

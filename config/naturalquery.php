@@ -347,18 +347,16 @@ return [
         'allow_cte' => true,
 
         // Which Laravel database connection to use for executing queries
-        // null = use default connection from config/database.php
+        // null = use default connection from config/database.php.
         //
-        // NOTE for Laravel 11+ apps: the framework now ships with
-        // DB_CONNECTION=sqlite. NaturalQuery introspects your schema and does
-        // not support SQLite (see 'introspectors' below), so either switch
-        // DB_CONNECTION to mysql/pgsql, or leave your app on SQLite and set
-        // this to a MySQL/PostgreSQL connection used only by NaturalQuery.
+        // Set this to point NaturalQuery at a different connection from the
+        // rest of the app — a read replica, or a database it can introspect
+        // when the app's own driver has no introspector.
         'database_connection' => null,
 
         // ADDITIONAL database drivers NaturalQuery can introspect, mapped to
-        // the class that does it. pgsql, mysql and mariadb are built in
-        // (see Schema\IntrospectorRegistry) and do not need to be listed here.
+        // the class that does it. sqlite, pgsql, mysql and mariadb are built
+        // in (see Schema\IntrospectorRegistry) and need not be listed here.
         //
         // The built-ins live in code rather than in this file on purpose:
         // Laravel merges package config only one level deep, so an app that
@@ -370,7 +368,11 @@ return [
         //
         //     'introspectors' => ['sqlsrv' => \App\Support\SqlServerIntrospector::class],
         //
-        // Entries here override a built-in of the same name.
+        // Entries here override a built-in of the same name. Mapping a driver
+        // to null removes it, so a built-in can be disabled as well as
+        // replaced:
+        //
+        //     'introspectors' => ['sqlite' => null],
         'introspectors' => [],
     ],
 

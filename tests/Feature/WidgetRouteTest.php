@@ -69,6 +69,9 @@ class WidgetRouteTest extends TestCase
     public function the_engine_still_refuses_an_unsupported_driver_with_an_actionable_message()
     {
         // The fix must not silently make an unsupported database look workable.
+        // SQLite is supported now, so disable it to reach the refusal path.
+        config(['naturalquery.sql.introspectors' => ['sqlite' => null]]);
+
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("cannot introspect the 'sqlite' database driver");
 

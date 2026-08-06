@@ -99,10 +99,11 @@ wrong you edit config, not code.
 - Laravel 12 or 13. Laravel 10 and 11 are not supported: both are past
   security support, so every published version carries advisories and
   Composer declines to install them by default.
-- PostgreSQL or MySQL/MariaDB - **not SQLite**, which Laravel 11+ uses by
-  default (the engine introspects your schema). See
-  [Troubleshooting](#troubleshooting) for the two-line fix, or register your
-  own introspector under `sql.introspectors`.
+- SQLite, PostgreSQL, or MySQL/MariaDB. SQLite is what `laravel new` gives
+  you, so a stock Laravel app needs no database change to try this. Anything
+  else is a config change rather than a fork - implement
+  `Contracts\SchemaIntrospectorInterface` and register it under
+  `sql.introspectors`.
 - One LLM provider - your choice of model, hosted or self-hosted:
   - Built-in drivers: Gemini, OpenAI, Claude, Ollama (local)
   - Any OpenAI-compatible service: DeepSeek, Groq, Mistral, OpenRouter,
@@ -962,27 +963,29 @@ NATURALQUERY_SSL_VERIFY=C:\path\to\cacert.pem
 `ssl_verify` accepts `true` (default - system CA bundle), a CA bundle file
 path, or `false` (disables verification - never do this in production).
 
-**`Driver 'sqlite' is connected but NaturalQuery cannot introspect it`** -
-Laravel 11 and 12 ship with `DB_CONNECTION=sqlite`, and NaturalQuery reads your
-schema through database introspection, which it supports on PostgreSQL and
-MySQL/MariaDB only. Either move the app to a supported driver:
-
-```env
-DB_CONNECTION=mysql
-```
-
-…or keep the app on SQLite and point only NaturalQuery elsewhere:
+**`Driver '<name>' is connected but NaturalQuery cannot introspect it`** -
+NaturalQuery reads your schema through database introspection, and ships with
+SQLite, PostgreSQL and MySQL/MariaDB. If your app runs on something else, point
+NaturalQuery at a connection it can read:
 
 ```php
 // config/naturalquery.php
 'sql' => [
-    'database_connection' => 'mysql',   // a connection from config/database.php
+    'database_connection' => 'pgsql',   // a connection from config/database.php
 ],
 ```
 
-Adding another database is a config change, not a fork - implement
-`Contracts\SchemaIntrospectorInterface` and register it under
-`sql.introspectors`.
+…or teach it yours. That is a config change, not a fork - implement
+`Contracts\SchemaIntrospectorInterface` and register the class:
+
+```php
+'sql' => [
+    'introspectors' => [
+        'sqlsrv' => \App\NaturalQuery\SqlServerIntrospector::class,
+        'sqlite' => null,   // null disables a built-in driver
+    ],
+],
+```
 
 **404 from the LLM provider** - the configured model may have been retired.
 Check the provider's live model list and update e.g. `GEMINI_MODEL`, then run

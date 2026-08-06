@@ -75,18 +75,13 @@ class NaturalQueryServiceProvider extends ServiceProvider
                 return $app->make($class);
             }
 
-            // Laravel 11 and 12 ship with DB_CONNECTION=sqlite by default, so
-            // this is the first thing many adopters hit. Say what is wrong and
-            // exactly how to fix it — a bare "unsupported driver" inside a 500
-            // page tells a novice nothing.
+            // A bare "unsupported driver" inside a 500 page tells a novice
+            // nothing, so name the driver and the way out.
             throw new \InvalidArgumentException(
                 "NaturalQuery cannot introspect the '{$driver}' database driver. "
                 . 'Supported: ' . implode(', ', IntrospectorRegistry::supportedDrivers())
-                . ($driver === 'sqlite'
-                    ? ". Laravel 11+ defaults to SQLite — either set DB_CONNECTION to mysql or pgsql "
-                      . "in .env, or keep your app on SQLite and point only NaturalQuery elsewhere via "
-                      . "'sql.database_connection' in config/naturalquery.php"
-                    : '')
+                . ". You can add your own by mapping the driver to a class implementing "
+                . "SchemaIntrospectorInterface under 'sql.introspectors' in config/naturalquery.php"
                 . ". Run 'php artisan naturalquery:doctor' for a full checkup."
             );
         });

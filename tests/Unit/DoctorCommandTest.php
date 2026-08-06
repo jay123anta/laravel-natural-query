@@ -27,15 +27,9 @@ class DoctorCommandTest extends TestCase
         // tests opt back in rather than every case tripping over it.
         $app['config']->set('naturalquery.feedback.enabled', false);
 
-        // The suite runs on in-memory SQLite, which the package does not
-        // support for real — doctor is supposed to flag it. Register a test
-        // introspector for sqlite so these cases can exercise the
-        // driver-independent checks. `it_flags_an_unsupported_database_driver`
-        // deliberately removes this to assert the real behaviour.
-        $app['config']->set(
-            'naturalquery.sql.introspectors.sqlite',
-            \Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector::class
-        );
+        // The suite runs on in-memory SQLite, which is now a supported driver —
+        // so these cases exercise the real SqliteIntrospector rather than a
+        // stand-in, and doctor reports on it exactly as it would in an app.
     }
 
     /** Build the tables the stub schema declares, so schema checks pass. */
@@ -253,19 +247,43 @@ class DoctorCommandTest extends TestCase
     }
 
     /**
-     * Regression: doctor used to report "✓ Connected (sqlite …)" and exit 0 on
-     * a stock Laravel 11/12 app, while every package route died with
-     * "Unsupported database driver". Connecting is not the same as being
-     * usable, and a checkup that says "healthy" about a setup that cannot serve
-     * a single query is the worst thing this command can do.
+     * A stock Laravel 11/12 app runs on SQLite, and the package used to report
+     * "✓ Connected (sqlite …)" and exit 0 while every route died with
+     * "Unsupported database driver". SQLite is supported now, so the healthy
+     * path is the one to pin: the most common install must simply work.
      */
     #[Test]
-    public function it_flags_an_unsupported_database_driver_even_though_the_connection_works()
+    public function a_stock_sqlite_app_is_healthy()
     {
         $this->createStubTables();
-        // Drop the test introspector: sqlite falls back to unsupported, as in
-        // a real app, while the built-in pgsql/mysql/mariadb stay registered.
-        config(['naturalquery.sql.introspectors' => []]);
+
+        $this->artisan('naturalquery:doctor --skip-api')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Connected (sqlite');
+    }
+
+    /**
+     * Connecting is not the same as being usable, and a checkup that says
+     * "healthy" about a setup that cannot serve a single query is the worst
+     * thing this command can do. Still true for a driver nobody has written an
+     * introspector for.
+     */
+    #[Test]
+    public function it_flags_a_driver_it_cannot_introspect_even_though_the_connection_works()
+    {
+        $this->createStubTables();
+
+        // Point the package at a connection whose driver has no introspector.
+        // The connection itself is SQLite so it genuinely opens — which is the
+        // situation being tested: reachable, but not introspectable.
+        config([
+            'database.connections.nq_unsupported' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+            ],
+            'naturalquery.sql.introspectors' => ['sqlite' => null],
+        ]);
 
         // One substring per output line: expectsOutputToContain sets up a
         // Mockery expectation per write, and two substrings on the same line
