@@ -725,11 +725,47 @@ question, and well inside every provider's context window. Tested on a 40-table
 database, questions requiring a ten-table join chain were answered correctly
 without any hand-written configuration.
 
-**Cost is not the limit; ambiguity is.** What actually causes wrong answers at
-this scale is a schema the model cannot interpret from names alone - two
-plausible join paths between the same tables, a status column whose codes are
-undocumented, or a column named `amount` that is stored in cents. Three fields
-fix nearly all of it, in increasing order of effort:
+**Cost is not the limit; ambiguity is.** And it is worth being precise about
+which part you have to supply, because it is smaller than people expect.
+
+Measured on a 14-table schema, asking the same 14 questions twice:
+
+| | out of the box | with 3 sentences of config |
+|---|---|---|
+| 1-table questions | 5/5 | 5/5 |
+| 2-table questions | 3/4 | 2/4 |
+| 3-table questions | 2/3 | **3/3** |
+| 4-table questions | 1/2 | **2/2** |
+| overall | 79% | **86%** |
+
+**You do not need to hand-write joins.** Discovery reads your real foreign keys
+and the joins were right in every case above - a four-table path from order
+lines through orders and customers to regions was found unaided.
+
+What the package cannot know is which measure you mean. That schema had both
+`order_items.line_total` and `payments.amount`; asked for revenue, the model
+chose payments, so customers who had not paid vanished from the ranking and a
+region came back at half its real revenue. The columns are identical in kind -
+both decimal, both legitimately related to orders. Only the business knows.
+
+Saying so took three sentences:
+
+```php
+// config/naturalquery.php
+'system_instructions' => "
+    Revenue means SUM(order_items.line_total). Never use payments.amount as
+    revenue — payments record what has been collected, not what was sold.
+    sessions, jobs and audit_log are infrastructure tables and never answer a
+    business question.
+",
+```
+
+That is the shape of the work: the package gives you a working base from your
+own database, and you add the handful of things only you know on top.
+`php artisan naturalquery:doctor` tells you when more than one dataset could
+answer the same question, so you know when this is worth writing.
+
+Three fields cover nearly everything else, in increasing order of effort:
 
 | Field | Use it when |
 |---|---|

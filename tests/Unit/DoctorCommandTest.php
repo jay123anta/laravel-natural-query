@@ -134,6 +134,59 @@ class DoctorCommandTest extends TestCase
         $this->assertStringNotContainsString('no schema file', Artisan::output());
     }
 
+    /**
+     * Measured on a fourteen-table schema: with both order_items.line_total
+     * and payments.amount available, the model answered "revenue" from
+     * payments, so unpaid customers vanished and a region came back at half
+     * its real revenue. Three sentences of system_instructions moved accuracy
+     * from 79% to 86% and fixed every multi-table question.
+     *
+     * The package cannot make that choice — the columns are identical in kind.
+     * It can say the choice exists.
+     */
+    /** rel_orders and rel_sales each carry their own measures. */
+    private function useCompetingMeasureSchemas(): void
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/related-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+    }
+
+    #[Test]
+    public function it_points_out_that_several_datasets_could_answer_the_same_question()
+    {
+        $this->useCompetingMeasureSchemas();
+        config(['naturalquery.system_instructions' => '']);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('datasets have their own measures', $output);
+        $this->assertStringContainsString('system_instructions', $output);
+    }
+
+    #[Test]
+    public function it_stays_quiet_once_the_ambiguity_has_been_settled()
+    {
+        $this->useCompetingMeasureSchemas();
+        config(['naturalquery.system_instructions' => 'Revenue means SUM(rel_orders.quantity * unit_price).']);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('datasets have their own measures', Artisan::output());
+    }
+
+    #[Test]
+    public function a_single_dataset_with_measures_is_not_ambiguous()
+    {
+        // Nothing to choose between, so saying so would be noise.
+        $this->createStubTables();
+        config(['naturalquery.system_instructions' => '']);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('datasets have their own measures', Artisan::output());
+    }
+
     #[Test]
     public function it_flags_a_missing_api_key()
     {

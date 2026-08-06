@@ -74,6 +74,38 @@ class ExecutionAccuracyTest extends TestCase
         ]);
 
         $this->buildDatabase();
+        $this->applyCurationIfRequested();
+    }
+
+    /**
+     * The domain knowledge a user would supply, and the package cannot infer.
+     *
+     * With fourteen tables there are two defensible answers to "revenue" —
+     * line_total on the order items and amount on the payments — and no amount
+     * of introspection can tell which one the business means. Column names,
+     * types and foreign keys are identical in kind.
+     *
+     * This is the package's central bet: discovery gives you a working base,
+     * and the handful of things only you know go in config on top of it. The
+     * bet is testable, so it is tested. Run with
+     * NATURALQUERY_BENCHMARK_CURATED=1 to measure the same questions with these
+     * three sentences in place, and compare.
+     */
+    private function applyCurationIfRequested(): void
+    {
+        if (env('NATURALQUERY_BENCHMARK_CURATED') !== '1') {
+            return;
+        }
+
+        config(['naturalquery.system_instructions' => <<<'TEXT'
+            Revenue means SUM(bm_order_items.line_total). Never use
+            bm_payments.amount as revenue — payments record what has been
+            collected, which is a different question from what was sold, and
+            using it silently drops customers who have not paid yet.
+
+            bm_sessions, bm_jobs, bm_audit_log and bm_settings are
+            infrastructure tables. They never answer a business question.
+            TEXT]);
     }
 
     private function cleanUp(): void
@@ -415,7 +447,13 @@ class ExecutionAccuracyTest extends TestCase
             $byHardness[$r['hardness']]['correct'] = ($byHardness[$r['hardness']]['correct'] ?? 0) + ($r['correct'] ? 1 : 0);
         }
 
-        $lines = ["\n  EXECUTION ACCURACY — " . config('naturalquery.llm.driver') . "\n"];
+        $lines = [sprintf(
+            "\n  EXECUTION ACCURACY — %s — %s\n",
+            config('naturalquery.llm.driver'),
+            env('NATURALQUERY_BENCHMARK_CURATED') === '1'
+                ? 'WITH domain config'
+                : 'out of the box (discovery only)'
+        )];
 
         foreach ($results as $r) {
             $lines[] = sprintf(
