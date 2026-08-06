@@ -186,6 +186,16 @@ IMPORTANT RULES:
     raw id column when the name it points to is available through a join:
     "top customers by revenue" means joining orders to customers and selecting
     the customer's name, not grouping by customer_id.
+8c. Check EVERY part of the question against the table you are selecting from.
+    If the measure, the grouping, or a FILTER names something that table does
+    not have, the query is not finished — join the table that has it. A filter
+    is the easiest one to miss, because the question often does not name the
+    table it lives on: "shipments to Europe" filters on a country that may sit
+    on the customer, not the shipment. Answering from one table and dropping
+    the rest of the question returns a plausible number for a question nobody
+    asked.
+8d. SELECT the measure alongside the label. A ranking that returns only names,
+    with no column for what they are ranked by, does not answer the question.
 9. For specific record lookup, match with LOWER(column) = LOWER('value'), falling
    back to LOWER(column) LIKE LOWER('%value%'). Never use ILIKE — it is
    PostgreSQL-only and a syntax error on MySQL.

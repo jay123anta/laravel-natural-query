@@ -67,8 +67,28 @@ class SqlBuilder
                 );
             }
 
-            // Resolve metric
-            $metric = $this->registry->resolveMetric($schemeKey, $intent['metric'] ?? null);
+            // Resolve metric.
+            //
+            // A metric the user NAMED that this dataset does not have is a
+            // refusal, not a reason to reach for the default. "Top 3 customers
+            // by revenue" against a customers table has no revenue in it, and
+            // quietly ranking by whatever the default is returns the right
+            // shape of answer to a different question — the same silent
+            // substitution as a dropped breakdown or a dropped period. Failing
+            // here lets auto mode try SQL generation, which can join to the
+            // table the measure actually lives in.
+            $namedMetric = $intent['metric'] ?? null;
+            $metric = $this->registry->resolveMetric($schemeKey, $namedMetric);
+
+            if (!$metric && $namedMetric) {
+                $available = array_column($this->registry->getSchemeMetrics($schemeKey), 'key');
+
+                return $this->errorResponse(
+                    "'{$namedMetric}' is not a measure of this dataset."
+                    . ($available ? ' Available: ' . implode(', ', $available) . '.' : '')
+                );
+            }
+
             if (!$metric) {
                 $metric = $this->registry->getDefaultMetric($schemeKey);
             }
@@ -139,8 +159,27 @@ class SqlBuilder
             }
 
             // Determine query type and build SQL
+            // "What is the total revenue" is one number, not a ranking of every
+            // row. The model says so — query_type comes back as 'aggregation' —
+            // and this branch was missing, so the field was read in the
+            // SQL-generation path and ignored here. The answer came back as a
+            // list of individual line items, which is not what was asked and
+            // does not look wrong at a glance.
+            //
+            // A named breakdown or a named record wins: "revenue by region" and
+            // "revenue for West" are still a grouping and a detail view even if
+            // the model also calls them aggregations.
+            $wantsTotal = ($intent['query_type'] ?? null) === 'aggregation'
+                && !$groupValue
+                && !$requestedDimension;
+
             $bindings = [];
-            if ($groupValue) {
+            if ($wantsTotal) {
+                $result = $this->buildTotalQuery($fromClause, $metricExpr, $metric, $aggregate, $time);
+                $sql = $result['sql'];
+                $bindings = $result['bindings'];
+                $queryType = 'aggregation';
+            } elseif ($groupValue) {
                 $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
@@ -400,44 +439,44 @@ class SqlBuilder
     }
 
     /**
-     * Build aggregation query (totals).
+     * One number over the whole (optionally date-narrowed) table.
+     *
+     * @return array{sql: string, bindings: array}
+     */
+    protected function buildTotalQuery(
+        string $fromClause,
+        string $metricExpr,
+        string $metricAlias,
+        bool $aggregate,
+        array $time
+    ): array {
+        // By this point an aggregatable column is already wrapped in SUM() and
+        // a computed metric may aggregate on its own. Only a bare column still
+        // needs wrapping — and wrapping an aggregate twice is invalid SQL.
+        $expr = ($aggregate || $this->isAggregateExpression($metricExpr))
+            ? $metricExpr
+            : "SUM({$metricExpr})";
+
+        $where = !empty($time['clause']) ? " WHERE {$time['clause']}" : '';
+
+        return [
+            'sql' => "SELECT {$expr} AS {$metricAlias} FROM {$fromClause}{$where}",
+            'bindings' => $time['bindings'] ?? [],
+        ];
+    }
+
+    /**
+     * Totals, as their own entry point.
+     *
+     * Kept because it is public API, but it no longer builds SQL of its own —
+     * it goes through buildQuery so that the time filter, required filters,
+     * metric resolution and response shape are the same ones every other query
+     * gets. The separate implementation had drifted: it applied no period and
+     * returned none of the metadata the formatter reads.
      */
     public function buildAggregationQuery(array $intent): array
     {
-        try {
-            $schemeKey = $intent['scheme'] ?? null;
-            $schema = $this->registry->get($schemeKey);
-
-            if (!$schema) {
-                return $this->errorResponse("Unknown scheme: {$schemeKey}");
-            }
-
-            $tableName = $this->registry->getTableName($schemeKey);
-            $joinClause = $schema['tables']['primary']['required_join'] ?? null;
-            $fromClause = $tableName . ($joinClause ? ' ' . $joinClause : '');
-
-            $metric = $this->registry->resolveMetric($schemeKey, $intent['metric'] ?? null)
-                ?? $this->registry->getDefaultMetric($schemeKey);
-
-            $metricExpr = $this->getMetricExpression($schemeKey, $metric);
-
-            // A computed metric that already aggregates (COUNT/SUM/AVG/...)
-            // must not be wrapped in SUM() — nested aggregates are invalid SQL.
-            $sql = $this->isAggregateExpression($metricExpr)
-                ? "SELECT {$metricExpr} AS {$metric} FROM {$fromClause}"
-                : "SELECT SUM({$metricExpr}) AS total_{$metric} FROM {$fromClause}";
-
-            return [
-                'success' => true,
-                'sql' => $sql,
-                'scheme' => $schemeKey,
-                'scheme_name' => $schema['name'] ?? $schemeKey,
-                'metric' => $metric,
-                'query_type' => 'aggregation',
-            ];
-        } catch (\Exception $e) {
-            return $this->errorResponse('Aggregation error: ' . $e->getMessage());
-        }
+        return $this->buildQuery(['query_type' => 'aggregation'] + $intent);
     }
 
     /**

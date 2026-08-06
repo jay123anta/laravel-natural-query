@@ -109,6 +109,8 @@ Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), gro
 
 When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — the metric is record_count. Only pick a money or quantity metric when the user names one.
 
+query_type: "aggregation" when the user wants ONE number for the whole dataset ("total revenue", "how many orders are there") with no breakdown and no named record; "ranking" for a list, which is the usual case; "group_detail" when they named one record.
+
 group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
 
 date_from / date_to: if the user named a period — "last month", "in 2025", "since April" — resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
@@ -116,7 +118,7 @@ date_from / date_to: if the user named a period — "last month", "in 2025", "si
 If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
 If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","group_value":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -228,6 +230,7 @@ PROMPT;
             'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,
             'confidence' => $confidence,

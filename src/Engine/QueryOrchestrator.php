@@ -185,11 +185,27 @@ class QueryOrchestrator
                 } else {
                     $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
 
-                    // If intent mode returned an error (not clarification), try SQL generation
-                    if (($result['status'] ?? '') === 'error' && ($result['_fallback_eligible'] ?? false)) {
-                        Log::info('[NaturalQuery] Auto mode: intent failed, falling back to sql_generation');
+                    // Fall back when intent mode could not answer — whether it
+                    // failed outright, or asked a question it should not have
+                    // needed to ask. A clarification is only offered here when
+                    // the dataset chosen cannot express the breakdown but a
+                    // related table can, so trying is strictly better than
+                    // handing the user a menu they cannot usefully answer.
+                    $couldNotAnswer = in_array($result['status'] ?? '', ['error', 'clarification_needed'], true);
+
+                    if ($couldNotAnswer && ($result['_fallback_eligible'] ?? false)) {
+                        Log::info('[NaturalQuery] Auto mode: falling back to sql_generation', [
+                            'after' => $result['status'] ?? '?',
+                        ]);
                         $metadata['query_mode'] = 'auto→sql_generation';
-                        $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                        $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+
+                        // Keep the clarification if generation did no better —
+                        // a usable question beats a bare failure.
+                        if (($generated['status'] ?? '') === 'success'
+                            || ($result['status'] ?? '') === 'error') {
+                            $result = $generated;
+                        }
                     }
                 }
             }
@@ -303,14 +319,32 @@ class QueryOrchestrator
         if ($hasScheme && $hasGroupValue && empty($intent['metric'])) {
             // District detail — SqlBuilder handles this
         } elseif (($intent['needs_clarification'] ?? false) || !$hasScheme) {
+            // Why the model asked, before it is rewritten below. The prompt
+            // tells it to answer 'ambiguous' when the requested breakdown is
+            // not available on the dataset it chose — which, across related
+            // tables, usually means the answer needs a JOIN rather than a
+            // question. "Revenue by region" is line_total in one table and
+            // region in another: perfectly answerable, just not by a builder
+            // that works within a single dataset.
+            $askedBecause = $intent['clarification_type'] ?? null;
+
             // The dataset is settled; whatever is still unclear is a metric.
             $intent['clarification_type'] = 'metric';
 
-            return $this->formatter->formatClarification(
+            $clarification = $this->formatter->formatClarification(
                 $intent,
                 $availableSchemes,
                 $hasScheme ? $this->registry->getSchemeMetrics($intent['scheme']) : []
             );
+
+            // Asking the user to choose a metric they already named is a dead
+            // end. Let auto mode try SQL generation, which can join across the
+            // related tables and answer it outright.
+            if ($askedBecause === 'ambiguous' && $this->registry->hasLinkedSchemas()) {
+                $clarification['_fallback_eligible'] = true;
+            }
+
+            return $clarification;
         }
 
         // Build SQL locally

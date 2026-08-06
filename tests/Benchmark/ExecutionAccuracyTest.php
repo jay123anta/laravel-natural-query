@@ -179,13 +179,15 @@ class ExecutionAccuracyTest extends TestCase
         $correct = count(array_filter($results, fn ($r) => $r['correct']));
         $total = count($results);
 
-        // Asserted low on purpose. The number this prints is the deliverable;
-        // the assertion only fails the build if accuracy collapses, since a
-        // live model makes an exact threshold flaky rather than informative.
-        $this->assertGreaterThan(
-            $total * 0.5,
+        // The number this prints is the deliverable; the assertion guards
+        // against collapse. Kept below the measured score because a live model
+        // varies run to run — an exact threshold would be flaky rather than
+        // informative — but high enough that losing a whole hardness band
+        // fails rather than passes quietly.
+        $this->assertGreaterThanOrEqual(
+            (int) ceil($total * 0.7),
             $correct,
-            'execution accuracy fell below 50% — see the breakdown above'
+            'execution accuracy fell below 70% — see the breakdown above'
         );
     }
 
@@ -304,7 +306,9 @@ class ExecutionAccuracyTest extends TestCase
                 $r['correct'] ? ' ok ' : 'FAIL',
                 $r['hardness'],
                 substr($r['question'], 0, 46),
-                $r['correct'] ? ($r['mode'] ?? '') : $r['note']
+                // Mode on every row, not only the passes: when something fails
+                // the first question is always which path produced it.
+                trim(($r['mode'] ?? '') . ' ' . ($r['correct'] ? '' : $r['note']))
             );
         }
 

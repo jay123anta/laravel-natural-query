@@ -225,15 +225,21 @@ AVAILABLE DATASETS WITH THEIR METRICS:
 TASK: Extract:
 1. scheme: One of the available dataset keys
 2. metric: What measurement the user wants (use exact metric names). When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status", "ticket volume by month" — the measurement is a count of records, so use record_count. Only pick a money or quantity metric when the user actually names one.
-3. limit: Number of results requested (default 10)
-4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
-5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-7. date_from / date_to: If the user named a period — "last month", "in 2025",
+3. query_type: "aggregation" when the user wants ONE number for the whole
+   dataset — "total revenue", "how many orders are there", "what is the average
+   order value" — with no breakdown and no named record. "ranking" when they
+   want a list, which is the usual case. "group_detail" when they named one
+   record. Getting this wrong turns "what is the total revenue" into a list of
+   every individual row.
+4. limit: Number of results requested (default 10)
+5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
+6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
+7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
+8. date_from / date_to: If the user named a period — "last month", "in 2025",
    "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
    form, using TODAY'S DATE below. Both null when no period is mentioned.
    Never guess a period the user did not ask for.
-8. confidence: Your confidence 0.0 to 1.0
+9. confidence: Your confidence 0.0 to 1.0
 
 TODAY'S DATE: {$today}
 
@@ -249,6 +255,7 @@ RETURN FORMAT (JSON only, no markdown):
     "metric": "metric_name or null",
     "limit": 10,
     "order": "desc",
+    "query_type": "ranking",
     "group_value": null,
     "group_by": null,
     "date_from": null,
@@ -278,15 +285,21 @@ AVAILABLE DATASETS WITH THEIR METRICS:
 TASK: Extract from the audio:
 1. scheme: One of the available dataset keys
 2. metric: What measurement the user wants. When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — use record_count.
-3. limit: Number of results requested (default 10)
-4. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
-5. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-6. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-7. date_from / date_to: If the user named a period — "last month", "in 2025",
+3. query_type: "aggregation" when the user wants ONE number for the whole
+   dataset — "total revenue", "how many orders are there", "what is the average
+   order value" — with no breakdown and no named record. "ranking" when they
+   want a list, which is the usual case. "group_detail" when they named one
+   record. Getting this wrong turns "what is the total revenue" into a list of
+   every individual row.
+4. limit: Number of results requested (default 10)
+5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
+6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
+7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
+8. date_from / date_to: If the user named a period — "last month", "in 2025",
    "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
    form, using TODAY'S DATE below. Both null when no period is mentioned.
    Never guess a period the user did not ask for.
-8. confidence: Your confidence 0.0 to 1.0
+9. confidence: Your confidence 0.0 to 1.0
 
 TODAY'S DATE: {$today}
 
@@ -297,6 +310,7 @@ RETURN FORMAT (JSON only, no markdown):
     "metric": "metric_name or null",
     "limit": 10,
     "order": "desc",
+    "query_type": "ranking",
     "group_value": null,
     "group_by": null,
     "date_from": null,
@@ -345,6 +359,7 @@ PROMPT;
             'order' => $order,
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
+            'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,
             'confidence' => $confidence,
