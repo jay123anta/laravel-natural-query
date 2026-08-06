@@ -66,6 +66,7 @@ DATASETS:
 
 query_type = "aggregation" for one number over the whole dataset ("total revenue", "how many orders"), else "ranking".
 group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
+Never ask for clarification on a HOW MANY question — record_count always exists.
 metric = record_count when the user asks HOW MANY ("how many orders", "orders by status"), otherwise the named measure.
 date_from / date_to = YYYY-MM-DD dates if the user named a period ("last month", "in 2025"), else null. TODAY IS {$today}.
 

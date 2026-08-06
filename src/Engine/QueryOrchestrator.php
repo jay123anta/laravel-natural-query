@@ -340,7 +340,20 @@ class QueryOrchestrator
             // Asking the user to choose a metric they already named is a dead
             // end. Let auto mode try SQL generation, which can join across the
             // related tables and answer it outright.
-            if ($askedBecause === 'ambiguous' && $this->registry->hasLinkedSchemas()) {
+            //
+            // 'ambiguous' means the breakdown does not exist on the chosen
+            // dataset. But a question that states its own measure — "how many
+            // continents are there", "average horsepower" — is not ambiguous
+            // whatever the model labelled it, and on a schema of mostly
+            // dimension tables it labelled almost everything 'metric' and
+            // asked. A whole Spider database scored zero that way.
+            //
+            // Retrying is safe: the clarification is kept unless generation
+            // actually succeeds, so a genuinely open question ("which is the
+            // best?") still gets asked rather than guessed at.
+            $selfEvident = $this->statesItsOwnMeasure($query);
+
+            if (($askedBecause === 'ambiguous' || $selfEvident) && $this->registry->hasLinkedSchemas()) {
                 $clarification['_fallback_eligible'] = true;
             }
 
@@ -448,6 +461,22 @@ class QueryOrchestrator
         }
 
         return $response;
+    }
+
+    /**
+     * Does the question already say what to measure?
+     *
+     * "How many continents are there" names its own measure — every dataset
+     * can be counted — so a request to choose a metric is not a real question,
+     * it is a dead end. "Which is the best?" names nothing and deserves to be
+     * asked about.
+     */
+    protected function statesItsOwnMeasure(string $query): bool
+    {
+        return (bool) preg_match(
+            '/\b(?:how\s+many|how\s+much|number\s+of|count\s+of|total|sum|average|mean|median|minimum|maximum|min|max|highest|lowest|largest|smallest)\b/i',
+            $query
+        );
     }
 
     /**

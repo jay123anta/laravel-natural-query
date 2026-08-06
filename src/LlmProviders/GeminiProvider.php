@@ -247,6 +247,7 @@ IMPORTANT RULES:
 - Match the user's query to the correct dataset key
 - If dataset is unclear, set needs_clarification=true and clarification_type="scheme"
 - If metric is unclear for identified dataset, set needs_clarification=true and clarification_type="metric"
+Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
 - If the user asks to break results down by something that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous". Never silently fall back to the default breakdown.
 
 RETURN FORMAT (JSON only, no markdown):

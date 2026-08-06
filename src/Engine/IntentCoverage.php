@@ -82,6 +82,11 @@ class IntentCoverage
             // years FOR all the songs". The trailing preposition is what keeps
             // this from matching "revenue by region" or "orders and revenue".
             '/\b(?:show|list|display|give\s+me|what\s+(?:is|are)|return)\b[^?]{0,40}?\b\w+\s+and\s+(?:the\s+)?\w+(?:\s+\w+)?\s+(?:for|of|by|from|in)\b/i',
+            // "the full name of each maker, ALONG WITH its id and how many
+            // models" — an explicit request for extra columns beside the one
+            // being measured.
+            '/\balong\s+with\b/i',
+            '/\b(?:list|show|give)\b[^?]{0,50}?\b(?:its|their)\s+\w+\s+and\s+\w+/i',
         ],
 
         // Per-group superlatives — a window function or correlated subquery

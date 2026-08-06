@@ -55,12 +55,24 @@ class SpiderSampleTest extends TestCase
             $this->markTestSkipped('Set NATURALQUERY_BENCHMARK_KEY to the provider API key.');
         }
 
-        $this->prepare();
+        // One database is one schema's worth of evidence. Several, with
+        // different shapes, is the difference between a number and a claim.
+        $databases = array_filter(
+            array_map('trim', explode(',', (string) (env('NATURALQUERY_BENCHMARK_DB') ?: 'concert_singer,car_1')))
+        );
 
-        try {
-            $results = $this->runQuestions();
-        } finally {
-            $this->cleanUp();
+        $results = [];
+
+        foreach ($databases as $dbId) {
+            $this->prepare($dbId);
+
+            try {
+                foreach ($this->runQuestions($dbId) as $row) {
+                    $results[] = $row + ['db' => $dbId];
+                }
+            } finally {
+                $this->cleanUp();
+            }
         }
 
         $this->report($results);
@@ -80,7 +92,7 @@ class SpiderSampleTest extends TestCase
         );
     }
 
-    private function prepare(): void
+    private function prepare(string $dbId): void
     {
         $driver = env('NATURALQUERY_LLM_DRIVER', 'gemini');
 
@@ -98,7 +110,7 @@ class SpiderSampleTest extends TestCase
             config(['naturalquery.ssl_verify' => $caBundle]);
         }
 
-        $this->schemaPath = sys_get_temp_dir() . '/nq-spider-' . getmypid();
+        $this->schemaPath = sys_get_temp_dir() . '/nq-spider-' . getmypid() . '-' . $dbId;
 
         if (!is_dir($this->schemaPath)) {
             mkdir($this->schemaPath, 0777, true);
@@ -106,7 +118,15 @@ class SpiderSampleTest extends TestCase
 
         config(['naturalquery.schema.config_path' => $this->schemaPath]);
 
-        $this->buildSpiderDatabase();
+        // Each database must start from nothing. Running two in one process
+        // left the first one's tables in place and the registry still holding
+        // the first one's config path, so discovery saw both schemas at once
+        // and the second database scored zero — a harness failure that reads
+        // exactly like a package failure.
+        $this->dropAllTables();
+        $this->forgetSchemaBoundServices();
+
+        $this->buildSpiderDatabase($dbId);
 
         Artisan::call('naturalquery:discover', [
             '--output' => $this->schemaPath,
@@ -128,70 +148,59 @@ class SpiderSampleTest extends TestCase
         }
     }
 
+    private function dropAllTables(): void
+    {
+        foreach (DB::select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") as $t) {
+            DB::statement('DROP TABLE IF EXISTS "' . str_replace('"', '""', $t->name) . '"');
+        }
+    }
+
     /**
-     * Spider's published concert_singer schema, with its real foreign keys.
-     * Column names and casing are Spider's, not tidied — half the difficulty of
+     * Anything holding a SchemaRegistry holds its config path with it, so the
+     * whole chain has to go, not just the registry.
+     */
+    private function forgetSchemaBoundServices(): void
+    {
+        foreach ([
+            SchemaRegistry::class,
+            QueryOrchestrator::class,
+            \Jayanta\NaturalQuery\Engine\SqlBuilder::class,
+            \Jayanta\NaturalQuery\Engine\PromptBuilder::class,
+            \Jayanta\NaturalQuery\Engine\QueryPlanner::class,
+            \Jayanta\NaturalQuery\Engine\NextStepSuggester::class,
+            \Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class,
+        ] as $service) {
+            $this->app->forgetInstance($service);
+        }
+    }
+
+    /**
+     * Create one Spider database from its published schema and fill it.
+     *
+     * Table and column names are Spider's, untouched. Half the difficulty of
      * an unfamiliar schema is that it is not named the way you would name it.
      */
-    private function buildSpiderDatabase(): void
+    private function buildSpiderDatabase(string $dbId): void
     {
-        DB::statement('CREATE TABLE stadium (
-            Stadium_ID INTEGER PRIMARY KEY, Location TEXT, Name TEXT,
-            Capacity INTEGER, Highest INTEGER, Lowest INTEGER, Average INTEGER)');
+        $databases = require __DIR__ . '/spider/databases.php';
 
-        DB::statement('CREATE TABLE singer (
-            Singer_ID INTEGER PRIMARY KEY, Name TEXT, Country TEXT, Song_Name TEXT,
-            Song_release_year TEXT, Age INTEGER, Is_male TEXT)');
+        if (!isset($databases[$dbId])) {
+            $this->fail("No definition for Spider database '{$dbId}'.");
+        }
 
-        DB::statement('CREATE TABLE concert (
-            concert_ID INTEGER PRIMARY KEY, concert_Name TEXT, Theme TEXT,
-            Stadium_ID INTEGER, Year TEXT,
-            FOREIGN KEY (Stadium_ID) REFERENCES stadium(Stadium_ID))');
+        foreach ($databases[$dbId]['ddl'] as $statement) {
+            DB::statement($statement);
+        }
 
-        DB::statement('CREATE TABLE singer_in_concert (
-            concert_ID INTEGER, Singer_ID INTEGER,
-            FOREIGN KEY (concert_ID) REFERENCES concert(concert_ID),
-            FOREIGN KEY (Singer_ID) REFERENCES singer(Singer_ID))');
-
-        DB::table('stadium')->insert([
-            ['Stadium_ID' => 1, 'Location' => 'Raith Rovers', 'Name' => 'Stark\'s Park', 'Capacity' => 10104, 'Highest' => 4812, 'Lowest' => 1294, 'Average' => 2106],
-            ['Stadium_ID' => 2, 'Location' => 'Ayr United', 'Name' => 'Somerset Park', 'Capacity' => 11998, 'Highest' => 2363, 'Lowest' => 1057, 'Average' => 1477],
-            ['Stadium_ID' => 3, 'Location' => 'East Fife', 'Name' => 'Bayview Stadium', 'Capacity' => 2000, 'Highest' => 1980, 'Lowest' => 533, 'Average' => 864],
-            ['Stadium_ID' => 4, 'Location' => 'Queens Park', 'Name' => 'Hampden Park', 'Capacity' => 52500, 'Highest' => 1763, 'Lowest' => 466, 'Average' => 730],
-            ['Stadium_ID' => 5, 'Location' => 'Stirling Albion', 'Name' => 'Forthbank Stadium', 'Capacity' => 3808, 'Highest' => 1125, 'Lowest' => 404, 'Average' => 642],
-        ]);
-
-        DB::table('singer')->insert([
-            ['Singer_ID' => 1, 'Name' => 'Joe Sharp', 'Country' => 'Netherlands', 'Song_Name' => 'You', 'Song_release_year' => '1992', 'Age' => 52, 'Is_male' => 'F'],
-            ['Singer_ID' => 2, 'Name' => 'Timbaland', 'Country' => 'United States', 'Song_Name' => 'Dangerous', 'Song_release_year' => '2008', 'Age' => 32, 'Is_male' => 'T'],
-            ['Singer_ID' => 3, 'Name' => 'Justin Brown', 'Country' => 'France', 'Song_Name' => 'Hey Oh', 'Song_release_year' => '2013', 'Age' => 29, 'Is_male' => 'T'],
-            ['Singer_ID' => 4, 'Name' => 'Rose White', 'Country' => 'France', 'Song_Name' => 'Sun', 'Song_release_year' => '2003', 'Age' => 41, 'Is_male' => 'F'],
-            ['Singer_ID' => 5, 'Name' => 'John Nizinik', 'Country' => 'France', 'Song_Name' => 'Gentleman', 'Song_release_year' => '2014', 'Age' => 43, 'Is_male' => 'T'],
-            ['Singer_ID' => 6, 'Name' => 'Tribal King', 'Country' => 'France', 'Song_Name' => 'Love', 'Song_release_year' => '2016', 'Age' => 25, 'Is_male' => 'T'],
-        ]);
-
-        DB::table('concert')->insert([
-            ['concert_ID' => 1, 'concert_Name' => 'Audition Anthem', 'Theme' => 'Free choice', 'Stadium_ID' => 1, 'Year' => '2014'],
-            ['concert_ID' => 2, 'concert_Name' => 'Super bootcamp', 'Theme' => 'Free choice 2', 'Stadium_ID' => 2, 'Year' => '2014'],
-            ['concert_ID' => 3, 'concert_Name' => 'Home Visits', 'Theme' => 'Bleeding Love', 'Stadium_ID' => 2, 'Year' => '2015'],
-            ['concert_ID' => 4, 'concert_Name' => 'Week 1', 'Theme' => 'Wide Awake', 'Stadium_ID' => 10, 'Year' => '2014'],
-            ['concert_ID' => 5, 'concert_Name' => 'Week 1', 'Theme' => 'Happy Tonight', 'Stadium_ID' => 9, 'Year' => '2015'],
-            ['concert_ID' => 6, 'concert_Name' => 'Week 2', 'Theme' => 'Party All Night', 'Stadium_ID' => 7, 'Year' => '2015'],
-        ]);
-
-        DB::table('singer_in_concert')->insert([
-            ['concert_ID' => 1, 'Singer_ID' => 2], ['concert_ID' => 1, 'Singer_ID' => 3],
-            ['concert_ID' => 1, 'Singer_ID' => 5], ['concert_ID' => 2, 'Singer_ID' => 3],
-            ['concert_ID' => 2, 'Singer_ID' => 6], ['concert_ID' => 3, 'Singer_ID' => 5],
-            ['concert_ID' => 4, 'Singer_ID' => 4], ['concert_ID' => 5, 'Singer_ID' => 6],
-            ['concert_ID' => 5, 'Singer_ID' => 3], ['concert_ID' => 6, 'Singer_ID' => 1],
-        ]);
+        foreach ($databases[$dbId]['rows'] as $table => $rows) {
+            DB::table($table)->insert($rows);
+        }
     }
 
     /** @return array<int, array> */
-    private function runQuestions(): array
+    private function runQuestions(string $dbId): array
     {
-        $all = require __DIR__ . '/spider/concert_singer_questions.php';
+        $all = require __DIR__ . "/spider/{$dbId}_questions.php";
 
         // Bounded because each question is a live API call on a free tier. The
         // cap is reported, never silent.
@@ -287,16 +296,35 @@ class SpiderSampleTest extends TestCase
 
     private function report(array $results): void
     {
-        $lines = ["\n  SPIDER dev — concert_singer — no curation, synthetic data\n"];
+        $lines = ["\n  SPIDER dev — no curation, synthetic data\n"];
 
         foreach ($results as $r) {
             $lines[] = sprintf(
-                '  %-5s %-52s %-15s %s',
+                '  %-5s %-16s %-46s %-15s %s',
                 $r['skipped'] ? 'skip' : ($r['correct'] ? ' ok ' : 'FAIL'),
-                substr($r['question'], 0, 52),
+                $r['db'] ?? '',
+                substr($r['question'], 0, 46),
                 $r['mode'],
                 $r['note']
             );
+        }
+
+        // Per database, because one schema's worth of evidence is not a claim.
+        $byDb = [];
+
+        foreach ($results as $r) {
+            if ($r['skipped']) {
+                continue;
+            }
+            $db = $r['db'] ?? '?';
+            $byDb[$db]['total'] = ($byDb[$db]['total'] ?? 0) + 1;
+            $byDb[$db]['correct'] = ($byDb[$db]['correct'] ?? 0) + ($r['correct'] ? 1 : 0);
+        }
+
+        $lines[] = '';
+
+        foreach ($byDb as $db => $b) {
+            $lines[] = sprintf('  %-16s %d/%d', $db, $b['correct'], $b['total']);
         }
 
         $scored = array_values(array_filter($results, fn ($r) => !$r['skipped']));
