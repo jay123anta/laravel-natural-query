@@ -10,5 +10,13 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!--
+            Accuracy benchmark. Self-skips unless NATURALQUERY_BENCHMARK=1,
+            because it makes real API calls — a suite that quietly spends money
+            on every run is a bad neighbour.
+        -->
+        <testsuite name="Benchmark">
+            <directory>tests/Benchmark</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

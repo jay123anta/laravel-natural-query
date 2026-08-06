@@ -1,0 +1,310 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Benchmark;
+
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+/**
+ * Execution accuracy end to end, against a live model.
+ *
+ * "How accurate is it?" is the first question any evaluator asks, and until
+ * now the honest answer was "nobody has measured". This measures it the way
+ * the field does: ask in English, run whatever SQL comes out, run hand-written
+ * gold SQL, compare the answers.
+ *
+ * WHAT THIS IS NOT. It is not a Spider or BIRD score. Those are 200-database
+ * suites with thousands of questions, and a number from this set is not
+ * comparable to a published one. This is a small set on one schema, authored
+ * here, graded by the same METHOD. It answers "does this package answer
+ * ordinary questions about an ordinary database correctly", which is the
+ * question an adopter actually has.
+ *
+ * Skipped unless NATURALQUERY_BENCHMARK=1 — it costs real API calls, and a
+ * test suite that silently spends money on every run is a bad neighbour.
+ *
+ *   NATURALQUERY_BENCHMARK=1 vendor/bin/phpunit --filter ExecutionAccuracyTest
+ */
+class ExecutionAccuracyTest extends TestCase
+{
+    private string $schemaPath;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (env('NATURALQUERY_BENCHMARK') !== '1') {
+            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK=1 to run the benchmark (uses live API calls).');
+        }
+
+        // The base TestCase pins a fake key so nothing calls out by accident.
+        // The benchmark needs a real provider, taken from the environment.
+        $driver = env('NATURALQUERY_LLM_DRIVER', 'gemini');
+        $key = env('NATURALQUERY_BENCHMARK_KEY');
+
+        if (!$key) {
+            $this->markTestSkipped('Set NATURALQUERY_BENCHMARK_KEY to the provider API key.');
+        }
+
+        config([
+            'naturalquery.llm.driver' => $driver,
+            "naturalquery.llm.providers.{$driver}.api_key" => $key,
+        ]);
+
+        // XAMPP and similar stacks ship no CA bundle, so an HTTPS call fails
+        // with "unable to connect" rather than anything about certificates.
+        // Point at one when the environment names it — never disable
+        // verification to make a benchmark run.
+        if ($caBundle = env('NATURALQUERY_SSL_VERIFY')) {
+            config(['naturalquery.ssl_verify' => $caBundle]);
+        }
+
+        $this->schemaPath = sys_get_temp_dir() . '/nq-benchmark-' . getmypid();
+
+        if (!is_dir($this->schemaPath)) {
+            mkdir($this->schemaPath, 0777, true);
+        }
+
+        config([
+            'naturalquery.schema.config_path' => $this->schemaPath,
+            'naturalquery.cache.enabled' => false,
+            'naturalquery.feedback.enabled' => false,
+        ]);
+
+        $this->buildDatabase();
+    }
+
+    protected function tearDown(): void
+    {
+        foreach (glob($this->schemaPath . '/*.php') ?: [] as $file) {
+            unlink($file);
+        }
+
+        if (isset($this->schemaPath) && is_dir($this->schemaPath)) {
+            rmdir($this->schemaPath);
+        }
+
+        parent::tearDown();
+    }
+
+    /** A small normalised shop: joins, dates, categories, statuses. */
+    private function buildDatabase(): void
+    {
+        Schema::create('bm_customers', function ($t) {
+            $t->id();
+            $t->string('name');
+            $t->string('region');
+        });
+
+        Schema::create('bm_products', function ($t) {
+            $t->id();
+            $t->string('name');
+            $t->string('category');
+            $t->decimal('unit_price', 10, 2);
+        });
+
+        Schema::create('bm_orders', function ($t) {
+            $t->id();
+            $t->foreignId('customer_id')->constrained('bm_customers');
+            $t->date('order_date');
+            $t->string('status');
+        });
+
+        Schema::create('bm_order_items', function ($t) {
+            $t->id();
+            $t->foreignId('order_id')->constrained('bm_orders');
+            $t->foreignId('product_id')->constrained('bm_products');
+            $t->integer('quantity');
+            $t->decimal('line_total', 12, 2);
+        });
+
+        DB::table('bm_customers')->insert([
+            ['name' => 'Ada Lovelace', 'region' => 'West'],
+            ['name' => 'Grace Hopper', 'region' => 'East'],
+            ['name' => 'Alan Turing', 'region' => 'West'],
+        ]);
+
+        DB::table('bm_products')->insert([
+            ['name' => 'Desk', 'category' => 'Furniture', 'unit_price' => 250],
+            ['name' => 'Chair', 'category' => 'Furniture', 'unit_price' => 120],
+            ['name' => 'Monitor', 'category' => 'Electronics', 'unit_price' => 300],
+        ]);
+
+        DB::table('bm_orders')->insert([
+            ['customer_id' => 1, 'order_date' => '2026-07-03', 'status' => 'delivered'],
+            ['customer_id' => 1, 'order_date' => '2026-07-18', 'status' => 'delivered'],
+            ['customer_id' => 1, 'order_date' => '2026-08-02', 'status' => 'cancelled'],
+            ['customer_id' => 2, 'order_date' => '2026-07-11', 'status' => 'delivered'],
+            ['customer_id' => 3, 'order_date' => '2026-06-28', 'status' => 'pending'],
+        ]);
+
+        DB::table('bm_order_items')->insert([
+            ['order_id' => 1, 'product_id' => 1, 'quantity' => 2, 'line_total' => 500],
+            ['order_id' => 2, 'product_id' => 2, 'quantity' => 1, 'line_total' => 120],
+            ['order_id' => 3, 'product_id' => 3, 'quantity' => 1, 'line_total' => 300],
+            ['order_id' => 4, 'product_id' => 3, 'quantity' => 2, 'line_total' => 600],
+            ['order_id' => 5, 'product_id' => 1, 'quantity' => 1, 'line_total' => 250],
+        ]);
+
+        Artisan::call('naturalquery:discover', [
+            '--output' => $this->schemaPath,
+            '--no-verify' => true,
+            '--force' => true,
+        ]);
+
+        $this->app->make(SchemaRegistry::class)->flush();
+    }
+
+    #[Test]
+    public function it_answers_ordinary_questions_correctly()
+    {
+        $questions = require __DIR__ . '/questions.php';
+        $orchestrator = $this->app->make(QueryOrchestrator::class);
+
+        $results = [];
+
+        foreach ($questions as $i => $case) {
+            // Free-tier providers rate limit by the minute. Pacing keeps the
+            // benchmark measuring accuracy rather than throttling.
+            if ($i > 0) {
+                sleep(5);
+            }
+
+            $results[] = $this->score($orchestrator, $case);
+        }
+
+        $this->report($results);
+
+        $correct = count(array_filter($results, fn ($r) => $r['correct']));
+        $total = count($results);
+
+        // Asserted low on purpose. The number this prints is the deliverable;
+        // the assertion only fails the build if accuracy collapses, since a
+        // live model makes an exact threshold flaky rather than informative.
+        $this->assertGreaterThan(
+            $total * 0.5,
+            $correct,
+            'execution accuracy fell below 50% — see the breakdown above'
+        );
+    }
+
+    private function score(QueryOrchestrator $orchestrator, array $case): array
+    {
+        $gold = $this->normalize(DB::select($case['gold']), $case['ordered'] ?? false);
+
+        try {
+            $response = $orchestrator->query($case['question']);
+        } catch (\Throwable $e) {
+            return $case + ['correct' => false, 'note' => 'exception: ' . $e->getMessage()];
+        }
+
+        if (($response['status'] ?? '') !== 'success') {
+            return $case + [
+                'correct' => false,
+                'note' => 'no answer: ' . substr((string) ($response['error'] ?? '?'), 0, 60),
+            ];
+        }
+
+        $rows = $response['rows'] ?? [];
+
+        // A multi-step answer carries its numbers in the steps.
+        if (($response['type'] ?? '') === 'multi_step') {
+            $rows = [];
+            foreach ($response['steps'] ?? [] as $step) {
+                foreach ($step['rows'] ?? [] as $row) {
+                    $rows[] = $row;
+                }
+            }
+        }
+
+        $actual = $this->normalize($rows, $case['ordered'] ?? false);
+
+        return $case + [
+            'correct' => $actual === $gold,
+            'note' => $actual === $gold ? '' : 'got ' . $this->preview($actual) . ' want ' . $this->preview($gold),
+            'mode' => $response['metadata']['query_mode_used'] ?? '?',
+        ];
+    }
+
+    /**
+     * Reduce a result set to the numbers a person would read off it.
+     *
+     * Aliases and column order are ignored — many correct queries name things
+     * differently. Row order is ignored too unless the question asked for a
+     * ranking, in which case it is the answer.
+     */
+    private function normalize(array $rows, bool $ordered): array
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $values = [];
+
+            foreach ((array) $row as $value) {
+                if ($value === null) {
+                    continue;
+                }
+                $values[] = is_numeric($value)
+                    ? (string) round((float) $value, 2)
+                    : strtolower(trim((string) $value));
+            }
+
+            sort($values);
+            $out[] = implode('|', $values);
+        }
+
+        if (!$ordered) {
+            sort($out);
+        }
+
+        return $out;
+    }
+
+    private function preview(array $normalized): string
+    {
+        return '[' . implode(' ; ', array_slice($normalized, 0, 3)) . (count($normalized) > 3 ? ' …' : '') . ']';
+    }
+
+    private function report(array $results): void
+    {
+        $byHardness = [];
+
+        foreach ($results as $r) {
+            $byHardness[$r['hardness']]['total'] = ($byHardness[$r['hardness']]['total'] ?? 0) + 1;
+            $byHardness[$r['hardness']]['correct'] = ($byHardness[$r['hardness']]['correct'] ?? 0) + ($r['correct'] ? 1 : 0);
+        }
+
+        $lines = ["\n  EXECUTION ACCURACY — " . config('naturalquery.llm.driver') . "\n"];
+
+        foreach ($results as $r) {
+            $lines[] = sprintf(
+                "  %-4s %-8s %-46s %s",
+                $r['correct'] ? ' ok ' : 'FAIL',
+                $r['hardness'],
+                substr($r['question'], 0, 46),
+                $r['correct'] ? ($r['mode'] ?? '') : $r['note']
+            );
+        }
+
+        $lines[] = '';
+
+        foreach (['easy', 'medium', 'hard', 'extra'] as $level) {
+            if (!isset($byHardness[$level])) {
+                continue;
+            }
+            $b = $byHardness[$level];
+            $lines[] = sprintf('  %-8s %d/%d', $level, $b['correct'], $b['total']);
+        }
+
+        $correct = count(array_filter($results, fn ($r) => $r['correct']));
+        $total = count($results);
+        $lines[] = sprintf("\n  OVERALL  %d/%d (%.0f%%)\n", $correct, $total, 100 * $correct / max(1, $total));
+
+        fwrite(STDERR, implode("\n", $lines) . "\n");
+    }
+}
