@@ -152,6 +152,28 @@ class IntentCoverageTest extends TestCase
         }
     }
 
+    /**
+     * Caught by a Spider question that had been passing by luck: "the model of
+     * the car whose weight is below the average" needs
+     * WHERE x < (SELECT AVG(x)). The digit-anchored numeric patterns miss it
+     * precisely because the sentence contains no number.
+     */
+    #[Test]
+    public function a_comparison_against_an_aggregate_escalates()
+    {
+        foreach ([
+            'find the model of the car whose weight is below the average',
+            'customers with revenue above the average',
+            'products priced under the median',
+        ] as $query) {
+            $this->assertSame(
+                'numeric_filter',
+                $this->coverage()->exceeds($query),
+                "'{$query}' needs a subquery"
+            );
+        }
+    }
+
     #[Test]
     public function escalation_can_be_switched_off()
     {

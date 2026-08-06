@@ -43,6 +43,11 @@ class IntentCoverage
         'numeric_filter' => [
             '/\b(?:over|above|under|below|greater\s+than|less\s+than|at\s+least|at\s+most)\s+[\d£$€₹]/i',
             '/\bbetween\s+[\d£$€₹][\d,.]*\s+and\s+[\d£$€₹]/i',
+            // Compared against an aggregate rather than a number: "weight
+            // below the average" needs WHERE x < (SELECT AVG(x)), a subquery
+            // the contract has no room for. The digit-anchored patterns above
+            // miss it precisely because there is no number in the sentence.
+            '/\b(?:above|below|over|under|more\s+than|less\s+than|greater\s+than|higher\s+than|lower\s+than|worse\s+than|better\s+than)\s+(?:the\s+)?(?:average|mean|median|typical|maximum|minimum|max|min|overall)\b/i',
         ],
         // Negation — no NOT anywhere in the contract
         'exclusion' => [
