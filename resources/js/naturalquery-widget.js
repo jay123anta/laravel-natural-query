@@ -152,6 +152,10 @@
             + '.nq-clarify{margin-top:8px}'
             + '.nq-clarify-msg{font-size:.92rem;color:#374151;margin-bottom:10px}'
             + '.nq-options{display:flex;flex-wrap:wrap;gap:8px}'
+            + '.nq-turn{margin-bottom:4px}'
+            + '.nq-you{display:inline-block;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:8px 14px;font-size:.92rem;margin:0 0 8px auto;max-width:80%;float:right;clear:both}'
+            + '.nq-turn:after{content:"";display:table;clear:both}'
+            + '.nq-new-topic{margin-top:12px;font-size:.82rem;padding:7px 12px}'
             + '.nq-steps{margin-top:12px;display:flex;flex-direction:column;gap:10px}'
             + '.nq-step{border-left:3px solid color-mix(in srgb,var(--nq) 45%,white);padding:6px 0 6px 12px}'
             + '.nq-step-q{font-size:.82rem;color:#6b7280;margin-bottom:4px}'
@@ -236,6 +240,15 @@
             });
             card.appendChild(ex);
         }
+        // Follow-ups inherit the previous question's dataset and filters, so
+        // there has to be a way out of that context. Hidden until there is a
+        // thread to reset.
+        this.newTopicBtn = h('button', 'nq-btn nq-btn-ghost nq-new-topic nq-hidden', 'New topic');
+        this.newTopicBtn.type = 'button';
+        this.newTopicBtn.title = 'Forget the conversation so far and start again';
+        this.newTopicBtn.addEventListener('click', function () { self.newTopic(); });
+        card.appendChild(this.newTopicBtn);
+
         this.root.appendChild(card);
 
         this.resultArea = h('div');
@@ -344,6 +357,13 @@
         if (!text) return;
         var self = this, o = this.opts;
         this.stopSpeaking();
+
+        // The question goes into the thread and the box is emptied, so a
+        // follow-up can be typed straight away. Leaving the previous text in
+        // place meant every follow-up had to be deleted first, which is why a
+        // conversation was easier to avoid than to have.
+        this.beginTurn(text);
+        this.input.value = '';
         this.renderLoading();
         this.sendBtn.disabled = true;
 
@@ -363,6 +383,9 @@
 
     Widget.prototype.submitVoice = function (audioBase64, mimeType) {
         var self = this, o = this.opts;
+        // The words are not known until the server transcribes them, so the
+        // turn opens without a question and the answer fills it in.
+        this.beginTurn(null);
         this.renderLoading('Transcribing audio…');
         fetch(o.baseUrl + '/voice', {
             method: 'POST',
@@ -377,7 +400,53 @@
 
     // -------------------------------------------------------------- rendering
 
-    Widget.prototype.clearResult = function () { this.resultArea.innerHTML = ''; };
+    /**
+     * Start a new turn in the thread.
+     *
+     * Answers used to replace one another, which made a follow-up impossible to
+     * see: "only in West" produced a card that looked exactly like a fresh
+     * question, with nothing on screen tying it to the one before. Each turn
+     * now keeps the question above its answer, so a conversation reads as one.
+     */
+    Widget.prototype.beginTurn = function (question) {
+        var turn = h('div', 'nq-turn');
+
+        if (question) {
+            turn.appendChild(h('div', 'nq-you', question));
+        }
+
+        var slot = h('div');
+        turn.appendChild(slot);
+        this.resultArea.appendChild(turn);
+        this.currentSlot = slot;
+
+        if (this.newTopicBtn) this.newTopicBtn.classList.remove('nq-hidden');
+        if (turn.scrollIntoView) turn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    /** Clears only the turn in flight, never the thread above it. */
+    Widget.prototype.clearResult = function () {
+        if (!this.currentSlot) this.beginTurn(null);
+        this.currentSlot.innerHTML = '';
+    };
+
+    /** Forget the conversation and start again. */
+    Widget.prototype.newTopic = function () {
+        var self = this;
+
+        // Best effort: the server drops the context, but the thread is cleared
+        // either way so the user is never stuck with one that will not reset.
+        fetch(this.opts.baseUrl + '/conversation/' + encodeURIComponent(this.sessionId), {
+            method: 'DELETE', headers: this.headers(), credentials: 'same-origin'
+        }).catch(function () {});
+
+        this.stopSpeaking();
+        this.sessionId = uuid();
+        this.resultArea.innerHTML = '';
+        this.currentSlot = null;
+        if (this.newTopicBtn) this.newTopicBtn.classList.add('nq-hidden');
+        self.input.focus();
+    };
 
     Widget.prototype.renderLoading = function (msg) {
         this.clearResult();
@@ -386,14 +455,14 @@
         l.appendChild(h('div', 'nq-spinner'));
         l.appendChild(h('span', null, msg || 'Thinking…'));
         card.appendChild(l);
-        this.resultArea.appendChild(card);
+        this.currentSlot.appendChild(card);
     };
 
     Widget.prototype.renderError = function (msg) {
         this.clearResult();
         var card = h('div', 'nq-card');
         card.appendChild(h('div', 'nq-error', msg));
-        this.resultArea.appendChild(card);
+        this.currentSlot.appendChild(card);
     };
 
     Widget.prototype.renderResponse = function (data) {
@@ -470,7 +539,7 @@
         if (right.length) foot.appendChild(h('span', null, right.join(' · ')));
         card.appendChild(foot);
 
-        this.resultArea.appendChild(card);
+        this.currentSlot.appendChild(card);
 
         if (this.opts.autoSpeak && this.opts.tts && global.speechSynthesis) {
             this.speak(data.speech_text || data.answer || '');
@@ -622,7 +691,7 @@
         });
 
         if (optsWrap.children.length) card.appendChild(optsWrap);
-        this.resultArea.appendChild(card);
+        this.currentSlot.appendChild(card);
     };
 
     // -------------------------------------------------------------- tts

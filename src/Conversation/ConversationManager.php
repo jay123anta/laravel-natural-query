@@ -76,70 +76,84 @@ class ConversationManager
     }
 
     /**
-     * Enrich a follow-up query with context from previous turns.
+     * Hand a follow-up to the model WITH the question it follows.
      *
-     * Detects follow-up patterns and injects missing context.
+     * This used to rewrite the question from templates: "only in West" became
+     * "show only in West details in Orders", which threw away the metric, so a
+     * chain that started with revenue answered the second turn in record counts
+     * and the third in nonsense. Every template lost something, because a
+     * template can only carry the parts somebody thought to put in it.
+     *
+     * Sending both questions instead lets the model resolve the reference the
+     * way a person would — it already knows the schema, and "only in West" is
+     * only ambiguous without the sentence before it.
      */
     protected function enrichWithContext(string $query, array $context): string
     {
-        if (empty($context)) {
+        if (empty($context['last_query']) || !$this->looksLikeFollowUp($query)) {
             return $query;
         }
 
-        $queryLower = strtolower(trim($query));
+        return sprintf(
+            'Earlier question: "%s". Follow-up that refines it, using the same measure '
+            . 'and breakdown unless it says otherwise: "%s"',
+            $context['last_query'],
+            $query
+        );
+    }
 
-        // Pattern: "now filter by X" / "filter by X" / "for X"
-        if (preg_match('/^(?:now\s+)?(?:filter|show|only)\s+(?:by|for)\s+(.+)/i', $queryLower, $m)) {
-            $filter = trim($m[1]);
-            $scheme = $context['scheme'] ?? '';
-            $metric = $context['metric'] ?? '';
-            return "{$metric} in {$scheme} for {$filter}";
+    /**
+     * Say what the last turn actually asked, in one self-contained sentence.
+     *
+     * Built from the resolved intent rather than the words typed, so a chain
+     * carries its state forward instead of decaying into fragments. Returns
+     * null when there is not enough to restate, and the raw question is kept.
+     */
+    protected function restate(array $parsed, array $result): ?string
+    {
+        $metric = $parsed['metric'] ?? null;
+
+        if (!$metric) {
+            return null;
         }
 
-        // Pattern: "compare with X" / "vs X" / "and X"
-        if (preg_match('/^(?:compare\s+with|vs|versus|and)\s+(.+)/i', $queryLower, $m)) {
-            $other = trim($m[1]);
-            $groupValue = $context['group_value'] ?? '';
-            $scheme = $context['scheme_name'] ?? $context['scheme'] ?? '';
-            $metric = $context['metric'] ?? '';
-            if ($groupValue) {
-                return "compare {$groupValue} and {$other} in {$scheme} for {$metric}";
-            }
-            return "show {$other} in {$scheme} for {$metric}";
+        $sentence = $metric;
+
+        if (!empty($parsed['group_by'])) {
+            $sentence .= ' by ' . $parsed['group_by'];
         }
 
-        // Pattern: "what about X scheme" / "switch to X"
-        if (preg_match('/^(?:what\s+about|switch\s+to|change\s+to|show\s+me)\s+(.+?)(?:\s+scheme)?$/i', $queryLower, $m)) {
-            $newTopic = trim($m[1]);
-            $metric = $context['metric'] ?? '';
-            $groupValue = $context['group_value'] ?? '';
-            if ($groupValue) {
-                return "{$metric} for {$groupValue} in {$newTopic}";
-            }
-            if ($metric) {
-                return "{$metric} in {$newTopic}";
-            }
-            return $newTopic;
+        if (!empty($parsed['group_value'])) {
+            $sentence .= !empty($parsed['filter_column'])
+                ? ' where ' . $parsed['filter_column'] . ' is ' . $parsed['group_value']
+                : ' for ' . $parsed['group_value'];
         }
 
-        // Pattern: "top/bottom N" without scheme (inherits scheme)
-        if (preg_match('/^(?:top|bottom|best|worst)\s+\d+/i', $queryLower)) {
-            $scheme = $context['scheme_name'] ?? $context['scheme'] ?? '';
-            if ($scheme && stripos($queryLower, $scheme) === false) {
-                return "{$query} in {$scheme}";
-            }
+        if (!empty($result['metadata']['time_filter'])) {
+            $sentence .= ' ' . $result['metadata']['time_filter'];
         }
 
-        // Pattern: single word that looks like a district name (follow-up detail)
-        if (!str_contains($queryLower, ' ') || preg_match('/^[a-z\s]{3,30}$/i', $queryLower)) {
-            $scheme = $context['scheme_name'] ?? $context['scheme'] ?? '';
-            $metric = $context['metric'] ?? '';
-            if ($scheme && !$this->looksLikeScheme($queryLower)) {
-                return "show {$query} details in {$scheme}";
-            }
+        return $sentence;
+    }
+
+    /**
+     * Is this a refinement of the last question rather than a new one?
+     *
+     * Deliberately generous: enriching a genuinely new question costs a little
+     * prompt and the model ignores the earlier one, while missing a follow-up
+     * loses the metric and answers something else entirely.
+     */
+    protected function looksLikeFollowUp(string $query): bool
+    {
+        $q = strtolower(trim($query));
+
+        if (preg_match('/^(?:only|just|now|and|but|what about|how about|instead|also|then|filter|show only|restrict|narrow|compare|vs|versus|excluding|without|for|in)\b/', $q)) {
+            return true;
         }
 
-        return $query;
+        // A very short phrase after a real question is almost always a
+        // refinement — "West", "last month", "top 3".
+        return str_word_count($q) <= 4;
     }
 
     /**
@@ -216,7 +230,14 @@ class ConversationManager
             'order' => $parsed['order'] ?? null,
             'limit' => $parsed['limit'] ?? null,
             'query_type' => $parsed['query_type'] ?? null,
-            'last_query' => $originalQuery,
+            // What the last turn RESOLVED to, not what was typed.
+            //
+            // Storing the raw text meant a chain decayed: turn 3's "earlier
+            // question" was turn 2's "only in West", a fragment that had
+            // already lost the metric from turn 1. Each turn now records a
+            // question that stands on its own, so the third follow-up inherits
+            // as much as the second did.
+            'last_query' => $this->restate($parsed, $result) ?: $originalQuery,
             'turn' => (Cache::get($this->cachePrefix . $this->scopeSession($sessionId), [])['turn'] ?? 0) + 1,
             'updated_at' => now()->toISOString(),
         ];
