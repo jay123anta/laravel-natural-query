@@ -52,6 +52,7 @@ Route::post('/clear-cache', [NaturalQueryController::class, 'clearCache'])->name
 
 // Conversation (multi-turn)
 Route::post('/conversation', [NaturalQueryController::class, 'conversationQuery'])->name('conversation');
+Route::post('/conversation/{sessionId}/rewind', [NaturalQueryController::class, 'rewindConversation'])->name('conversation.rewind');
 Route::delete('/conversation/{sessionId}', [NaturalQueryController::class, 'clearConversation'])->name('conversation.clear');
 
 // Feedback

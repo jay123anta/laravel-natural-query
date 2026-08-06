@@ -1,0 +1,182 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Conversation;
+
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+
+/**
+ * What the conversation currently means, as slots rather than sentences.
+ *
+ * A follow-up used to be resolved by rewriting it into a new sentence and
+ * handing that back to the model. Every rewrite lost something — "only in West"
+ * became "show only in West details in Orders" and the metric disappeared — and
+ * every turn re-parsed the whole dialogue, so a misread early on propagated
+ * unpredictably through the ones after it.
+ *
+ * The state is the thing that moves between turns now. The model resolves one
+ * utterance against a compact structured summary; the merge happens here, in
+ * PHP, where it is deterministic. That shrinks what the model reasons over to a
+ * single instruction, and it makes "no, go back" a restore rather than another
+ * interpretation.
+ */
+class QueryState
+{
+    /** Slots that carry between turns. */
+    public const SLOTS = [
+        'scheme', 'metric', 'group_by', 'filter_column', 'group_value',
+        'date_from', 'date_to', 'order', 'limit', 'query_type',
+    ];
+
+    /** @var array<string, mixed> */
+    protected array $slots;
+
+    /** Which turn produced this state, for rewinding. */
+    public int $seq;
+
+    /** How many consecutive refinements have been applied. */
+    public int $refinements;
+
+    public function __construct(array $slots = [], int $seq = 0, int $refinements = 0)
+    {
+        $this->slots = array_intersect_key($slots, array_flip(self::SLOTS));
+        $this->seq = $seq;
+        $this->refinements = $refinements;
+    }
+
+    public static function fromIntent(array $intent, int $seq = 1): self
+    {
+        return new self([
+            'scheme' => $intent['scheme'] ?? null,
+            'metric' => $intent['metric'] ?? null,
+            'group_by' => $intent['group_by'] ?? null,
+            'filter_column' => $intent['filter_column'] ?? null,
+            'group_value' => $intent['group_value'] ?? null,
+            'date_from' => $intent['date_from'] ?? null,
+            'date_to' => $intent['date_to'] ?? null,
+            'order' => $intent['order'] ?? null,
+            'limit' => $intent['limit'] ?? null,
+            'query_type' => $intent['query_type'] ?? null,
+        ], $seq);
+    }
+
+    public function get(string $slot): mixed
+    {
+        return $this->slots[$slot] ?? null;
+    }
+
+    public function isEmpty(): bool
+    {
+        return empty(array_filter($this->slots, fn ($v) => $v !== null && $v !== ''));
+    }
+
+    /**
+     * Apply a turn's parsed intent on top of this state.
+     *
+     * Only slots the new turn actually filled are overwritten. A refinement
+     * that mentions a region says nothing about the metric, and inheriting the
+     * metric is the entire point.
+     */
+    public function merge(array $intent, int $seq): self
+    {
+        $merged = $this->slots;
+
+        foreach (self::SLOTS as $slot) {
+            $value = $intent[$slot] ?? null;
+
+            if ($value !== null && $value !== '') {
+                $merged[$slot] = $value;
+            }
+        }
+
+        // A filter names its column. Changing one without the other leaves a
+        // value matched against the previous turn's column, which is how
+        // "Grocery" ended up being looked for among customer names.
+        if (($intent['group_value'] ?? null) && !($intent['filter_column'] ?? null)) {
+            $merged['filter_column'] = null;
+        }
+
+        return new self($merged, $seq, $this->refinements + 1);
+    }
+
+    /** A fresh state — a new question inherits nothing. */
+    public function replace(array $intent, int $seq): self
+    {
+        return self::fromIntent($intent, $seq);
+    }
+
+    /** Add a breakdown while keeping everything else. */
+    public function drillDown(?string $groupBy, int $seq): self
+    {
+        $merged = $this->slots;
+
+        if ($groupBy) {
+            $merged['group_by'] = $groupBy;
+        }
+
+        return new self($merged, $seq, $this->refinements + 1);
+    }
+
+    /** @return array<string, mixed> the intent this state represents */
+    public function toIntent(): array
+    {
+        return array_filter($this->slots, fn ($v) => $v !== null && $v !== '');
+    }
+
+    public function toArray(): array
+    {
+        return ['slots' => $this->slots, 'seq' => $this->seq, 'refinements' => $this->refinements];
+    }
+
+    public static function fromArray(?array $data): self
+    {
+        return new self(
+            $data['slots'] ?? [],
+            (int) ($data['seq'] ?? 0),
+            (int) ($data['refinements'] ?? 0)
+        );
+    }
+
+    /**
+     * The state in words, to be shown above the answer.
+     *
+     * A user who can see "revenue · by customer · where region is West" catches
+     * a misread immediately, instead of trusting a number that answers a
+     * question they did not ask. It also turns "no, I meant X" into a
+     * correction of something visible rather than a guess.
+     */
+    public function summary(?SchemaRegistry $registry = null): string
+    {
+        $parts = [];
+
+        if ($scheme = $this->get('scheme')) {
+            $parts[] = $registry && $registry->has($scheme)
+                ? ($registry->get($scheme)['name'] ?? $scheme)
+                : $scheme;
+        }
+
+        if ($metric = $this->get('metric')) {
+            $parts[] = $this->humanize($metric);
+        }
+
+        if ($groupBy = $this->get('group_by')) {
+            $parts[] = 'by ' . $this->humanize($groupBy);
+        }
+
+        if ($value = $this->get('group_value')) {
+            $parts[] = ($column = $this->get('filter_column'))
+                ? $this->humanize($column) . ' is ' . $value
+                : 'for ' . $value;
+        }
+
+        if ($this->get('date_from') || $this->get('date_to')) {
+            $parts[] = trim(($this->get('date_from') ?? '') . ' to ' . ($this->get('date_to') ?? 'now'), ' to ');
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    protected function humanize(string $name): string
+    {
+        return str_replace('_', ' ', $name);
+    }
+}

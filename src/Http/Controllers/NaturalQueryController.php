@@ -214,6 +214,20 @@ class NaturalQueryController extends Controller
     /**
      * Clear conversation context.
      */
+    /**
+     * Step back to how the query stood before the last turn.
+     *
+     * "No, go back to revenue" is a state restore rather than another
+     * interpretation — every turn's state is kept, so returning to one is
+     * exact instead of being re-derived from the conversation.
+     */
+    public function rewindConversation(Request $request, string $sessionId)
+    {
+        $steps = max(1, min(10, (int) $request->input('steps', 1)));
+
+        return response()->json($this->conversation->rewind($sessionId, $steps));
+    }
+
     public function clearConversation(string $sessionId)
     {
         $this->conversation->clearContext($sessionId);

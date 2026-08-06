@@ -504,6 +504,18 @@ return [
         'enabled' => env('NATURALQUERY_CONVERSATION_ENABLED', true),
         // How long conversation context is remembered (seconds)
         'ttl' => 1800, // 30 minutes
+
+        // How many refinements may stack on one question before the user is
+        // asked to start again.
+        //
+        // Ambiguity compounds. Past a handful of "only this", "and that",
+        // nobody remembers which filters are still live, and resolution
+        // degrades faster than anyone notices — so the honest move is to say
+        // so rather than to keep resolving into something confident and wrong.
+        // Every state is kept, so /conversation/{id}/rewind still steps back.
+        //
+        // 0 disables the cap.
+        'max_refinements' => 6,
     ],
 
     // ==========================================================================

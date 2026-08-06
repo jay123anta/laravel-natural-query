@@ -874,18 +874,69 @@ rather no value from your data ever reach a prompt, even by the user's hand.
 
 ## Multi-Turn Conversation
 
+A conversation carries a **structured state**, not a transcript. Each turn is
+classified, merged into that state in PHP, and validated against your schema
+before any SQL is built:
+
 ```php
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
 
 $conv = app(ConversationManager::class);
 
-// Turn 1
-$r1 = $conv->query('session-123', 'top 5 customers by revenue');
-// Turn 2 - inherits the dataset from turn 1
-$r2 = $conv->query('session-123', 'only in Europe');
-// Turn 3 - inherits dataset + filter
-$r3 = $conv->query('session-123', 'compare with last year');
+$conv->query('session-123', 'top 5 customers by revenue');
+// state: revenue · by customer name            [new_query]
+
+$conv->query('session-123', 'only in West');
+// state: revenue · by customer name · region is West       [refinement]
+
+$conv->query('session-123', 'break that down by status');
+// state: revenue · by status · region is West              [drill_down]
+
+$conv->query('session-123', 'how many orders by region');
+// state: record count · by region                          [new_query]
+//   ↑ inherits nothing: it names its own measure
 ```
+
+**Turn classification comes first**, because the failure people actually
+notice is a new question treated as a refinement - they ask something
+unrelated and get results still filtered by a region from three turns ago.
+Anything that names its own measure or dataset is a `new_query`, whatever it
+starts with.
+
+| Type | Example | What happens |
+|---|---|---|
+| `new_query` | "show me pending orders" | Fresh state, inherits nothing |
+| `refinement` | "only in West", "last month" | Merged into the state |
+| `drill_down` | "break that down", "in which category" | Adds a breakdown |
+| `reference` | "why is that?", "explain" | Same query, different output |
+
+**Every answer reports the state it was understood as.** `state_summary`
+("revenue · by customer name · region is West") is rendered above the answer by
+the widget, so a misread is caught rather than trusted, and "no, I meant X"
+corrects something visible.
+
+**Going back is a restore, not a re-interpretation.** Every turn's state is
+kept:
+
+```php
+$conv->rewind('session-123');          // step back one turn
+// POST /naturalquery/conversation/{session}/rewind
+```
+
+**Slots are validated against your schema before any SQL is built.** A metric
+that doesn't exist, or a breakdown that isn't a dimension, becomes a clarifying
+question - never a query. A confidently wrong number is worse than "I'm not
+sure what you mean by that", and by a wide margin when the number will be read
+as fact.
+
+**Refinements are capped** at `conversation.max_refinements` (default 6). Past
+that, ambiguity compounds faster than anyone notices, so the user is asked to
+start fresh rather than served something confident and wrong. Rewind still
+works.
+
+Follow-ups are never answered from, or written to, the query cache: "only in
+West" means one thing after a revenue question and another after an order
+count.
 
 ## Feedback / Training
 

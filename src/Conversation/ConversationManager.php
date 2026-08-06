@@ -28,13 +28,21 @@ class ConversationManager
 {
     protected QueryOrchestrator $orchestrator;
     protected SchemaRegistry $registry;
+    protected TurnClassifier $classifier;
+    protected StateValidator $validator;
     protected int $contextTtl;
     protected string $cachePrefix = 'nq_conv:';
 
-    public function __construct(QueryOrchestrator $orchestrator, SchemaRegistry $registry)
-    {
+    public function __construct(
+        QueryOrchestrator $orchestrator,
+        SchemaRegistry $registry,
+        ?TurnClassifier $classifier = null,
+        ?StateValidator $validator = null
+    ) {
         $this->orchestrator = $orchestrator;
         $this->registry = $registry;
+        $this->classifier = $classifier ?? new TurnClassifier($registry);
+        $this->validator = $validator ?? new StateValidator($registry);
         $this->contextTtl = config('naturalquery.conversation.ttl', 1800); // 30 minutes
     }
 
@@ -48,162 +56,185 @@ class ConversationManager
      */
     public function query(string $sessionId, string $query, ?string $schemeHint = null): array
     {
-        // Load existing context
-        $context = $this->getContext($sessionId);
+        $state = $this->getState($sessionId);
+        $classification = $this->classifier->classify($query, $state);
+        $seq = $state->seq + 1;
 
-        // Detect if this is a follow-up or a new topic
-        $enrichedQuery = $this->enrichWithContext($query, $context);
-        $effectiveSchemeHint = $schemeHint ?? $context['scheme'] ?? null;
+        // Ambiguity compounds. Past a handful of consecutive refinements nobody
+        // remembers which filters are live, and resolution degrades faster than
+        // the user notices — so say so rather than resolving into nonsense.
+        $cap = (int) config('naturalquery.conversation.max_refinements', 6);
 
-        // Run the query through the orchestrator
-        $result = $this->orchestrator->query($enrichedQuery, $effectiveSchemeHint);
-
-        // Update context from the result
-        if (($result['status'] ?? '') === 'success') {
-            $this->updateContext($sessionId, $result, $query);
+        if ($cap > 0 && $classification !== TurnClassifier::NEW_QUERY && $state->refinements >= $cap) {
+            return $this->refinementCapReached($sessionId, $state, $seq, $classification);
         }
 
-        // Add conversation metadata
+        // A new question inherits nothing; anything else resolves against the
+        // state, which the model sees as a compact object rather than as a
+        // transcript it has to re-read.
+        $carried = $classification === TurnClassifier::NEW_QUERY ? new QueryState() : $state;
+        $result = $this->orchestrator->query(
+            $query,
+            $schemeHint ?? $carried->get('scheme'),
+            $carried->isEmpty() ? [] : ['state' => $carried->toIntent(), 'summary' => $carried->summary($this->registry)]
+        );
+
+        $next = $this->advance($carried, $result, $classification, $seq);
+
+        // Nothing is asked of the database until every slot is a real one.
+        $checked = $this->validator->validate($next);
+
+        if (!$checked['valid'] && ($result['status'] ?? '') === 'success') {
+            return $this->slotQuestion($sessionId, $state, $checked, $seq, $classification);
+        }
+
+        if ($checked['valid']) {
+            $next = $checked['state'];
+        }
+
+        if (($result['status'] ?? '') === 'success') {
+            $this->putState($sessionId, $next);
+        }
+
+        // The state goes to the log next to the SQL. When an answer is wrong,
+        // the first question is whether the turn was misread or the state was
+        // — two different bugs with two different fixes, and no way to tell
+        // them apart afterwards without both recorded together.
+        Log::info('[NaturalQuery:Conversation] Turn resolved', [
+            'session' => $this->scopeSession($sessionId),
+            'seq' => $seq,
+            'classification' => $classification,
+            'state' => $next->toIntent(),
+            'status' => $result['status'] ?? null,
+        ]);
+
         $result['conversation'] = [
             'session_id' => $sessionId,
-            'turn' => ($context['turn'] ?? 0) + 1,
-            'context_active' => !empty($context),
-            'context_scheme' => $context['scheme'] ?? null,
-            'enriched_query' => $enrichedQuery !== $query ? $enrichedQuery : null,
+            'turn' => $seq,
+            'classification' => $classification,
+            'context_active' => !$carried->isEmpty(),
+            'refinements' => $next->refinements,
+            'can_rewind' => $seq > 1,
         ];
+
+        // Shown above the answer, so a misread is caught rather than trusted.
+        $result['state'] = $next->toIntent();
+        $result['state_summary'] = $next->summary($this->registry);
 
         return $result;
     }
 
     /**
-     * Hand a follow-up to the model WITH the question it follows.
+     * Step back to how things stood before the last turn.
      *
-     * This used to rewrite the question from templates: "only in West" became
-     * "show only in West details in Orders", which threw away the metric, so a
-     * chain that started with revenue answered the second turn in record counts
-     * and the third in nonsense. Every template lost something, because a
-     * template can only carry the parts somebody thought to put in it.
-     *
-     * Sending both questions instead lets the model resolve the reference the
-     * way a person would — it already knows the schema, and "only in West" is
-     * only ambiguous without the sentence before it.
+     * "No, go back to revenue" is a restore, not another interpretation —
+     * every turn's state is kept, so returning to one is exact.
      */
-    protected function enrichWithContext(string $query, array $context): string
+    public function rewind(string $sessionId, int $steps = 1): array
     {
-        if (empty($context['last_query']) || !$this->looksLikeFollowUp($query)) {
-            return $query;
+        $history = Cache::get($this->historyKey($sessionId), []);
+
+        if (count($history) <= 1) {
+            return ['status' => 'error', 'error' => 'There is nothing to go back to.'];
         }
 
-        return sprintf(
-            'Earlier question: "%s". Follow-up that refines it, using the same measure '
-            . 'and breakdown unless it says otherwise: "%s"',
-            $context['last_query'],
-            $query
+        for ($i = 0; $i < max(1, $steps) && count($history) > 1; $i++) {
+            array_pop($history);
+        }
+
+        $state = QueryState::fromArray(end($history) ?: null);
+
+        Cache::put($this->historyKey($sessionId), $history, $this->contextTtl);
+        Cache::put($this->cachePrefix . $this->scopeSession($sessionId), $state->toArray(), $this->contextTtl);
+
+        return [
+            'status' => 'success',
+            'state' => $state->toIntent(),
+            'state_summary' => $state->summary($this->registry),
+            'conversation' => ['session_id' => $sessionId, 'turn' => $state->seq, 'rewound' => true],
+        ];
+    }
+
+    /** Build the state this turn should carry forward. */
+    protected function advance(QueryState $carried, array $result, string $classification, int $seq): QueryState
+    {
+        $parsed = $result['parsed_query'] ?? [];
+
+        return match ($classification) {
+            TurnClassifier::NEW_QUERY => QueryState::fromIntent($parsed, $seq),
+            TurnClassifier::DRILL_DOWN => $carried->drillDown($parsed['group_by'] ?? null, $seq),
+            // A reference asks about what is already on screen and changes
+            // nothing about the query itself.
+            TurnClassifier::REFERENCE => new QueryState($carried->toIntent(), $seq, $carried->refinements),
+            default => $carried->merge($parsed, $seq),
+        };
+    }
+
+    protected function slotQuestion(string $sessionId, QueryState $state, array $failure, int $seq, string $classification): array
+    {
+        return [
+            'status' => 'clarification_needed',
+            'type' => 'slot_clarification',
+            'message' => $this->validator->question($failure),
+            'alternatives' => [],
+            'available_metrics' => ($failure['slot'] ?? '') === 'metric'
+                ? $this->registry->getSchemeMetrics((string) $state->get('scheme'))
+                : [],
+            'state' => $state->toIntent(),
+            'state_summary' => $state->summary($this->registry),
+            'conversation' => [
+                'session_id' => $sessionId,
+                'turn' => $seq,
+                'classification' => $classification,
+                'unresolved_slot' => $failure['slot'] ?? null,
+            ],
+        ];
+    }
+
+    protected function refinementCapReached(string $sessionId, QueryState $state, int $seq, string $classification): array
+    {
+        return [
+            'status' => 'clarification_needed',
+            'type' => 'refinement_cap',
+            'message' => 'That is a lot of refinements on one question, and I am no longer confident '
+                . 'I am carrying them all correctly. Ask it fresh, or start a new topic.',
+            'alternatives' => [],
+            'available_metrics' => [],
+            'state' => $state->toIntent(),
+            'state_summary' => $state->summary($this->registry),
+            'conversation' => [
+                'session_id' => $sessionId,
+                'turn' => $seq,
+                'classification' => $classification,
+                'refinements' => $state->refinements,
+                'cap_reached' => true,
+            ],
+        ];
+    }
+
+    protected function getState(string $sessionId): QueryState
+    {
+        return QueryState::fromArray(
+            Cache::get($this->cachePrefix . $this->scopeSession($sessionId))
         );
     }
 
-    /**
-     * Say what the last turn actually asked, in one self-contained sentence.
-     *
-     * Built from the resolved intent rather than the words typed, so a chain
-     * carries its state forward instead of decaying into fragments. Returns
-     * null when there is not enough to restate, and the raw question is kept.
-     */
-    protected function restate(array $parsed, array $result): ?string
+    protected function putState(string $sessionId, QueryState $state): void
     {
-        $metric = $parsed['metric'] ?? null;
+        Cache::put($this->cachePrefix . $this->scopeSession($sessionId), $state->toArray(), $this->contextTtl);
 
-        if (!$metric) {
-            return null;
-        }
+        $history = Cache::get($this->historyKey($sessionId), []);
+        $history[] = $state->toArray();
 
-        $sentence = $metric;
-
-        if (!empty($parsed['group_by'])) {
-            $sentence .= ' by ' . $parsed['group_by'];
-        }
-
-        if (!empty($parsed['group_value'])) {
-            $sentence .= !empty($parsed['filter_column'])
-                ? ' where ' . $parsed['filter_column'] . ' is ' . $parsed['group_value']
-                : ' for ' . $parsed['group_value'];
-        }
-
-        if (!empty($result['metadata']['time_filter'])) {
-            $sentence .= ' ' . $result['metadata']['time_filter'];
-        }
-
-        return $sentence;
+        // Bounded: rewinding further than this is a new question anyway.
+        Cache::put($this->historyKey($sessionId), array_slice($history, -12), $this->contextTtl);
     }
 
-    /**
-     * Is this a refinement of the last question rather than a new one?
-     *
-     * Deliberately generous: enriching a genuinely new question costs a little
-     * prompt and the model ignores the earlier one, while missing a follow-up
-     * loses the metric and answers something else entirely.
-     */
-    protected function looksLikeFollowUp(string $query): bool
+    protected function historyKey(string $sessionId): string
     {
-        $q = strtolower(trim($query));
-
-        if (preg_match('/^(?:only|just|now|and|but|what about|how about|instead|also|then|filter|show only|restrict|narrow|compare|vs|versus|excluding|without|for|in)\b/', $q)) {
-            return true;
-        }
-
-        // A very short phrase after a real question is almost always a
-        // refinement — "West", "last month", "top 3".
-        return str_word_count($q) <= 4;
+        return $this->cachePrefix . 'hist:' . $this->scopeSession($sessionId);
     }
 
-    /**
-     * Does this text name one of the datasets registered in THIS application?
-     *
-     * Asks the registry rather than matching a fixed word list. The previous
-     * implementation hardcoded the scheme names of the project this package
-     * was extracted from, which meant the check was meaningless anywhere else:
-     * an app with "orders" and "inventory" datasets matched nothing, so every
-     * short follow-up was treated as a record lookup, while an unrelated app
-     * that happened to mention "housing" was told it had switched dataset.
-     *
-     * Domain vocabulary belongs in the schema config files, never in here.
-     */
-    protected function looksLikeScheme(string $text): bool
-    {
-        $text = strtolower(trim($text));
-
-        if ($text === '') {
-            return false;
-        }
-
-        foreach ($this->registry->getAvailableSchemes() as $scheme) {
-            $candidates = array_merge(
-                [$scheme['key'] ?? '', $scheme['name'] ?? ''],
-                (array) ($scheme['aliases'] ?? [])
-            );
-
-            foreach ($candidates as $candidate) {
-                $candidate = strtolower(trim((string) $candidate));
-
-                // Require a real word, not an incidental substring: "order"
-                // must not match inside "reorder point".
-                if ($candidate !== '' && preg_match('/\b' . preg_quote($candidate, '/') . '\b/', $text)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Get conversation context from cache.
-     * Session is scoped to authenticated user to prevent session hijacking.
-     */
-    protected function getContext(string $sessionId): array
-    {
-        return Cache::get($this->cachePrefix . $this->scopeSession($sessionId), []);
-    }
 
     /**
      * Scope session_id to the authenticated user.
@@ -215,35 +246,6 @@ class ConversationManager
         return $userId . ':' . $sessionId;
     }
 
-    /**
-     * Update conversation context after a successful query.
-     */
-    protected function updateContext(string $sessionId, array $result, string $originalQuery): void
-    {
-        $parsed = $result['parsed_query'] ?? [];
-
-        $context = [
-            'scheme' => $parsed['scheme'] ?? null,
-            'scheme_name' => $result['metadata']['scheme_name'] ?? $parsed['scheme'] ?? null,
-            'metric' => $parsed['metric'] ?? null,
-            'group_value' => $parsed['group_value'] ?? null,
-            'order' => $parsed['order'] ?? null,
-            'limit' => $parsed['limit'] ?? null,
-            'query_type' => $parsed['query_type'] ?? null,
-            // What the last turn RESOLVED to, not what was typed.
-            //
-            // Storing the raw text meant a chain decayed: turn 3's "earlier
-            // question" was turn 2's "only in West", a fragment that had
-            // already lost the metric from turn 1. Each turn now records a
-            // question that stands on its own, so the third follow-up inherits
-            // as much as the second did.
-            'last_query' => $this->restate($parsed, $result) ?: $originalQuery,
-            'turn' => (Cache::get($this->cachePrefix . $this->scopeSession($sessionId), [])['turn'] ?? 0) + 1,
-            'updated_at' => now()->toISOString(),
-        ];
-
-        Cache::put($this->cachePrefix . $this->scopeSession($sessionId), $context, $this->contextTtl);
-    }
 
     /**
      * Clear conversation context (start fresh).

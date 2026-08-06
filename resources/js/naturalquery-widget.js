@@ -152,6 +152,9 @@
             + '.nq-clarify{margin-top:8px}'
             + '.nq-clarify-msg{font-size:.92rem;color:#374151;margin-bottom:10px}'
             + '.nq-options{display:flex;flex-wrap:wrap;gap:8px}'
+            + '.nq-state{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0 0 12px;padding:7px 11px;background:color-mix(in srgb,var(--nq) 6%,white);border:1px solid color-mix(in srgb,var(--nq) 18%,white);border-radius:8px}'
+            + '.nq-state-lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#9ca3af;flex:none}'
+            + '.nq-state-val{font-size:.85rem;color:#374151;font-weight:500}'
             + '.nq-turn{margin-bottom:4px}'
             + '.nq-you{display:inline-block;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:8px 14px;font-size:.92rem;margin:0 0 8px auto;max-width:80%;float:right;clear:both}'
             + '.nq-turn:after{content:"";display:table;clear:both}'
@@ -490,6 +493,17 @@
                 ans.appendChild(this.speakBtn);
             }
             card.appendChild(ans);
+        }
+
+        // What the question was understood to mean, above the answer. A user
+        // who can read "revenue · by customer · region is West" catches a
+        // misread instead of trusting a number that answers something else,
+        // and "no, I meant X" becomes a correction of something visible.
+        if (data.state_summary) {
+            var state = h('div', 'nq-state');
+            state.appendChild(h('span', 'nq-state-lbl', 'Reading this as'));
+            state.appendChild(h('span', 'nq-state-val', data.state_summary));
+            card.appendChild(state);
         }
 
         // A decomposed question: show the working, not just the conclusion.

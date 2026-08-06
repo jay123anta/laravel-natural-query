@@ -106,7 +106,7 @@ class QueryOrchestrator
      * @param string|null $schemeHint Optional scheme key hint
      * @return array Complete response with data, or clarification/error
      */
-    public function query(string $naturalLanguageQuery, ?string $schemeHint = null): array
+    public function query(string $naturalLanguageQuery, ?string $schemeHint = null, array $context = []): array
     {
         $startTime = microtime(true);
         $queryMode = config('naturalquery.query_mode', 'auto');
@@ -163,7 +163,7 @@ class QueryOrchestrator
             if ($queryMode === 'sql_generation') {
                 $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
             } elseif ($queryMode === 'intent') {
-                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
             } else {
                 // AUTO mode: intent first — unless the question plainly needs
                 // SQL the intent contract cannot express.
@@ -183,7 +183,7 @@ class QueryOrchestrator
                     $metadata['escalated_for'] = $beyond;
                     $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
                 } else {
-                    $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                    $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
 
                     // Fall back when intent mode could not answer — whether it
                     // failed outright, or asked a question it should not have
@@ -252,19 +252,26 @@ class QueryOrchestrator
      *
      * Flow: AI extracts (scheme, metric, order, limit, district) → SqlBuilder constructs SQL
      */
-    protected function processWithIntent(string $query, ?string $schemeHint, ?array $cached, array &$metadata): array
+    protected function processWithIntent(string $query, ?string $schemeHint, ?array $cached, array &$metadata, array $context = []): array
     {
         $metadata['query_mode_used'] = 'intent';
 
-        // Use cached intent or parse new one
+        // A follow-up is meaningless on its own: "only in West" means one thing
+        // after a revenue question and another after an order count. So a turn
+        // carrying conversation state is never answered from cache and never
+        // written to it — the words are the same and the question is not.
+        $inConversation = !empty($context['state']);
+
         $intent = null;
-        if ($cached) {
+        if ($cached && !$inConversation) {
             $intent = $this->normalizeIntent($cached['intent']);
         } else {
             $schemeList = $this->registry->getSchemeListForLlm();
-            $intent = $this->normalizeIntent($this->llmProvider->parseIntent($query, $schemeList));
+            $intent = $this->normalizeIntent(
+                $this->llmProvider->parseIntent($this->withState($query, $context), $schemeList)
+            );
 
-            if (($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
+            if (!$inConversation && ($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
                 $this->cache->store($query, $intent);
             }
         }
@@ -461,6 +468,39 @@ class QueryOrchestrator
         }
 
         return $response;
+    }
+
+    /**
+     * Put the conversation's state in front of the utterance.
+     *
+     * A structured summary, not a transcript. The model is asked to resolve ONE
+     * instruction against a handful of named slots, rather than to re-read four
+     * turns of dialogue and work out for itself what still applies — which is
+     * both more to get wrong and more that changes when any earlier turn is
+     * worded differently.
+     */
+    protected function withState(string $query, array $context): string
+    {
+        if (empty($context['state'])) {
+            return $query;
+        }
+
+        $slots = [];
+
+        foreach ($context['state'] as $slot => $value) {
+            if ($value !== null && $value !== '' && $slot !== 'query_type') {
+                $slots[] = $slot . '=' . (is_scalar($value) ? $value : json_encode($value));
+            }
+        }
+
+        if (!$slots) {
+            return $query;
+        }
+
+        return "CURRENT QUERY STATE (carry these forward unless the instruction changes them):\n"
+            . '  ' . implode('; ', $slots) . "\n"
+            . "NEW INSTRUCTION: \"{$query}\"\n"
+            . 'Return the FULL intent after applying the instruction to that state.';
     }
 
     /**
