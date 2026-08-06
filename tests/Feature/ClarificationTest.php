@@ -136,6 +136,70 @@ class ClarificationTest extends TestCase
         $this->assertSame('clarification_needed', $result['status']);
     }
 
+    /**
+     * Every clarification used to carry the dataset list, so a METRIC question
+     * rendered the dataset name as an extra button among the metrics —
+     * "Orders" beside "Quantity" and "Revenue". Clicking it re-sent the same
+     * question with the scheme it already had, received the same response, and
+     * redrew the same card. A button that does nothing, on the screen whose
+     * only job is to give the user somewhere to go.
+     */
+    #[Test]
+    public function a_metric_question_offers_metrics_and_not_datasets()
+    {
+        $this->provider([
+            'scheme' => 'gb_sales',
+            'metric' => null,
+            'needs_clarification' => true,
+            'clarification_type' => 'metric',
+        ]);
+
+        $result = $this->app->make(QueryOrchestrator::class)->query('who is the best');
+
+        $this->assertSame('metric_clarification', $result['type']);
+        $this->assertNotEmpty($result['available_metrics']);
+        $this->assertSame([], $result['alternatives'], 'the dataset is already settled');
+    }
+
+    #[Test]
+    public function a_dataset_question_still_offers_datasets()
+    {
+        // The guard on the fix: removing them everywhere would break the one
+        // clarification that genuinely needs them.
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/related-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        $this->provider([
+            'scheme' => null,
+            'metric' => null,
+            'needs_clarification' => true,
+            'clarification_type' => 'scheme',
+        ]);
+
+        $result = $this->app->make(QueryOrchestrator::class)->query('show me something');
+
+        $this->assertSame('scheme_clarification', $result['type']);
+        $this->assertNotEmpty($result['alternatives']);
+    }
+
+    #[Test]
+    public function a_date_is_never_offered_as_something_to_be_best_at()
+    {
+        // Sorting by a date is reasonable; "best by order_date" is not, and a
+        // dead option among live ones makes the whole list look untrustworthy.
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/time-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        $metrics = array_column(
+            $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class)->getSchemeMetrics('tf_sales'),
+            'key'
+        );
+
+        $this->assertContains('revenue', $metrics);
+        $this->assertNotContains('order_date', $metrics);
+        $this->assertNotContains('shipped_at', $metrics);
+    }
+
     #[Test]
     public function the_resolved_dataset_is_reported_back()
     {

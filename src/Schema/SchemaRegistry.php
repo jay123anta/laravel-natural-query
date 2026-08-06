@@ -168,6 +168,23 @@ class SchemaRegistry
      * any table.
      */
     /**
+     * Is this column a point in time rather than a quantity?
+     *
+     * By declared type first, since that is what the schema actually states,
+     * falling back to the name for hand-written schemas that omit it.
+     */
+    protected function looksLikeDate(string $name, array $column): bool
+    {
+        $type = strtolower((string) ($column['type'] ?? ''));
+
+        if (in_array($type, ['date', 'datetime', 'timestamp', 'time'], true)) {
+            return true;
+        }
+
+        return (bool) preg_match('/(^|_)(date|time|at|on)$/i', $name);
+    }
+
+    /**
      * The column a time filter applies to.
      *
      * "Revenue last month" has to narrow on something, and which column that
@@ -489,6 +506,15 @@ class SchemaRegistry
         $result = [];
 
         foreach ($metrics as $metricKey => $data) {
+            // getMetrics() includes sortable columns, because sorting by a date
+            // is perfectly reasonable. Offering one as the answer to "who is
+            // the best?" is not — "best by order_date" means nothing, and a
+            // dead option in a list of live ones makes the whole list look
+            // untrustworthy.
+            if ($this->looksLikeDate($metricKey, $data)) {
+                continue;
+            }
+
             $result[] = [
                 'key' => $metricKey,
                 'description' => $data['description'] ?? $metricKey,

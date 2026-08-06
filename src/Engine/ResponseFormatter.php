@@ -100,11 +100,21 @@ class ResponseFormatter
             ? 'scheme_clarification'
             : 'metric_clarification';
 
-        $alternatives = array_map(fn($s) => [
-            'scheme_name' => $s['name'],
-            'scheme_key' => $s['key'],
-            'confidence' => 0.5,
-        ], $availableSchemes);
+        // Dataset choices belong on a dataset question and nowhere else.
+        //
+        // They were sent on every clarification, so a metric question rendered
+        // the dataset name as an extra button among the metrics — "Orders"
+        // sitting beside "Quantity" and "Revenue". Clicking it re-sent the same
+        // question with the scheme it already had, got the same response, and
+        // redrew the same card: a button that looks broken because there is
+        // nothing for it to do.
+        $alternatives = $clarificationType === 'scheme_clarification'
+            ? array_map(fn ($s) => [
+                'scheme_name' => $s['name'],
+                'scheme_key' => $s['key'],
+                'confidence' => 0.5,
+            ], $availableSchemes)
+            : [];
 
         return [
             'status' => 'clarification_needed',
