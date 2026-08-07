@@ -346,6 +346,85 @@ class DoctorCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    /**
+     * A brand-new install must not report a problem the user did not cause.
+     *
+     * `naturalquery:install` writes the shipped template, which points at a
+     * placeholder table by design. Doctor called that a red ✗ and exited
+     * non-zero — so the very first run of the command the docs recommend as a
+     * deployment smoke test failed, on a fresh install, before the user had
+     * done anything wrong. Verified against a real composer install into
+     * Laravel 13.
+     *
+     * The real stub is copied rather than a fixture written, so changing the
+     * placeholder in stubs/schema-example.php without telling doctor fails
+     * here instead of on somebody's first day.
+     */
+    private function useShippedTemplate(): string
+    {
+        $dir = sys_get_temp_dir() . '/nq-doctor-template-' . getmypid();
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        copy(__DIR__ . '/../../stubs/schema-example.php', $dir . '/example.php');
+
+        config(['naturalquery.schema.config_path' => $dir]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        return $dir;
+    }
+
+    #[Test]
+    public function the_shipped_template_is_named_as_such_rather_than_reported_as_broken()
+    {
+        $dir = $this->useShippedTemplate();
+
+        try {
+            $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+            $output = Artisan::output();
+
+            $this->assertStringContainsString('shipped template', $output);
+            $this->assertStringNotContainsString(
+                'not found in the database',
+                $output,
+                'the template was reported as a broken schema'
+            );
+            $this->assertSame(0, $exit, 'a fresh install must not exit non-zero');
+        } finally {
+            @unlink($dir . '/example.php');
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * And it is not counted as a rival dataset. Counting it manufactured an
+     * ambiguity between one real dataset and a file that queries nothing.
+     */
+    #[Test]
+    public function the_shipped_template_does_not_count_as_a_competing_dataset()
+    {
+        $dir = $this->useShippedTemplate();
+        copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        config(['naturalquery.system_instructions' => '']);
+
+        try {
+            Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+            $this->assertStringNotContainsString(
+                'datasets have their own measures',
+                Artisan::output(),
+                'the template was counted as a dataset that could answer a question'
+            );
+        } finally {
+            @unlink($dir . '/example.php');
+            @unlink($dir . '/test_orders.php');
+            @rmdir($dir);
+        }
+    }
+
     #[Test]
     public function it_flags_a_default_scheme_that_matches_no_schema()
     {

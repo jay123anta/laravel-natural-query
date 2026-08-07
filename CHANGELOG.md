@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-08-08
+
+Everything here rolls into 1.0.0. This release is about the HTTP API: the
+bundled widget is a reference, and adopters build their own front ends in
+React, Vue, Inertia or Blade — so for most of them the response shape *is* the
+package.
+
+Upgrading from rc.1 needs no code changes. Every change below is additive
+except the two error codes noted under Fixed.
+
+### Added
+- **[docs/API.md](docs/API.md)** — the full HTTP reference. Every endpoint and
+  field, the error table with HTTP statuses and which codes are worth retrying,
+  the conversation state shape and how a turn is classified, and the CORS/token
+  setup a front end on another origin needs.
+- **`error_code` on every failure**, with an HTTP status to match: 429 for a
+  rate limit (with `Retry-After`), 502 for a provider fault, 422 for a question
+  that cannot be answered, 400 for one that was refused. Plus `retryable`, so a
+  client need not know which codes are transient. Previously every failure was
+  `status: error` with an English sentence and a status picked by whether a
+  metadata key happened to be set.
+- **`GET /conversation/{session}`** — read the state back. The state lives on
+  the server, so without this a page reload leaves the next follow-up resolving
+  against context the user can no longer see.
+- **`POST /conversation/{session}/rewind`** now returns the same body as the
+  state endpoint, including a fresh `can_rewind`.
+- **`/schemes` returns everything needed for a "what can I ask?" panel** —
+  metrics, dimensions, default dimension, date column and examples per dataset,
+  in one call. `?scheme=` returns one, or 404 naming the ones that exist.
+- **CORS and token auth are a supported setup**, not a discovery: an `api`
+  middleware preset, documentation, and a `naturalquery:doctor` check. Without
+  the CORS entry the browser blocks the response before your code runs, and it
+  looks like a network fault rather than a policy one.
+- **The widget is laid out as a conversation** — header, scrolling thread,
+  composer pinned at the bottom, question right and answer left. A search box
+  above a result reads as one question at a time, and people did not try
+  follow-ups because nothing suggested they could. `height` sets the frame
+  (`auto` grows with the content). Example queries live in the empty thread and
+  clear once it starts.
+- **Undo last step** in the widget, and the session now survives a page reload.
+- `naturalquery:doctor` checks whether PHP has a CA certificate store at all.
+
+### Fixed
+- **An unreachable provider is no longer reported as a question nobody
+  understood.** `success: false` from a provider never means the question was
+  unclear — an unclear question is a *successful* call carrying a
+  clarification. Both sites that confused the two now return `provider_error`
+  with the provider's own message. Found when a lost CA bundle made all 36
+  benchmark questions come back "Could not understand the query. Try mentioning
+  a dataset name."
+- **"Try mentioning a dataset name" is no longer the advice when the dataset
+  was already identified.** That case returns `cannot_answer` and names the
+  dataset back.
+- One validation rule for a question wherever it arrives: `/text` demanded
+  three characters while `/conversation` accepted one, so a follow-up like "no"
+  was answered by one endpoint and rejected by the other.
+
+### Changed
+- Two error codes moved to more accurate values: a failed provider call reports
+  `provider_error` (502) rather than `not_understood` (422), and an identified
+  dataset that cannot answer reports `cannot_answer`. Clients branching on
+  `error_code` for these two cases should check both.
+
+Tests: 432 PHP, 43 widget. Benchmarks against a live provider: Spider dev
+29/36 (81%), execution accuracy 10/14 (71%).
+
 ## [1.0.0] - unreleased
 
 First public release.

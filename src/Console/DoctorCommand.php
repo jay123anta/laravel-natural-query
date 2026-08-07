@@ -504,6 +504,13 @@ class DoctorCommand extends Command
         $withMeasures = [];
 
         foreach ($registry->all() as $key => $schema) {
+            // The shipped template names a placeholder table, so counting it
+            // manufactures an ambiguity between one real dataset and a file
+            // that queries nothing.
+            if ($this->isUntouchedExample((string) ($schema['tables']['primary']['name'] ?? ''))) {
+                continue;
+            }
+
             foreach ($schema['tables']['primary']['columns'] ?? [] as $column) {
                 if (!empty($column['aggregatable'])) {
                     $withMeasures[] = $key;
@@ -568,6 +575,18 @@ class DoctorCommand extends Command
 
         if (!$table) {
             $this->problem("Schema '{$key}' has no table name", "Add tables.primary.name to the '{$key}' schema file.");
+            return;
+        }
+
+        // The template `naturalquery:install` writes, still untouched.
+        //
+        // It points at a placeholder table by design, so doctor reported a red
+        // ✗ and exited non-zero on a brand-new install — a first-run failure
+        // the user did not cause, on the command the docs recommend as a
+        // deployment smoke test. Its documentation value is worth keeping, so
+        // it is named for what it is instead.
+        if ($this->isUntouchedExample($table)) {
+            $this->skip("Schema '{$key}' is the shipped template (placeholder table). Edit it or delete it — it is not queried.");
             return;
         }
 
@@ -720,6 +739,18 @@ class DoctorCommand extends Command
     protected function skip(string $message): void
     {
         $this->line("    <fg=gray>-</> {$message}");
+    }
+
+    /**
+     * The placeholder table name the shipped template carries.
+     *
+     * Matched on the table rather than the file name so a copy under any name
+     * is recognised, and so a template that HAS been pointed at a real table is
+     * checked like any other schema — which is the whole point of editing it.
+     */
+    protected function isUntouchedExample(string $table): bool
+    {
+        return strtolower($table) === 'schema_name.table_name';
     }
 
     protected function problem(string $message, string $fix): void
