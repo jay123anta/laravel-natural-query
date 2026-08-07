@@ -258,6 +258,36 @@ class ConversationManager
     /**
      * Get current context (for debugging / UI display).
      */
+    /**
+     * The conversation as it currently stands.
+     *
+     * A front end that reloads the page has lost everything it was showing, and
+     * the state is server-side — so without this it cannot restore the filters
+     * in force or the "reading this as" line, and the next follow-up resolves
+     * against context the user can no longer see. Shaped like the payload a
+     * query returns, so the same rendering code handles both.
+     */
+    public function state(string $sessionId): array
+    {
+        $state = $this->getState($sessionId);
+        $history = Cache::get($this->historyKey($sessionId), []);
+
+        return [
+            'status' => 'success',
+            'state' => $state->toIntent(),
+            'state_summary' => $state->summary($this->registry),
+            'conversation' => [
+                'session_id' => $sessionId,
+                'turn' => $state->seq,
+                'refinements' => $state->refinements,
+                'context_active' => !$state->isEmpty(),
+                'can_rewind' => count($history) > 1,
+                'max_refinements' => (int) config('naturalquery.conversation.max_refinements', 6),
+            ],
+        ];
+    }
+
+    /** @deprecated Use state(). Returns the raw cache shape. */
     public function peekContext(string $sessionId): array
     {
         return Cache::get($this->cachePrefix . $this->scopeSession($sessionId), []);

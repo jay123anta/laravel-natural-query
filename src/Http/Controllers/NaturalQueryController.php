@@ -253,6 +253,19 @@ class NaturalQueryController extends Controller
         return response()->json($this->conversation->rewind($sessionId, $steps));
     }
 
+    /**
+     * The conversation as it currently stands.
+     *
+     * A front end that reloads has lost what it was showing, and the state
+     * lives on the server — without this it cannot restore the filters in
+     * force, and the next follow-up resolves against context the user can no
+     * longer see.
+     */
+    public function conversationState(string $sessionId)
+    {
+        return response()->json($this->conversation->state($sessionId));
+    }
+
     public function clearConversation(string $sessionId)
     {
         $this->conversation->clearContext($sessionId);
