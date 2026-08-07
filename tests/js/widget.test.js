@@ -346,6 +346,85 @@ async function run() {
         });
     });
 
+    // ----------------------------------------------------------- chat layout
+    //
+    // The old layout was a search form: box on top, answers growing below it.
+    // It taught people the wrong thing — one question at a time — and the
+    // conversation features went unused because nothing on screen suggested a
+    // conversation was on offer. These pin the chat shape in place.
+    {
+        const { root, widget } = mount({ examples: ['Revenue by region'] }, () => answer());
+
+        await check('the composer sits BELOW the thread, not above it', () => {
+            const kids = Array.from(root.querySelector('.nq-frame').children).map((el) => el.className);
+            const thread = kids.findIndex((c) => c.includes('nq-scroll'));
+            const composer = kids.findIndex((c) => c.includes('nq-composer'));
+            assert(thread > -1 && composer > -1, 'frame is missing a thread or a composer: ' + kids.join(', '));
+            assert(composer > thread, 'composer renders above the thread: ' + kids.join(', '));
+        });
+
+        await check('the input and the mic are both in the composer', () => {
+            const composer = root.querySelector('.nq-composer');
+            assert(composer.querySelector('.nq-input'), 'input is not in the composer');
+            assert(composer.querySelector('.nq-mic'), 'mic is not in the composer');
+        });
+
+        await check('an empty thread suggests what to ask', () => {
+            const empty = root.querySelector('.nq-empty');
+            assert(empty, 'no empty state rendered');
+            assertContains(empty.textContent, 'Revenue by region', 'examples missing from the empty state');
+        });
+
+        await check('the frame has a height, so the composer stays put', () => {
+            assert(root.querySelector('.nq-frame').style.height === '520px',
+                'expected a fixed frame height, got: ' + root.querySelector('.nq-frame').style.height);
+        });
+
+        // jsdom lays nothing out, so scrollHeight is 0 and any assertion about
+        // scrolling passes trivially. Giving the element a real scrollHeight is
+        // what makes the next check able to fail.
+        Object.defineProperty(root.querySelector('.nq-scroll'), 'scrollHeight', { value: 4000 });
+
+        widget.input.value = 'top 5 customers by revenue';
+        widget.submit();
+        await settle();
+
+        await check('the suggestions clear once the conversation starts', () => {
+            assert(!root.querySelector('.nq-empty'), 'empty state survived the first question');
+        });
+
+        await check('the question is a right bubble and the answer a left one', () => {
+            const turn = root.querySelector('.nq-turn');
+            assert(turn.querySelector('.nq-you'), 'no question bubble');
+            assert(turn.querySelector('.nq-bot'), 'answer is not rendered as a bot bubble');
+        });
+
+        await check('the newest message is scrolled into view', () => {
+            const scroll = root.querySelector('.nq-scroll');
+            assert(scroll.scrollTop === 4000,
+                'thread was left parked at the top of a frame it has outgrown (scrollTop ' + scroll.scrollTop + ')');
+        });
+
+        await check('New topic brings the suggestions back', () => {
+            widget.newTopic();
+            assert(root.querySelector('.nq-empty'), 'empty state did not return after New topic');
+            assert(!root.querySelector('.nq-turn'), 'thread was not cleared');
+        });
+    }
+
+    // "auto" rather than null is the documented value on purpose: an explicitly
+    // passed null cannot survive Blade — both `??` and @props read it as "not
+    // given" and reinstate the default, so :height="null" looked like it worked
+    // and did nothing. A string cannot be mistaken for absence.
+    for (const value of ['auto', null, '']) {
+        await check('height:' + JSON.stringify(value) + ' lets the widget grow with its content', () => {
+            const { root } = mount({ height: value }, () => answer());
+            const frame = root.querySelector('.nq-frame');
+            assert(frame.classList.contains('nq-grow'), 'grow mode not applied');
+            assert(!frame.style.height, 'a height was set anyway: ' + frame.style.height);
+        });
+    }
+
     await settle();
 
     console.log('\n  ' + passed + ' passed, ' + failed + ' failed\n');

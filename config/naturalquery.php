@@ -694,8 +694,17 @@ return [
         // Use the /conversation endpoint so follow-up questions keep context
         'conversation' => true,
 
-        // Example query chips shown under the input (fill with real examples!)
+        // Example query chips, shown while the conversation is empty and
+        // cleared once it starts (fill with real examples!)
         'examples' => [],
+
+        // Height of the chat frame.
+        //
+        // A fixed height is what makes the widget read as a conversation: the
+        // composer stays put and the thread scrolls under it. Use 'auto' to
+        // let it grow with its content instead, which suits a short embed in a
+        // page that scrolls as a whole.
+        'height' => '520px',
 
         // Primary color for buttons/bars
         'theme_color' => env('NATURALQUERY_WIDGET_THEME', '#2563eb'),

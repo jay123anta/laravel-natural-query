@@ -43,6 +43,12 @@
         autoSpeak: false,         // speak automatically after each answer
         conversation: true,       // use /conversation endpoint (follow-up support)
         examples: [],             // array of example query strings
+        // Height of the chat frame. A fixed height is what makes it read as a
+        // conversation: the composer stays put and the thread scrolls under it,
+        // the way every messaging app people already know behaves. Use 'auto'
+        // (or null) to let the widget grow with its content instead — right
+        // for a short embed in a page that scrolls as a whole.
+        height: '520px',
         maxBarRows: 12,           // rows rendered as bars before table-only
         themeColor: '#2563eb',
         footerNote: 'AI-generated · please verify important figures',
@@ -108,8 +114,19 @@
         var css = ''
             + '.nq-widget{--nq:' + theme + ';font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:860px;margin:0 auto;color:#1f2937}'
             + '.nq-widget *{box-sizing:border-box}'
+            // The frame: header, scrolling thread, composer pinned to the
+            // bottom. min-height:0 on the scroller is load-bearing — without it
+            // a flex child refuses to shrink and the composer is pushed off the
+            // bottom of the frame as the thread grows.
+            + '.nq-frame{display:flex;flex-direction:column;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}'
+            + '.nq-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid #eef0f3;flex:none}'
+            + '.nq-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px;background:#fafbfc}'
+            + '.nq-frame.nq-grow .nq-scroll{overflow-y:visible}'
+            + '.nq-composer{flex:none;padding:12px 14px;border-top:1px solid #eef0f3;background:#fff}'
             + '.nq-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);padding:18px;margin-bottom:14px}'
-            + '.nq-title{font-size:1.05rem;font-weight:600;margin:0 0 12px}'
+            + '.nq-bot{border-radius:14px 14px 14px 4px;max-width:94%;margin-bottom:0}'
+            + '.nq-empty{padding:22px 8px;text-align:center;color:#6b7280;font-size:.9rem}'
+            + '.nq-title{font-size:1.05rem;font-weight:600;margin:0}'
             + '.nq-row{display:flex;gap:8px;align-items:center}'
             + '.nq-input{flex:1;border:1px solid #d1d5db;border-radius:10px;padding:11px 14px;font-size:.95rem;outline:none;min-width:0}'
             + '.nq-input:focus{border-color:var(--nq);box-shadow:0 0 0 3px color-mix(in srgb,var(--nq) 15%,transparent)}'
@@ -120,7 +137,7 @@
             + '.nq-mic.nq-listening{background:#dc2626;animation:nq-pulse 1.2s infinite}'
             + '@keyframes nq-pulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.5)}70%{box-shadow:0 0 0 12px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}'
             + '.nq-interim{margin-top:10px;font-size:.88rem;color:#6b7280;font-style:italic;min-height:1.2em}'
-            + '.nq-examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}'
+            + '.nq-examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;justify-content:center}'
             + '.nq-chip{border:1px solid #e5e7eb;background:#f9fafb;border-radius:999px;padding:6px 12px;font-size:.82rem;color:#374151;cursor:pointer}'
             + '.nq-chip:hover{border-color:var(--nq);color:var(--nq)}'
             + '.nq-loading{display:flex;align-items:center;gap:10px;color:#6b7280;font-size:.9rem;padding:6px 2px}'
@@ -155,10 +172,12 @@
             + '.nq-state{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0 0 12px;padding:7px 11px;background:color-mix(in srgb,var(--nq) 6%,white);border:1px solid color-mix(in srgb,var(--nq) 18%,white);border-radius:8px}'
             + '.nq-state-lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#9ca3af;flex:none}'
             + '.nq-state-val{font-size:.85rem;color:#374151;font-weight:500}'
-            + '.nq-turn{margin-bottom:4px}'
-            + '.nq-you{display:inline-block;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:8px 14px;font-size:.92rem;margin:0 0 8px auto;max-width:80%;float:right;clear:both}'
-            + '.nq-turn:after{content:"";display:table;clear:both}'
-            + '.nq-new-topic{margin-top:12px;font-size:.82rem;padding:7px 12px}'
+            // Question right, answer left — the arrangement every messaging app
+            // uses, so who said what needs no explaining.
+            + '.nq-turn{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}'
+            + '.nq-you{align-self:flex-end;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:9px 14px;font-size:.92rem;max-width:82%;word-wrap:break-word}'
+            + '.nq-slot{align-self:stretch}'
+            + '.nq-new-topic{font-size:.78rem;padding:6px 11px;flex:none}'
             + '.nq-steps{margin-top:12px;display:flex;flex-direction:column;gap:10px}'
             + '.nq-step{border-left:3px solid color-mix(in srgb,var(--nq) 45%,white);padding:6px 0 6px 12px}'
             + '.nq-step-q{font-size:.82rem;color:#6b7280;margin-bottom:4px}'
@@ -198,14 +217,52 @@
         this.setupVoice();
     }
 
+    /**
+     * A chat frame, not a search box.
+     *
+     * The old layout put the input at the top and grew answers downward, which
+     * is the arrangement of a search form. It taught people the wrong thing: a
+     * box above a result reads as one question at a time, so nobody tried a
+     * follow-up, and the conversation features went unused because nothing on
+     * screen suggested a conversation was on offer.
+     *
+     * Header, scrolling thread, composer pinned at the bottom — the shape of
+     * every messaging app — makes following up the obvious next move.
+     */
     Widget.prototype.build = function () {
         var o = this.opts, self = this;
         this.root.classList.add('nq-widget');
 
-        var card = h('div', 'nq-card');
-        if (o.title) card.appendChild(h('p', 'nq-title', o.title));
+        // 'auto' is the documented way to ask for a growing widget; null and ''
+        // mean the same thing for anyone mounting the JS directly.
+        this.fixedHeight = o.height && o.height !== 'auto' ? o.height : null;
 
+        var frame = h('div', 'nq-frame');
+        if (this.fixedHeight) frame.style.height = this.fixedHeight;
+        else frame.classList.add('nq-grow');
+
+        // -- header: title, and the way out of the current context
+        var header = h('div', 'nq-header');
+        header.appendChild(h('p', 'nq-title', o.title || ''));
+
+        // Follow-ups inherit the previous question's dataset and filters, so
+        // there has to be a way out of that context. Hidden until there is a
+        // thread to reset.
+        this.newTopicBtn = h('button', 'nq-btn nq-btn-ghost nq-new-topic nq-hidden', 'New topic');
+        this.newTopicBtn.type = 'button';
+        this.newTopicBtn.title = 'Forget the conversation so far and start again';
+        this.newTopicBtn.addEventListener('click', function () { self.newTopic(); });
+        header.appendChild(this.newTopicBtn);
+        frame.appendChild(header);
+
+        // -- thread
+        this.resultArea = h('div', 'nq-scroll');
+        frame.appendChild(this.resultArea);
+
+        // -- composer
+        var composer = h('div', 'nq-composer');
         var row = h('div', 'nq-row');
+
         this.input = h('input', 'nq-input');
         this.input.type = 'text';
         this.input.placeholder = o.placeholder;
@@ -226,10 +283,29 @@
         this.sendBtn.type = 'button';
         this.sendBtn.addEventListener('click', function () { self.submit(); });
         row.appendChild(this.sendBtn);
-        card.appendChild(row);
 
+        composer.appendChild(row);
         this.interim = h('div', 'nq-interim', '');
-        card.appendChild(this.interim);
+        composer.appendChild(this.interim);
+        frame.appendChild(composer);
+
+        this.root.appendChild(frame);
+        this.renderEmptyState();
+    };
+
+    /**
+     * What an empty thread says.
+     *
+     * An empty chat frame with a blinking cursor is the worst prompt there is:
+     * the hardest part of asking a database a question is knowing what it can
+     * answer. The examples live here rather than under the composer so they
+     * take no room once the conversation has actually started.
+     */
+    Widget.prototype.renderEmptyState = function () {
+        var o = this.opts, self = this;
+
+        this.emptyState = h('div', 'nq-empty');
+        this.emptyState.appendChild(h('div', null, 'Ask a question about your data. You can follow up on any answer.'));
 
         if (o.examples && o.examples.length) {
             var ex = h('div', 'nq-examples');
@@ -242,21 +318,22 @@
                 });
                 ex.appendChild(chip);
             });
-            card.appendChild(ex);
+            this.emptyState.appendChild(ex);
         }
-        // Follow-ups inherit the previous question's dataset and filters, so
-        // there has to be a way out of that context. Hidden until there is a
-        // thread to reset.
-        this.newTopicBtn = h('button', 'nq-btn nq-btn-ghost nq-new-topic nq-hidden', 'New topic');
-        this.newTopicBtn.type = 'button';
-        this.newTopicBtn.title = 'Forget the conversation so far and start again';
-        this.newTopicBtn.addEventListener('click', function () { self.newTopic(); });
-        card.appendChild(this.newTopicBtn);
 
-        this.root.appendChild(card);
+        this.resultArea.appendChild(this.emptyState);
+    };
 
-        this.resultArea = h('div');
-        this.root.appendChild(this.resultArea);
+    /** Keep the newest message in view, the way a chat window does. */
+    Widget.prototype.scrollToBottom = function () {
+        var el = this.resultArea;
+        if (!el) return;
+        // A frame scrolls itself; a grown-to-fit widget has no scroller of its
+        // own and the page is what needs to move.
+        if (this.fixedHeight) el.scrollTop = el.scrollHeight;
+        else if (this.currentSlot && this.currentSlot.scrollIntoView) {
+            this.currentSlot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     };
 
     // -------------------------------------------------------------- voice
@@ -413,19 +490,26 @@
      * now keeps the question above its answer, so a conversation reads as one.
      */
     Widget.prototype.beginTurn = function (question) {
+        // The examples have served their purpose once a question has been
+        // asked, and a frame is short enough that they would push the
+        // conversation out of view.
+        if (this.emptyState && this.emptyState.parentNode) {
+            this.emptyState.parentNode.removeChild(this.emptyState);
+        }
+
         var turn = h('div', 'nq-turn');
 
         if (question) {
             turn.appendChild(h('div', 'nq-you', question));
         }
 
-        var slot = h('div');
+        var slot = h('div', 'nq-slot');
         turn.appendChild(slot);
         this.resultArea.appendChild(turn);
         this.currentSlot = slot;
 
         if (this.newTopicBtn) this.newTopicBtn.classList.remove('nq-hidden');
-        if (turn.scrollIntoView) turn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        this.scrollToBottom();
     };
 
     /** Clears only the turn in flight, never the thread above it. */
@@ -449,24 +533,27 @@
         this.resultArea.innerHTML = '';
         this.currentSlot = null;
         if (this.newTopicBtn) this.newTopicBtn.classList.add('nq-hidden');
+        this.renderEmptyState();
         self.input.focus();
     };
 
     Widget.prototype.renderLoading = function (msg) {
         this.clearResult();
-        var card = h('div', 'nq-card');
+        var card = h('div', 'nq-card nq-bot');
         var l = h('div', 'nq-loading');
         l.appendChild(h('div', 'nq-spinner'));
         l.appendChild(h('span', null, msg || 'Thinking…'));
         card.appendChild(l);
         this.currentSlot.appendChild(card);
+        this.scrollToBottom();
     };
 
     Widget.prototype.renderError = function (msg) {
         this.clearResult();
-        var card = h('div', 'nq-card');
+        var card = h('div', 'nq-card nq-bot');
         card.appendChild(h('div', 'nq-error', msg));
         this.currentSlot.appendChild(card);
+        this.scrollToBottom();
     };
 
     Widget.prototype.renderResponse = function (data) {
@@ -476,7 +563,7 @@
         if (data.status !== 'success') return this.renderError('Unexpected response status.');
 
         this.clearResult();
-        var card = h('div', 'nq-card');
+        var card = h('div', 'nq-card nq-bot');
         var self = this;
 
         // Answer line + TTS control
@@ -555,6 +642,7 @@
         card.appendChild(foot);
 
         this.currentSlot.appendChild(card);
+        this.scrollToBottom();
 
         if (this.opts.autoSpeak && this.opts.tts && global.speechSynthesis) {
             this.speak(data.speech_text || data.answer || '');
@@ -687,7 +775,7 @@
     Widget.prototype.renderClarification = function (data) {
         this.clearResult();
         var self = this;
-        var card = h('div', 'nq-card nq-clarify');
+        var card = h('div', 'nq-card nq-bot nq-clarify');
         card.appendChild(h('div', 'nq-clarify-msg', data.message || 'Please clarify your question.'));
         var optsWrap = h('div', 'nq-options');
 
@@ -715,6 +803,7 @@
 
         if (optsWrap.children.length) card.appendChild(optsWrap);
         this.currentSlot.appendChild(card);
+        this.scrollToBottom();
     };
 
     // -------------------------------------------------------------- tts

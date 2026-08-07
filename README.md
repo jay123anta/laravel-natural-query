@@ -383,10 +383,15 @@ Don't want to build a frontend? The package ships one. Add this to any Blade vie
 <x-naturalquery::widget />
 ```
 
-That single line renders a complete assistant: text input, microphone, spoken
-answers, result cards / bar charts / tables, clarification buttons, and
-follow-up questions ("what about the South region?") via the conversation API.
+That single line renders a complete assistant: a chat frame with the thread
+above and the composer below, microphone and spoken answers, result cards /
+bar charts / tables, clarification buttons, and follow-up questions ("what
+about the South region?") via the conversation API.
 
+- **It is laid out as a conversation, deliberately.** Questions on the right,
+  answers on the left, composer pinned at the bottom — the shape of every
+  messaging app. A search box above a result reads as one question at a time,
+  and people did not try follow-ups because nothing suggested they could.
 - **Voice works with every LLM provider** - speech-to-text happens in the
   browser (Chrome/Edge/Safari). Where browser STT is unavailable, the widget
   falls back to recording audio and sending it to `/voice` (needs a
@@ -401,12 +406,21 @@ follow-up questions ("what about the South region?") via the conversation API.
     title="Ask about sales"
     scheme="orders"
     language="en-IN"
+    height="640px"
     :examples="['Top 10 customers by revenue', 'Revenue by region']"
 />
 ```
 
+`height` sets the chat frame; the thread scrolls inside it and the composer
+stays put. Pass `height="auto"` to let the widget grow with its content
+instead, which suits a short embed in a page that scrolls as a whole.
+
+Example queries appear while the thread is empty and clear once it starts —
+knowing what can be asked is the hard part, and an empty prompt gives no clue.
+
 Site-wide defaults live in `config/naturalquery.php` under `widget`
-(title, language, theme color, example chips, TTS on/off, conversation mode).
+(title, language, theme color, frame height, example chips, TTS on/off,
+conversation mode).
 
 A ready-made demo page is available at `/naturalquery/demo` (enabled in the
 `local` environment by default; control with `NATURALQUERY_DEMO_PAGE`).

@@ -29,7 +29,14 @@
         'themeColor'  => $themeColor ?? config('naturalquery.widget.theme_color', '#2563eb'),
         'footerNote'  => config('naturalquery.widget.footer_note', 'AI-generated · please verify important figures'),
         'scheme'      => $scheme ?? config('naturalquery.default_scheme'),
+        // Chat frame height. "auto" means grow with the content — a string
+        // rather than null on purpose, because null cannot survive the trip:
+        // both `??` here and Blade's own @props treat an explicitly-passed
+        // null as "not given" and quietly reinstate the default, so
+        // :height="null" would look like it worked and do nothing.
+        'height'      => $height ?? config('naturalquery.widget.height', '520px'),
     ], fn ($v) => $v !== null);
+
     $widgetId = 'nq-widget-' . \Illuminate\Support\Str::random(6);
 @endphp
 
