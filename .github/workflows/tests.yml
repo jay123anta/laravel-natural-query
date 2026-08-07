@@ -275,6 +275,17 @@ jobs:
       - name: Check widget JS syntax
         run: node --check resources/js/naturalquery-widget.js
 
+      # A syntax check proves the file parses, not that the widget works. Every
+      # user-facing defect this package has had was found by someone clicking —
+      # a thread that replaced itself, a button that did nothing, two number
+      # formats in one card — and none of them could fail a test that never
+      # rendered anything. These mount the widget in a DOM and click it.
+      - name: Install browser-test dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run widget browser tests
+        run: npm test
+
       - name: Check PHP syntax
         run: |
           find src config database routes stubs tests -name '*.php' -print0 \

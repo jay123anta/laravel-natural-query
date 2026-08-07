@@ -1,0 +1,324 @@
+/**
+ * The widget, driven in a real DOM.
+ *
+ * Every user-facing defect this package has had was found by someone clicking,
+ * not by the PHP suite — the thread that replaced itself, the dataset button
+ * that did nothing, the two number formats in one card. None of those could
+ * fail a test that never renders anything.
+ *
+ * So the widget is mounted in jsdom, given scripted responses, and clicked.
+ * Speech synthesis is stubbed and asserted on: what can be checked is that the
+ * button exists, is wired, and speaks the right text. Whether audio actually
+ * comes out of a speaker is the one thing no test can tell you.
+ *
+ *   node tests/js/widget.test.js
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { JSDOM } = require('jsdom');
+
+const WIDGET = path.join(__dirname, '..', '..', 'resources', 'js', 'naturalquery-widget.js');
+
+let passed = 0;
+let failed = 0;
+
+/**
+ * Awaited, always.
+ *
+ * The first version called fn() without awaiting, so an async case that threw
+ * printed "ok" and then killed the process with an unhandled rejection — a
+ * green line for a test that had failed. A harness that can report a pass for
+ * a failure is worse than no harness.
+ */
+async function check(name, fn) {
+    try {
+        await fn();
+        passed++;
+        console.log('  ok   ' + name);
+    } catch (e) {
+        failed++;
+        console.log('  FAIL ' + name + '\n         ' + e.message);
+    }
+}
+
+function assert(condition, message) {
+    if (!condition) throw new Error(message);
+}
+
+function assertContains(haystack, needle, message) {
+    assert(String(haystack).includes(needle), (message || '') + '\n         expected to contain: ' + needle + '\n         actual: ' + String(haystack).slice(0, 300));
+}
+
+/** A widget mounted in a fresh DOM, with fetch and speech stubbed. */
+function mount(options, responder) {
+    const dom = new JSDOM('<!doctype html><html lang="en-GB"><body><div id="nq"></div></body></html>', {
+        url: 'http://localhost',
+        runScripts: 'outside-only',
+    });
+
+    const { window } = dom;
+    const spoken = [];
+    const requests = [];
+
+    window.SpeechSynthesisUtterance = function (text) { this.text = text; };
+    window.speechSynthesis = {
+        speak(u) { spoken.push(u.text); if (u.onstart) u.onstart(); },
+        cancel() {},
+        speaking: false,
+    };
+
+    window.fetch = function (url, init) {
+        requests.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
+        const payload = responder(url, requests[requests.length - 1].body);
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+    };
+
+    window.eval(fs.readFileSync(WIDGET, 'utf8'));
+
+    const widget = window.NaturalQueryWidget.mount('#nq', Object.assign({ baseUrl: '/nq' }, options || {}));
+
+    return { window, widget, spoken, requests, root: window.document.getElementById('nq') };
+}
+
+/** Let the stubbed promise chain settle. */
+const settle = () => new Promise((r) => setTimeout(r, 0));
+
+function answer(overrides) {
+    return Object.assign({
+        status: 'success',
+        type: 'ranking',
+        answer: 'Top 2 customers by revenue: Patgiri Traders, Kalita Stores',
+        speech_text: 'Here are the top customers.',
+        rows: [
+            { customer_name: 'Patgiri Traders', revenue: 2028763 },
+            { customer_name: 'Kalita Stores', revenue: 1878404 },
+        ],
+        metadata: { processing_time_ms: 120 },
+    }, overrides || {});
+}
+
+async function run() {
+    console.log('\n  WIDGET — rendered and clicked in jsdom\n');
+
+    // ---------------------------------------------------------------- basics
+    await check('it renders an input and an Ask button', () => {
+        const { root } = mount({}, () => answer());
+        assert(root.querySelector('.nq-input'), 'no input rendered');
+        assert(root.textContent.includes('Ask'), 'no Ask button');
+    });
+
+    // ----------------------------------------------------------- the thread
+    {
+        const ctx = mount({}, () => answer());
+        ctx.widget.input.value = 'top 5 customers by revenue';
+        ctx.widget.submit();
+        await settle();
+
+        await check('the question appears in the thread', () => {
+            assertContains(ctx.root.textContent, 'top 5 customers by revenue');
+        });
+
+        await check('the input is cleared so a follow-up can be typed', () => {
+            assert(ctx.widget.input.value === '', 'input still holds: ' + ctx.widget.input.value);
+        });
+
+        await check('the answer renders', () => {
+            assertContains(ctx.root.textContent, 'Patgiri Traders');
+        });
+
+        ctx.widget.input.value = 'only in West';
+        ctx.widget.submit();
+        await settle();
+
+        await check('a second turn APPENDS rather than replacing the first', () => {
+            assertContains(ctx.root.textContent, 'top 5 customers by revenue');
+            assertContains(ctx.root.textContent, 'only in West');
+            assert(ctx.root.querySelectorAll('.nq-turn').length === 2,
+                'expected 2 turns, got ' + ctx.root.querySelectorAll('.nq-turn').length);
+        });
+    }
+
+    // ------------------------------------------------------------ the state
+    {
+        const ctx = mount({}, () => answer({
+            state_summary: 'Orders · revenue · by customer name · region is West',
+        }));
+        ctx.widget.input.value = 'only in West';
+        ctx.widget.submit();
+        await settle();
+
+        await check('the resolved state is shown above the answer', () => {
+            const el = ctx.root.querySelector('.nq-state');
+            assert(el, 'no state line rendered');
+            assertContains(el.textContent, 'region is West');
+            assertContains(el.textContent, 'Reading this as');
+        });
+    }
+
+    // -------------------------------------------------------------- speech
+    {
+        const ctx = mount({ tts: true }, () => answer());
+        ctx.widget.input.value = 'top customers';
+        ctx.widget.submit();
+        await settle();
+
+        await check('a speak control is offered on the answer', () => {
+            assert(ctx.root.querySelector('.nq-speak'), 'no speaker button rendered');
+        });
+
+        await check('clicking it speaks the answer', () => {
+            ctx.root.querySelector('.nq-speak').dispatchEvent(new ctx.window.Event('click'));
+            assert(ctx.spoken.length === 1, 'speechSynthesis.speak was not called');
+            assertContains(ctx.spoken[0], 'Here are the top customers');
+        });
+    }
+
+    await check('speech is not offered when tts is turned off', async () => {
+        const ctx = mount({ tts: false }, () => answer());
+        ctx.widget.input.value = 'x';
+        ctx.widget.submit();
+        return settle().then(() => {
+            assert(!ctx.root.querySelector('.nq-speak'), 'speaker button rendered with tts disabled');
+        });
+    });
+
+    // --------------------------------------------------------- next steps
+    {
+        const ctx = mount({}, () => answer({
+            next_steps: [{ label: 'Revenue by region', query: 'revenue by region' }],
+        }));
+        ctx.widget.input.value = 'top customers';
+        ctx.widget.submit();
+        await settle();
+
+        await check('follow-up suggestions render as buttons', () => {
+            assertContains(ctx.root.textContent, 'Revenue by region');
+        });
+
+        await check('clicking a suggestion asks that question', () => {
+            const before = ctx.requests.length;
+            const btns = Array.from(ctx.root.querySelectorAll('.nq-next .nq-btn'));
+            const target = btns.find((b) => b.textContent === 'Revenue by region');
+            assert(target, 'suggestion button not found');
+            target.dispatchEvent(new ctx.window.Event('click'));
+            assert(ctx.requests.length === before + 1, 'clicking the suggestion sent no request');
+            assert(ctx.requests[before].body.text === 'revenue by region',
+                'sent: ' + ctx.requests[before].body.text);
+        });
+    }
+
+    // ------------------------------------------------------- clarification
+    {
+        const ctx = mount({}, () => ({
+            status: 'clarification_needed',
+            type: 'metric_clarification',
+            message: 'What metric would you like to see?',
+            alternatives: [],
+            available_metrics: [{ key: 'revenue', description: 'Order line revenue' }],
+        }));
+        ctx.widget.input.value = 'who is the best';
+        ctx.widget.submit();
+        await settle();
+
+        await check('a metric question offers metric buttons', () => {
+            assertContains(ctx.root.textContent, 'Revenue');
+        });
+
+        await check('no dead dataset button appears beside them', () => {
+            const buttons = Array.from(ctx.root.querySelectorAll('.nq-options .nq-btn'));
+            assert(buttons.length === 1, 'expected exactly one option, got ' + buttons.length);
+        });
+
+        await check('clicking a metric asks again with it', () => {
+            const before = ctx.requests.length;
+            ctx.root.querySelector('.nq-options .nq-btn').dispatchEvent(new ctx.window.Event('click'));
+            assert(ctx.requests.length === before + 1, 'clicking the metric sent no request');
+            assertContains(ctx.requests[before].body.text, 'revenue');
+        });
+    }
+
+    // ---------------------------------------------------------- new topic
+    {
+        const ctx = mount({}, () => answer());
+        ctx.widget.input.value = 'top customers';
+        ctx.widget.submit();
+        await settle();
+
+        await check('New topic appears once there is a thread', () => {
+            assert(!ctx.widget.newTopicBtn.classList.contains('nq-hidden'), 'New topic still hidden');
+        });
+
+        await check('New topic clears the thread and forgets the session', () => {
+            const before = ctx.widget.sessionId;
+            ctx.widget.newTopicBtn.dispatchEvent(new ctx.window.Event('click'));
+            assert(ctx.root.querySelectorAll('.nq-turn').length === 0, 'thread not cleared');
+            assert(ctx.widget.sessionId !== before, 'session id was not renewed');
+            const deletes = ctx.requests.filter((r) => r.init && r.init.method === 'DELETE');
+            assert(deletes.length === 1, 'no DELETE sent to drop server-side context');
+        });
+    }
+
+    // ------------------------------------------------------------ numbers
+    {
+        const intl = mount({ numberFormat: 'international' }, () => answer());
+        intl.widget.input.value = 'x';
+        intl.widget.submit();
+        await settle();
+
+        await check('numbers group the way the server was told to group them', () => {
+            assertContains(intl.root.textContent, '2,028,763');
+        });
+
+        const indian = mount({ numberFormat: 'indian' }, () => answer());
+        indian.widget.input.value = 'x';
+        indian.widget.submit();
+        await settle();
+
+        await check('and follow the indian format when that is configured', () => {
+            assertContains(indian.root.textContent, '20,28,763');
+        });
+    }
+
+    // -------------------------------------------------------- multi-step
+    {
+        const ctx = mount({}, () => answer({
+            type: 'multi_step',
+            answer: 'Revenue is up 15.2%.',
+            steps: [
+                { n: 1, question: 'revenue in 2026', status: 'success', answer: 'Total: 21,011,088', rows: [] },
+                { n: 2, question: 'revenue in 2025', status: 'success', answer: 'Total: 18,244,900', rows: [] },
+            ],
+        }));
+        ctx.widget.input.value = 'compare this year with last year';
+        ctx.widget.submit();
+        await settle();
+
+        await check('a decomposed answer shows its working', () => {
+            assertContains(ctx.root.textContent, 'revenue in 2026');
+            assertContains(ctx.root.textContent, 'revenue in 2025');
+            assert(ctx.root.querySelectorAll('.nq-step').length === 2, 'expected 2 steps rendered');
+        });
+    }
+
+    // --------------------------------------------------------------- errors
+    await check('a failed request says so instead of hanging', async () => {
+        const dom = new JSDOM('<!doctype html><html><body><div id="nq"></div></body></html>',
+            { url: 'http://localhost', runScripts: 'outside-only' });
+        dom.window.fetch = () => Promise.reject(new Error('offline'));
+        dom.window.eval(fs.readFileSync(WIDGET, 'utf8'));
+        const w = dom.window.NaturalQueryWidget.mount('#nq', { baseUrl: '/nq' });
+        w.input.value = 'anything';
+        w.submit();
+        return settle().then(() => {
+            assertContains(dom.window.document.getElementById('nq').textContent, 'Could not reach');
+        });
+    });
+
+    await settle();
+
+    console.log('\n  ' + passed + ' passed, ' + failed + ' failed\n');
+    process.exit(failed === 0 ? 0 : 1);
+}
+
+run();
