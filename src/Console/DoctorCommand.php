@@ -82,16 +82,14 @@ class DoctorCommand extends Command
         $this->pass("LLM driver: {$driver}");
 
         $providerConfig = $providers[$driver];
-        $needsKey = !in_array($driver, ['ollama'], true)
-            && !str_contains((string) ($providerConfig['base_url'] ?? ''), 'localhost')
-            && !str_contains((string) ($providerConfig['base_url'] ?? ''), '127.0.0.1');
+        $needsKey = !$this->looksSelfHosted($driver, (string) ($providerConfig['base_url'] ?? ''));
 
         if (empty($providerConfig['api_key'])) {
             $envVar = strtoupper($driver) . '_API_KEY';
             if ($needsKey) {
                 $this->problem('API key is empty', "Set {$envVar} in .env, then run: php artisan config:clear");
             } else {
-                $this->pass('No API key needed (local provider)');
+                $this->pass('No API key needed (self-hosted provider)');
             }
         } else {
             // Never print the key — only confirm its presence and shape.
@@ -104,6 +102,42 @@ class DoctorCommand extends Command
 
         $this->checkSslSetting();
         $this->checkVoiceSetup();
+    }
+
+    /**
+     * Is this model running on infrastructure the adopter controls?
+     *
+     * Only 'ollama', 'localhost' and '127.0.0.1' counted, so a perfectly
+     * ordinary self-hosted setup — vLLM on a LAN address, LM Studio reached by
+     * hostname, a model behind an internal name — was told its API key was
+     * empty and doctor exited non-zero over a key that service does not want.
+     * That is the same vendor bias as everywhere else: hosted assumed, local
+     * treated as the exception.
+     */
+    protected function looksSelfHosted(string $driver, string $baseUrl): bool
+    {
+        if ($driver === 'ollama') {
+            return true;
+        }
+
+        if ($baseUrl === '') {
+            return false;
+        }
+
+        $host = strtolower((string) (parse_url($baseUrl, PHP_URL_HOST) ?: $baseUrl));
+
+        // Loopback, private ranges (RFC 1918 and the Docker/K8s defaults that
+        // sit in them), and names with no public TLD.
+        return $host === 'localhost'
+            || $host === '::1'
+            || str_ends_with($host, '.local')
+            || str_ends_with($host, '.internal')
+            || (bool) preg_match('/^127\./', $host)
+            || (bool) preg_match('/^10\./', $host)
+            || (bool) preg_match('/^192\.168\./', $host)
+            || (bool) preg_match('/^172\.(1[6-9]|2\d|3[01])\./', $host)
+            // A bare hostname with no dot is a container or service name.
+            || !str_contains($host, '.');
     }
 
     /**

@@ -117,29 +117,31 @@ php artisan naturalquery:install
 php artisan migrate
 ```
 
-Add your LLM key to `.env`:
+Then choose a model in `.env`. **A model you run yourself is a first-class
+choice, not a fallback** - the package works the same either way, and nothing
+here assumes a hosted API.
 
 ```env
-NATURALQUERY_LLM_DRIVER=gemini
-GEMINI_API_KEY=your-key-here
-```
-
-Supported drivers: `gemini`, `openai`, `claude`, `ollama`
-
-```env
-# OpenAI
-NATURALQUERY_LLM_DRIVER=openai
-OPENAI_API_KEY=sk-...
-
-# Claude
-NATURALQUERY_LLM_DRIVER=claude
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Ollama (local, no API key needed)
+# Local, no API key, nothing leaves your machine
 NATURALQUERY_LLM_DRIVER=ollama
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=llama3
 ```
+
+```env
+# Or a hosted API
+NATURALQUERY_LLM_DRIVER=gemini
+GEMINI_API_KEY=your-key-here
+
+NATURALQUERY_LLM_DRIVER=openai
+OPENAI_API_KEY=sk-...
+
+NATURALQUERY_LLM_DRIVER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Built-in drivers: `ollama`, `gemini`, `openai`, `claude` - plus any
+OpenAI-compatible service, below.
 
 ### Bring your own model - hosted or self-hosted
 

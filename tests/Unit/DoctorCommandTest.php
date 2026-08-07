@@ -531,6 +531,66 @@ class DoctorCommandTest extends TestCase
         $this->assertStringContainsString('openai_compatible', $output);
     }
 
+    /**
+     * A self-hosted model is not an exception to be special-cased.
+     *
+     * Only 'ollama', 'localhost' and '127.0.0.1' counted as keyless, so vLLM
+     * on a LAN address or LM Studio behind a container name was told its API
+     * key was empty — and doctor exited non-zero — over a key that service
+     * does not want. Hosted was assumed; local was the exception.
+     */
+    public static function selfHostedUrls(): array
+    {
+        return [
+            'loopback' => ['http://127.0.0.1:8000/v1'],
+            'localhost' => ['http://localhost:1234/v1'],
+            'private 192.168' => ['http://192.168.1.50:8000/v1'],
+            'private 10.x' => ['http://10.0.0.7:8000/v1'],
+            'private 172.16' => ['http://172.16.4.2:8000/v1'],
+            'container name' => ['http://vllm:8000/v1'],
+            'mdns' => ['http://gpubox.local:8000/v1'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('selfHostedUrls')]
+    #[Test]
+    public function a_self_hosted_model_is_not_nagged_for_an_api_key(string $baseUrl)
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.llm.driver' => 'selfhosted',
+            'naturalquery.llm.providers.selfhosted' => [
+                'base_url' => $baseUrl,
+                'model' => 'qwen2.5-coder:14b',
+                'api_key' => null,
+            ],
+        ]);
+
+        $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringContainsString('No API key needed', Artisan::output());
+        $this->assertSame(0, $exit, "{$baseUrl} was treated as a hosted service");
+    }
+
+    #[Test]
+    public function a_hosted_service_with_no_key_is_still_a_problem()
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.llm.driver' => 'groq',
+            'naturalquery.llm.providers.groq' => [
+                'base_url' => 'https://api.groq.com/openai/v1',
+                'model' => 'llama-3.3-70b',
+                'api_key' => null,
+            ],
+        ]);
+
+        $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringContainsString('API key is empty', Artisan::output());
+        $this->assertSame(1, $exit);
+    }
+
     #[Test]
     public function it_flags_a_default_scheme_that_matches_no_schema()
     {

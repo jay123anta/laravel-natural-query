@@ -75,8 +75,19 @@ class InstallCommand extends Command
         $this->newLine();
         $this->info('NaturalQuery installed successfully!');
         $this->newLine();
+        // Step 1 named GEMINI_API_KEY, which is the first thing every new
+        // adopter reads and quietly made one vendor the default for everyone.
+        // The package works the same on a model running on your own machine,
+        // and an installer that mentions only a hosted API is choosing for
+        // people who have not been told there is a choice.
         $this->line('Next steps:');
-        $this->line('  1. Set your LLM API key in .env: GEMINI_API_KEY=your-key-here');
+        $this->line('  1. Choose an LLM in .env — a hosted API or one you run yourself:');
+        $this->line('       NATURALQUERY_LLM_DRIVER=ollama      (local, no API key)');
+        $this->line('       NATURALQUERY_LLM_DRIVER=gemini      GEMINI_API_KEY=…');
+        $this->line('       NATURALQUERY_LLM_DRIVER=openai      OPENAI_API_KEY=…');
+        $this->line('       NATURALQUERY_LLM_DRIVER=claude      ANTHROPIC_API_KEY=…');
+        $this->line('     Any OpenAI-compatible service (DeepSeek, Groq, vLLM, LM Studio,');
+        $this->line('     LocalAI, llama.cpp) works by adding an llm.providers block.');
         $this->line('  2. Run migrations: php artisan migrate');
         $this->line('  3. Generate a schema from your database: php artisan naturalquery:discover');
         $this->line('  4. Check everything is wired up: php artisan naturalquery:doctor');
