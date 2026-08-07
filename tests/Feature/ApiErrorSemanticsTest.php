@@ -197,6 +197,44 @@ class ApiErrorSemanticsTest extends TestCase
         }
     }
 
+    /**
+     * An unreachable provider is not a bad question.
+     *
+     * Found the hard way: the benchmark host lost its CA bundle, every request
+     * failed at the TLS handshake, and all 36 questions came back "Could not
+     * understand the query. Try mentioning a dataset name." Nothing in that
+     * points at the network — it points at the user, who is now rewording a
+     * question that was fine. Rule 0 names this exact failure mode.
+     *
+     * success:false from a provider never means the question was unclear. An
+     * unclear question is a SUCCESSFUL call carrying a clarification.
+     */
+    #[Test]
+    public function an_unreachable_provider_says_so_instead_of_blaming_the_question()
+    {
+        $provider = new RecordingProvider();
+        $unreachable = [
+            'success' => false,
+            'error' => 'Unable to connect to AI service. Please check your network connection and try again.',
+        ];
+        $provider->intentResponse = $unreachable;
+        $provider->sqlResponse = $unreachable;
+
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        $response = $this->postJson('/naturalquery/text', ['text' => 'top customers by revenue']);
+
+        $response->assertStatus(502);
+        $response->assertJsonPath('error_code', ErrorCode::PROVIDER_ERROR);
+        $response->assertJsonPath('retryable', true);
+        $this->assertStringNotContainsStringIgnoringCase(
+            'could not understand',
+            (string) $response->json('error'),
+            'a network failure was reported as a comprehension failure'
+        );
+    }
+
     #[Test]
     public function an_empty_question_is_still_a_validation_error()
     {

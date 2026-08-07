@@ -287,6 +287,65 @@ class DoctorCommandTest extends TestCase
             ->expectsOutputToContain('CA bundle not found');
     }
 
+    /**
+     * Verification on, but no CA store to verify against.
+     *
+     * This was a green tick regardless, with the truth only emerging from the
+     * live provider check — so `--skip-api`, the fast check the docs recommend,
+     * reported a healthy setup that could not reach a provider at all. It cost
+     * this project an afternoon: a benchmark run scored 0/36 and read exactly
+     * like a package regression, when PHP simply had no certificates.
+     *
+     * Common enough on XAMPP and WAMP to be the default experience there, and
+     * Rule 0 says those are stacks the package has to work on.
+     */
+    #[Test]
+    public function it_flags_ssl_verification_with_no_ca_store_behind_it()
+    {
+        $this->createStubTables();
+        config(['naturalquery.ssl_verify' => true]);
+
+        $this->swap(
+            \Jayanta\NaturalQuery\Console\DoctorCommand::class,
+            new class extends \Jayanta\NaturalQuery\Console\DoctorCommand {
+                protected function phpCaBundle(): ?string { return null; }
+                protected function bundleOnDisk(): ?string { return 'C:/xampp/apache/bin/curl-ca-bundle.crt'; }
+            }
+        );
+
+        // Captured rather than expectsOutputToContain(): that helper matches
+        // one expectation per write, so asserting on both the warning and its
+        // fix line is order-sensitive and brittle.
+        $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('no CA certificate store', $output);
+        // It found one on disk, so the fix is a single line rather than a
+        // download and a hunt for where to put it.
+        $this->assertStringContainsString('curl-ca-bundle.crt', $output);
+        $this->assertStringContainsString('NATURALQUERY_SSL_VERIFY', $output);
+        // Nothing is broken yet — it may still work. A warning, not a fault.
+        $this->assertSame(0, $exit);
+    }
+
+    #[Test]
+    public function it_confirms_the_ca_store_php_will_actually_use()
+    {
+        $this->createStubTables();
+        config(['naturalquery.ssl_verify' => true]);
+
+        $this->swap(
+            \Jayanta\NaturalQuery\Console\DoctorCommand::class,
+            new class extends \Jayanta\NaturalQuery\Console\DoctorCommand {
+                protected function phpCaBundle(): ?string { return '/etc/ssl/certs/ca-certificates.crt'; }
+            }
+        );
+
+        $this->artisan('naturalquery:doctor --skip-api')
+            ->expectsOutputToContain('ca-certificates.crt')
+            ->assertExitCode(0);
+    }
+
     #[Test]
     public function it_flags_a_default_scheme_that_matches_no_schema()
     {

@@ -173,7 +173,70 @@ class DoctorCommand extends Command
             return;
         }
 
-        $this->pass('SSL verification enabled (system CA bundle)');
+        // Verification is on and no bundle was named, so PHP's own store is
+        // what will be used. On XAMPP and WAMP there usually isn't one, and
+        // every HTTPS call fails at the handshake.
+        //
+        // This used to be a green tick regardless, with the truth only
+        // emerging from the live provider check — so `--skip-api`, the fast
+        // check the docs recommend, reported a healthy setup that could not
+        // reach a provider at all. It cost this project an afternoon: a
+        // benchmark run scored 0/36 and read exactly like a package
+        // regression.
+        if ($bundle = $this->phpCaBundle()) {
+            $this->pass('SSL verification enabled (PHP CA store: ' . $bundle . ')');
+            return;
+        }
+
+        $suggestion = $this->bundleOnDisk();
+
+        $this->warn_(
+            'SSL verification is on, but PHP has no CA certificate store',
+            $suggestion
+                ? 'Common on XAMPP/WAMP. There is a bundle at ' . $suggestion
+                    . ' — set NATURALQUERY_SSL_VERIFY to that path in .env, then run: php artisan config:clear'
+                : 'Common on XAMPP/WAMP. Download https://curl.se/ca/cacert.pem, set NATURALQUERY_SSL_VERIFY'
+                    . ' to its full path in .env, then run: php artisan config:clear'
+        );
+    }
+
+    /** The CA store PHP will use on its own, or null if it has none. */
+    protected function phpCaBundle(): ?string
+    {
+        foreach ([ini_get('curl.cainfo'), ini_get('openssl.cafile')] as $configured) {
+            if (is_string($configured) && $configured !== '' && is_file($configured)) {
+                return $configured;
+            }
+        }
+
+        if (function_exists('openssl_get_cert_locations')) {
+            $default = openssl_get_cert_locations()['default_cert_file'] ?? null;
+            if (is_string($default) && $default !== '' && is_file($default)) {
+                return $default;
+            }
+        }
+
+        return null;
+    }
+
+    /** A bundle already sitting on this machine, so the fix is one line long. */
+    protected function bundleOnDisk(): ?string
+    {
+        $candidates = [
+            'C:/xampp/apache/bin/curl-ca-bundle.crt',
+            'C:/wamp64/bin/apache/apache2.4.51/bin/curl-ca-bundle.crt',
+            '/etc/ssl/certs/ca-certificates.crt',
+            '/etc/pki/tls/certs/ca-bundle.crt',
+            '/usr/local/etc/openssl/cert.pem',
+        ];
+
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 
     protected function checkProvider(): void

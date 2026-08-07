@@ -301,11 +301,18 @@ class QueryOrchestrator
                 ->toIntent() + $intent;
         }
 
-        // Handle parse failure
+        // Handle parse failure.
+        //
+        // success:false from a provider never means "the question was unclear"
+        // — an unclear question comes back as a successful call carrying a
+        // clarification. It means the call itself failed: no route to the host,
+        // a rejected key, a reply that was not JSON. Reporting that as
+        // not_understood sends the user off rewording a perfectly good question
+        // while the real fault goes unmentioned.
         if (!($intent['success'] ?? true)) {
-            // Rate limiting is NOT a comprehension failure: falling back to
-            // sql_generation / retrying would fire MORE calls at a provider
-            // that is already refusing them. Tell the user the truth instead.
+            // Rate limiting especially: falling back to sql_generation or
+            // retrying would fire MORE calls at a provider already refusing
+            // them.
             if (($intent['status'] ?? null) === 429) {
                 return array_merge(
                     $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
@@ -313,8 +320,11 @@ class QueryOrchestrator
                 );
             }
 
+            // Still fallback-eligible: in auto mode a garbled intent response
+            // is worth one attempt at SQL generation, which asks for something
+            // simpler. If that fails too, its error is the one reported.
             return array_merge(
-                $this->formatter->formatError($intent['error'] ?? 'Failed to understand query', $metadata, ErrorCode::NOT_UNDERSTOOD),
+                $this->formatter->formatError($intent['error'] ?? 'The AI service could not be reached.', $metadata, ErrorCode::PROVIDER_ERROR),
                 ['_fallback_eligible' => true]
             );
         }
@@ -687,14 +697,7 @@ class QueryOrchestrator
         $response = $this->llmProvider->generateSql($prompt);
 
         if (!$response['success']) {
-            if (($response['status'] ?? null) === 429) {
-                return array_merge(
-                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
-                    ['_rate_limited' => true]
-                );
-            }
-
-            return $this->formatter->formatError($response['error'] ?? 'AI failed to generate SQL', $metadata, ErrorCode::PROVIDER_ERROR);
+            return $this->providerFailure($response, $metadata);
         }
 
         $data = $response['data'];
@@ -801,6 +804,36 @@ class QueryOrchestrator
      * 2. If found, retry with single-scheme SQL prompt (much more accurate)
      * 3. If still no scheme, retry with explicit instruction to generate SQL
      */
+    /**
+     * Say what actually went wrong with a provider call.
+     *
+     * A failed request is not a failure to understand, and reporting it as one
+     * sends the user off rewording a perfectly good question while the real
+     * fault — an expired key, a rate limit, no route to the host — goes
+     * unmentioned. The benchmark suite lost a CA bundle and every single case
+     * came back "Could not understand the query. Try mentioning a dataset
+     * name", which is a lie that costs an afternoon.
+     *
+     * @param array<string, mixed> $response Provider response with success:false
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    protected function providerFailure(array $response, array $metadata): array
+    {
+        if (($response['status'] ?? null) === 429) {
+            return array_merge(
+                $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
+                ['_rate_limited' => true]
+            );
+        }
+
+        return $this->formatter->formatError(
+            $response['error'] ?? 'AI failed to generate SQL',
+            $metadata,
+            ErrorCode::PROVIDER_ERROR
+        );
+    }
+
     protected function retryWithRefinedPrompt(string $query, ?string $schemeHint, array $metadata): array
     {
         $metadata['_retried'] = true;
@@ -819,7 +852,14 @@ class QueryOrchestrator
             $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
             $response = $this->llmProvider->generateSql($prompt);
 
-            if ($response['success'] && isset($response['data']['sql'])) {
+            // The retry is the last thing that runs before the "could not
+            // understand" message, so a provider fault swallowed here is a
+            // provider fault reported as a bad question.
+            if (!($response['success'] ?? false)) {
+                return $this->providerFailure($response, $metadata);
+            }
+
+            if (isset($response['data']['sql'])) {
                 $data = $response['data'];
                 $schemaData = $this->registry->get($scheme);
 

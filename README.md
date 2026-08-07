@@ -1125,6 +1125,14 @@ NATURALQUERY_SSL_VERIFY=C:\path\to\cacert.pem
 `ssl_verify` accepts `true` (default - system CA bundle), a CA bundle file
 path, or `false` (disables verification - never do this in production).
 
+XAMPP already ships a bundle at `C:\xampp\apache\bin\curl-ca-bundle.crt`, so
+usually no download is needed. `php artisan naturalquery:doctor` now checks
+whether PHP has a store at all and prints the exact path if it finds one on
+your machine — worth running first, because the symptom does not look like a
+certificate problem. Every question comes back as a provider failure, and
+before this was caught properly a whole benchmark run scored 0/36 and read
+exactly like a broken package.
+
 **`Driver '<name>' is connected but NaturalQuery cannot introspect it`** -
 NaturalQuery reads your schema through database introspection, and ships with
 SQLite, PostgreSQL and MySQL/MariaDB. If your app runs on something else, point
