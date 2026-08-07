@@ -283,6 +283,23 @@ class QueryOrchestrator
             }
         }
 
+        // Fold the conversation's state into what actually runs.
+        //
+        // The state was previously used only as prompt context: the SQL was
+        // built from THIS turn's intent alone, so "and what about Electronics?"
+        // executed with the Electronics filter and without the West one, while
+        // the state — and the line shown to the user — claimed both. A summary
+        // that promises a narrowing the query does not apply is worse than no
+        // summary at all.
+        //
+        // The same QueryState::merge the conversation uses, so what runs and
+        // what is displayed cannot disagree.
+        if (!empty($context['state'])) {
+            $intent = \Jayanta\NaturalQuery\Conversation\QueryState::fromArray(['slots' => $context['state']])
+                ->merge($intent, 0)
+                ->toIntent() + $intent;
+        }
+
         // Handle parse failure
         if (!($intent['success'] ?? true)) {
             // Rate limiting is NOT a comprehension failure: falling back to

@@ -41,6 +41,12 @@ class ResponseFormatter
                 // the one being grouped by. Without this in the response a
                 // filtered ranking and an unfiltered one look identical.
                 'filter_column' => $queryResult['filter_column'] ?? null,
+                // Every column narrowed on, so a caller can tell a
+                // two-filter answer from a one-filter one.
+                'filter_columns' => $queryResult['filter_columns'] ?? [],
+                // Paired, so the conversation can carry them forward without
+                // guessing which value belongs to which column.
+                'filters' => $queryResult['filters'] ?? [],
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',

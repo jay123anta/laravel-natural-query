@@ -66,6 +66,26 @@ class StateValidator
             $slots[$dimensionSlot] = $resolved;
         }
 
+        // Every accumulated filter, not just the newest. One unresolvable
+        // column among several would otherwise be dropped on the way to SQL,
+        // and a dropped filter widens the answer without saying so.
+        $filters = [];
+
+        foreach ($state->get('filters') ?? [] as $filter) {
+            $resolved = $this->registry->resolveGroupColumn($scheme, (string) ($filter['column'] ?? ''));
+
+            if (!$resolved) {
+                return ['valid' => false, 'slot' => 'filter_column', 'value' => (string) ($filter['column'] ?? ''),
+                        'options' => $this->registry->getGroupableColumns($scheme)];
+            }
+
+            $filters[] = ['column' => $resolved, 'value' => $filter['value'] ?? null];
+        }
+
+        if ($filters) {
+            $slots['filters'] = $filters;
+        }
+
         return ['valid' => true, 'state' => new QueryState($slots, $state->seq, $state->refinements)];
     }
 

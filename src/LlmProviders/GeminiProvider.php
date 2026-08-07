@@ -234,6 +234,7 @@ TASK: Extract:
 4. limit: Number of results requested (default 10)
 5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
+7c. filters: the COMPLETE list of column filters in force after applying the instruction, as [{"column":"region","value":"East"}]. Repeat the ones that still apply — a filter you leave out is switched off. Use this whenever more than one filter applies, or when correcting one of several.
 7b. filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
 7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
 8. date_from / date_to: If the user named a period — "last month", "in 2025",
@@ -260,6 +261,7 @@ RETURN FORMAT (JSON only, no markdown):
     "query_type": "ranking",
     "group_value": null,
     "filter_column": null,
+    "filters": [],
     "group_by": null,
     "date_from": null,
     "date_to": null,
@@ -297,6 +299,7 @@ TASK: Extract from the audio:
 4. limit: Number of results requested (default 10)
 5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
+7c. filters: the COMPLETE list of column filters in force after applying the instruction, as [{"column":"region","value":"East"}]. Repeat the ones that still apply — a filter you leave out is switched off. Use this whenever more than one filter applies, or when correcting one of several.
 7b. filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
 7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
 8. date_from / date_to: If the user named a period — "last month", "in 2025",
@@ -317,6 +320,7 @@ RETURN FORMAT (JSON only, no markdown):
     "query_type": "ranking",
     "group_value": null,
     "filter_column": null,
+    "filters": [],
     "group_by": null,
     "date_from": null,
     "date_to": null,
@@ -365,6 +369,7 @@ PROMPT;
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
             'filter_column' => $parsed['filter_column'] ?? null,
+            'filters' => is_array($parsed['filters'] ?? null) ? $parsed['filters'] : [],
             'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,

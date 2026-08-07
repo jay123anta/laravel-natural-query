@@ -44,6 +44,14 @@ class TurnClassifier
     /** "Only in West" — same question, narrower. */
     protected const REFINEMENT_PATTERNS = [
         '/^\s*(?:only|just|now|and|but|also|then|instead|rather)\b/i',
+        // Corrections. "Actually make that East" changes one filter and leaves
+        // the rest standing; treated as a new question it silently dropped
+        // every other narrowing that was in force.
+        '/^\s*(?:actually|sorry|make\s+(?:it|that)|change\s+(?:it|that)|switch\s+to|use)\b/i',
+        // Separate, because a trailing \b after "no," never matches: a comma
+        // and a space are both non-word characters, so there is no boundary
+        // between them.
+        '/^\s*no[,\s]/i',
         '/^\s*(?:what|how)\s+about\b/i',
         '/^\s*(?:filter|restrict|narrow|limit)\b/i',
         '/^\s*(?:for|in|during|within|excluding|without)\b/i',

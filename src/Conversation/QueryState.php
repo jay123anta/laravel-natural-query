@@ -24,6 +24,11 @@ class QueryState
     /** Slots that carry between turns. */
     public const SLOTS = [
         'scheme', 'metric', 'group_by', 'filter_column', 'group_value',
+        // Filters ACCUMULATE. "Only in West" then "and what about
+        // Electronics?" means both, and holding one at a time made the second
+        // silently replace the first — the answer covered every region and
+        // read exactly like a correct answer to the question asked.
+        'filters',
         'date_from', 'date_to', 'order', 'limit', 'query_type',
     ];
 
@@ -81,6 +86,10 @@ class QueryState
         $merged = $this->slots;
 
         foreach (self::SLOTS as $slot) {
+            if ($slot === 'filters') {
+                continue; // accumulated below, never overwritten wholesale
+            }
+
             $value = $intent[$slot] ?? null;
 
             if ($value !== null && $value !== '') {
@@ -95,7 +104,69 @@ class QueryState
             $merged['filter_column'] = null;
         }
 
+        $merged['filters'] = $this->accumulateFilters($intent);
+
         return new self($merged, $seq, $this->refinements + 1);
+    }
+
+    /**
+     * Add this turn's filter to the ones already in force.
+     *
+     * Narrowing twice narrows twice: West, then Electronics, means Electronics
+     * within West. Naming the SAME column again replaces that one — "actually,
+     * East" is a correction, not a second region.
+     *
+     * @return array<int, array{column: string, value: mixed}>
+     */
+    protected function accumulateFilters(array $intent): array
+    {
+        $filters = $this->get('filters') ?? [];
+        $incoming = is_array($intent['filters'] ?? null) ? $intent['filters'] : [];
+
+        // Merged by column, never taken as the complete set.
+        //
+        // The model is asked to restate every filter still in force, and it
+        // does not reliably do so — asked to add Electronics to an existing
+        // region filter it returns Electronics alone. Treating that as the
+        // whole truth silently dropped the region and widened the answer.
+        //
+        // Merging by column gets both cases right without depending on the
+        // model's memory: a NEW column is added, a REPEATED column is
+        // corrected. What it cannot express is removing a filter, which is
+        // deliberate — that happens explicitly, through withoutFilters(),
+        // rewind, or New topic, never as a side effect of a model omission.
+        if (!$incoming && ($intent['filter_column'] ?? null) && ($intent['group_value'] ?? null)) {
+            $incoming = [['column' => $intent['filter_column'], 'value' => $intent['group_value']]];
+        }
+
+        foreach ($incoming as $filter) {
+            $column = $filter['column'] ?? null;
+            $value = $filter['value'] ?? null;
+
+            if (!$column || $value === null || $value === '') {
+                continue;
+            }
+
+            $filters = array_values(array_filter(
+                $filters,
+                fn ($existing) => strtolower((string) ($existing['column'] ?? '')) !== strtolower((string) $column)
+            ));
+
+            $filters[] = ['column' => $column, 'value' => $value];
+        }
+
+        return $filters;
+    }
+
+    /** Drop every filter, keeping the measure and the breakdown. */
+    public function withoutFilters(int $seq): self
+    {
+        $slots = $this->slots;
+        $slots['filters'] = [];
+        $slots['group_value'] = null;
+        $slots['filter_column'] = null;
+
+        return new self($slots, $seq, $this->refinements + 1);
     }
 
     /** A fresh state — a new question inherits nothing. */
@@ -162,7 +233,16 @@ class QueryState
             $parts[] = 'by ' . $this->humanize($groupBy);
         }
 
-        if ($value = $this->get('group_value')) {
+        // Every filter in force, not just the newest. A line that shows one
+        // while two are applied is worse than showing none: it invites the
+        // reader to trust a narrowing they cannot see.
+        $filters = $this->get('filters') ?? [];
+
+        foreach ($filters as $filter) {
+            $parts[] = $this->humanize((string) $filter['column']) . ' is ' . $filter['value'];
+        }
+
+        if (!$filters && ($value = $this->get('group_value'))) {
             $parts[] = ($column = $this->get('filter_column'))
                 ? $this->humanize($column) . ' is ' . $value
                 : 'for ' . $value;

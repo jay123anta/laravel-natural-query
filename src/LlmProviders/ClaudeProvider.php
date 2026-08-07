@@ -80,6 +80,8 @@ When the user asks HOW MANY — "how many orders", "number of tickets", "orders 
 
 query_type: "aggregation" when the user wants ONE number for the whole dataset ("total revenue", "how many orders are there") with no breakdown and no named record; "ranking" for a list, which is the usual case; "group_detail" when they named one record.
 
+filters: the COMPLETE list of column filters in force after applying the instruction, as [{"column":"region","value":"East"}]. Repeat the ones that still apply — a filter you leave out is switched off. Use this whenever more than one filter applies, or when correcting one of several.
+
 filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
 
 group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
@@ -90,7 +92,7 @@ If unclear, set needs_clarification=true with clarification_type="scheme" or "me
 Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
 If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
 
-Return JSON only: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON only: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -209,6 +211,7 @@ PROMPT;
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
             'filter_column' => $parsed['filter_column'] ?? null,
+            'filters' => is_array($parsed['filters'] ?? null) ? $parsed['filters'] : [],
             'query_type' => $parsed['query_type'] ?? null,
             'date_from' => $parsed['date_from'] ?? null,
             'date_to' => $parsed['date_to'] ?? null,

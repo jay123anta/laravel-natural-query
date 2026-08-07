@@ -58,6 +58,69 @@ class ConversationStateTest extends TestCase
         }
     }
 
+    /**
+     * A correction changes one thing and leaves the rest standing. Read as a
+     * new question, "actually make that East" silently dropped every other
+     * narrowing in force — the user corrected the region and lost the category.
+     */
+    #[Test]
+    public function a_correction_is_a_refinement_not_a_new_question()
+    {
+        foreach ([
+            'actually make that East',
+            'no, the North region',
+            'change that to pending',
+            'switch to Electronics',
+        ] as $q) {
+            $this->assertSame(TurnClassifier::REFINEMENT, $this->classifier()->classify($q, $this->started()), $q);
+        }
+    }
+
+    #[Test]
+    public function filters_accumulate_rather_than_replacing_one_another()
+    {
+        // "Only in West" then "and what about Electronics?" means BOTH.
+        $next = $this->started()
+            ->merge(['filter_column' => 'region', 'group_value' => 'West'], 2)
+            ->merge(['filter_column' => 'product_category', 'group_value' => 'Electronics'], 3);
+
+        $filters = $next->get('filters');
+
+        $this->assertCount(2, $filters);
+        $this->assertSame(['region', 'product_category'], array_column($filters, 'column'));
+        $this->assertSame(['West', 'Electronics'], array_column($filters, 'value'));
+    }
+
+    #[Test]
+    public function naming_the_same_column_again_corrects_it_rather_than_stacking()
+    {
+        // "Actually, East" is a correction of the region, not a second region.
+        $next = $this->started()
+            ->merge(['filter_column' => 'region', 'group_value' => 'West'], 2)
+            ->merge(['filter_column' => 'product_category', 'group_value' => 'Electronics'], 3)
+            ->merge(['filter_column' => 'region', 'group_value' => 'East'], 4);
+
+        $filters = $next->get('filters');
+
+        $this->assertCount(2, $filters, 'still two filters, not three');
+        $this->assertSame('Electronics', $filters[0]['value'], 'the category survives the correction');
+        $this->assertSame('East', $filters[1]['value']);
+    }
+
+    #[Test]
+    public function every_live_filter_appears_in_the_summary()
+    {
+        // A line showing one filter while two are applied invites the reader
+        // to trust a narrowing they cannot see.
+        $summary = $this->started()
+            ->merge(['filter_column' => 'region', 'group_value' => 'West'], 2)
+            ->merge(['filter_column' => 'product_category', 'group_value' => 'Electronics'], 3)
+            ->summary($this->app->make(SchemaRegistry::class));
+
+        $this->assertStringContainsString('region is West', $summary);
+        $this->assertStringContainsString('product category is Electronics', $summary);
+    }
+
     #[Test]
     public function asking_for_more_detail_is_a_drill_down()
     {

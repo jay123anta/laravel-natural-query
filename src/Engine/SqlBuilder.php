@@ -181,8 +181,19 @@ class SqlBuilder
             // with the category filter silently gone. The package's own
             // drill-down suggestions generate exactly that shape, so it was
             // offering questions it could not answer.
+            // A conversation accumulates filters. "Only in West" then "and what
+            // about Electronics?" means BOTH, and holding one at a time made the
+            // second silently replace the first — the region vanished and the
+            // answer covered every region, which reads exactly like a correct
+            // answer to the question that was asked.
+            $filters = $this->resolveFilters($schemeKey, $intent, $groupColumn);
+
+            if (isset($filters['error'])) {
+                return $this->errorResponse($filters['error']);
+            }
+
             $filterColumn = $this->registry->resolveGroupColumn($schemeKey, $intent['filter_column'] ?? null);
-            $filtersAnotherColumn = $groupValue && $filterColumn && $filterColumn !== $groupColumn;
+            $filtersAnotherColumn = !empty($filters['clauses']);
 
             if (($intent['filter_column'] ?? null) && !$filterColumn) {
                 $groupable = $this->registry->getGroupableColumns($schemeKey);
@@ -206,8 +217,7 @@ class SqlBuilder
                     $order,
                     $limit,
                     $aggregate,
-                    $filterColumn,
-                    $groupValue,
+                    $filters,
                     $time
                 );
                 $sql = $result['sql'];
@@ -253,7 +263,9 @@ class SqlBuilder
                 'group_column' => $groupColumn,
                 'time_filter' => $time['label'] ?? null,
                 'time_column' => $time['column'] ?? null,
-                'filter_column' => $filtersAnotherColumn ? $filterColumn : null,
+                'filter_column' => $filtersAnotherColumn ? ($filters['columns'][0] ?? null) : null,
+                'filter_columns' => $filters['columns'] ?? [],
+                'filters' => $filters['pairs'] ?? [],
             ];
 
         } catch (\Exception $e) {
@@ -313,14 +325,11 @@ class SqlBuilder
         string $order,
         int $limit,
         bool $aggregate,
-        string $filterColumn,
-        string $filterValue,
+        array $filters,
         array $time
     ): array {
-        // Parenthesised before anything is AND-ed on, so the OR inside cannot
-        // swallow a following condition.
-        $conditions = ["(LOWER({$filterColumn}) = LOWER(?) OR LOWER({$filterColumn}) LIKE LOWER(?) ESCAPE '!')"];
-        $bindings = [$filterValue, '%' . $this->escapeLikeValue($filterValue) . '%'];
+        $conditions = $filters['clauses'];
+        $bindings = $filters['bindings'];
 
         if (!empty($time['clause'])) {
             $conditions[] = $time['clause'];
@@ -334,6 +343,76 @@ class SqlBuilder
             'sql' => "SELECT {$groupColumnSelect}, {$metricExpr} AS {$metricAlias} FROM {$fromClause}{$where}{$groupBy} ORDER BY {$metricExpr} {$order} LIMIT {$limit}",
             'bindings' => $bindings,
         ];
+    }
+
+    /**
+     * Every column filter the intent carries, as bound WHERE fragments.
+     *
+     * Accepts a list — `filters: [{column, value}, …]` — because a
+     * conversation accumulates them, and also the single filter_column /
+     * group_value pair a one-shot question produces. Filters on the column
+     * being grouped by are left out: those are a detail view, handled
+     * elsewhere.
+     *
+     * @return array{clauses: array, bindings: array, columns: array, error?: string}
+     */
+    protected function resolveFilters(string $schemeKey, array $intent, string $groupColumn): array
+    {
+        $pairs = [];
+
+        foreach ($intent['filters'] ?? [] as $filter) {
+            $column = $filter['column'] ?? null;
+            $value = $filter['value'] ?? null;
+
+            if ($column && $value !== null && $value !== '') {
+                $pairs[] = [$column, $value];
+            }
+        }
+
+        // The one-filter form, for questions that arrive outside a conversation.
+        if (!$pairs && ($intent['filter_column'] ?? null) && ($intent['group_value'] ?? null)) {
+            $pairs[] = [$intent['filter_column'], $intent['group_value']];
+        }
+
+        $clauses = [];
+        $bindings = [];
+        $columns = [];
+        $resolvedPairs = [];
+
+        foreach ($pairs as [$column, $value]) {
+            $resolved = $this->registry->resolveGroupColumn($schemeKey, (string) $column);
+
+            if (!$resolved) {
+                $groupable = $this->registry->getGroupableColumns($schemeKey);
+
+                return ['clauses' => [], 'bindings' => [], 'columns' => [],
+                        'error' => "Cannot filter by '{$column}'."
+                            . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')];
+            }
+
+            if ($resolved === $groupColumn) {
+                continue;
+            }
+
+            $value = $this->sanitizeGroupValue((string) $value);
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            // Parenthesised individually, so the OR inside one cannot swallow
+            // the AND joining it to the next.
+            $clauses[] = "(LOWER({$resolved}) = LOWER(?) OR LOWER({$resolved}) LIKE LOWER(?) ESCAPE '!')";
+            $bindings[] = $value;
+            $bindings[] = '%' . $this->escapeLikeValue($value) . '%';
+            $columns[] = $resolved;
+            $resolvedPairs[] = ['column' => $resolved, 'value' => $value];
+        }
+
+        // Columns and values must travel together. Reported apart, a caller
+        // pairing the first column with the newest value produced "region is
+        // Electronics" — a filter that was never applied and never existed.
+        return ['clauses' => $clauses, 'bindings' => $bindings, 'columns' => $columns, 'pairs' => $resolvedPairs];
     }
 
     /**
