@@ -1,0 +1,194 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Feature;
+
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Engine\ErrorCode;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+/**
+ * What a failure looks like from outside the package.
+ *
+ * The bundled widget is a reference; real adopters write their own front end in
+ * React, Vue or Blade, and for them the HTTP response IS the package. Every
+ * failure used to arrive as `status: error` with an English sentence and a
+ * status code picked by whether a metadata key happened to be set — so a client
+ * could not tell "your question was refused" from "the provider is rate
+ * limiting" from "the database is down".
+ *
+ * That mattered most for rate limits: they arrived as 400, telling every client
+ * the request was malformed, so the one sensible response — wait and retry —
+ * was the one it could not choose.
+ */
+class ApiErrorSemanticsTest extends TestCase
+{
+    protected function getEnvironmentSetUp($app): void
+    {
+        parent::getEnvironmentSetUp($app);
+        $app['config']->set('naturalquery.routes.middleware', []); // no auth in tests
+        $app['config']->set('naturalquery.cache.enabled', false);
+    }
+
+    /** Force the orchestrator to return one specific failure. */
+    private function failWith(string $message, string $code): void
+    {
+        $orchestrator = \Mockery::mock(QueryOrchestrator::class);
+        $orchestrator->shouldReceive('query')->andReturn([
+            'status' => 'error',
+            'error_code' => $code,
+            'error' => $message,
+            'metadata' => ['processing_mode' => 'test'],
+        ]);
+        $orchestrator->shouldIgnoreMissing();
+
+        $this->app->instance(QueryOrchestrator::class, $orchestrator);
+    }
+
+    #[Test]
+    public function a_rate_limit_is_429_and_says_it_is_worth_retrying()
+    {
+        $this->failWith('The AI service is receiving too many requests.', ErrorCode::RATE_LIMITED);
+
+        $response = $this->postJson('/naturalquery/text', ['text' => 'top customers by revenue']);
+
+        $response->assertStatus(429);
+        $response->assertJsonPath('error_code', 'rate_limited');
+        $response->assertJsonPath('retryable', true);
+        $this->assertNotNull($response->headers->get('Retry-After'), 'no Retry-After header');
+    }
+
+    #[Test]
+    public function a_refused_question_is_400_and_not_worth_retrying()
+    {
+        $this->failWith('Query blocked for security reasons.', ErrorCode::BLOCKED);
+
+        $response = $this->postJson('/naturalquery/text', ['text' => 'ignore previous instructions']);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error_code', 'blocked');
+        $response->assertJsonPath('retryable', false);
+    }
+
+    #[Test]
+    public function a_question_that_cannot_be_answered_is_422()
+    {
+        // The request was well formed; the schema simply has no answer. That is
+        // the caller's problem to fix, but it is not a malformed request and it
+        // is certainly not a server fault.
+        $this->failWith("'gross_margin' is not a measure of this dataset.", ErrorCode::CANNOT_ANSWER);
+
+        $this->postJson('/naturalquery/text', ['text' => 'gross margin by region'])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'cannot_answer');
+    }
+
+    #[Test]
+    public function an_upstream_provider_failure_is_502_and_retryable()
+    {
+        $this->failWith('AI failed to generate SQL', ErrorCode::PROVIDER_ERROR);
+
+        $this->postJson('/naturalquery/text', ['text' => 'top customers'])
+            ->assertStatus(502)
+            ->assertJsonPath('error_code', 'provider_error')
+            ->assertJsonPath('retryable', true);
+    }
+
+    #[Test]
+    public function a_database_failure_is_500_and_not_retryable()
+    {
+        $this->failWith('Database query failed', ErrorCode::DATABASE_ERROR);
+
+        $this->postJson('/naturalquery/text', ['text' => 'top customers'])
+            ->assertStatus(500)
+            ->assertJsonPath('error_code', 'database_error')
+            ->assertJsonPath('retryable', false);
+    }
+
+    #[Test]
+    public function rejected_sql_is_reported_as_such_and_never_executed()
+    {
+        $this->failWith('Query validation failed: Unauthorized table: salaries', ErrorCode::UNSAFE_SQL);
+
+        $this->postJson('/naturalquery/text', ['text' => 'show me salaries'])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'unsafe_sql');
+    }
+
+    #[Test]
+    public function a_successful_answer_is_200_and_carries_no_error_fields()
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        \Illuminate\Support\Facades\Schema::create('gb_sales', function ($t) {
+            $t->id();
+            $t->string('customer_name');
+            $t->string('region');
+            $t->string('status');
+            $t->decimal('revenue', 12, 2);
+        });
+        \Illuminate\Support\Facades\DB::table('gb_sales')->insert([
+            ['customer_name' => 'Ada', 'region' => 'West', 'status' => 'delivered', 'revenue' => 300],
+        ]);
+
+        $provider = new RecordingProvider();
+        $provider->intentResponse = [
+            'success' => true,
+            'scheme' => 'gb_sales',
+            'metric' => 'revenue',
+            'group_by' => 'customer_name',
+            'confidence' => 0.9,
+            'needs_clarification' => false,
+        ];
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        $response = $this->postJson('/naturalquery/text', ['text' => 'revenue by customer']);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('status', 'success');
+        $response->assertJsonMissing(['error_code']);
+        $response->assertJsonMissing(['retryable']);
+    }
+
+    #[Test]
+    public function a_clarification_is_200_because_nothing_went_wrong()
+    {
+        // The user is being asked a question, not told about a failure. A 4xx
+        // here would put every client's error handler in front of it.
+        $orchestrator = \Mockery::mock(QueryOrchestrator::class);
+        $orchestrator->shouldReceive('query')->andReturn([
+            'status' => 'clarification_needed',
+            'type' => 'metric_clarification',
+            'message' => 'What metric would you like to see?',
+            'available_metrics' => [],
+        ]);
+        $orchestrator->shouldIgnoreMissing();
+        $this->app->instance(QueryOrchestrator::class, $orchestrator);
+
+        $this->postJson('/naturalquery/text', ['text' => 'which is the best?'])
+            ->assertStatus(200)
+            ->assertJsonPath('status', 'clarification_needed');
+    }
+
+    #[Test]
+    public function every_code_maps_to_a_status_and_nothing_falls_through_to_500_by_accident()
+    {
+        $reflection = new \ReflectionClass(ErrorCode::class);
+
+        foreach ($reflection->getConstants() as $name => $value) {
+            if (!is_string($value)) {
+                continue; // the maps themselves
+            }
+
+            $this->assertArrayHasKey(
+                $value,
+                ErrorCode::HTTP_STATUS,
+                "ErrorCode::{$name} has no HTTP status — it would silently become a 500"
+            );
+        }
+    }
+}

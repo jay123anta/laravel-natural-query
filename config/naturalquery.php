@@ -241,6 +241,13 @@ return [
     // NOT retried: 4xx other than 429 (a bad key or malformed request fails
     // identically every time), and anything once the budget is spent.
     'retry' => [
+        // Seconds advertised in the Retry-After header when an endpoint answers
+        // 429. This is the signal to the CALLER — a browser, a queue worker, a
+        // React app — about when to come back. The waits below are the
+        // package's own internal retries against the provider, which happen
+        // inside a single request and are a different thing entirely.
+        'retry_after_seconds' => 60,
+
         // First wait, in milliseconds. Doubles each attempt (250 → 500 → 1000…)
         'base_delay_ms' => 250,
         // Ceiling for any single wait

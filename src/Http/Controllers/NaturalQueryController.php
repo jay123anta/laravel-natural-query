@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Feedback\FeedbackStore;
@@ -30,6 +31,40 @@ class NaturalQueryController extends Controller
         $this->orchestrator = $orchestrator;
         $this->conversation = $conversation;
         $this->feedback = $feedback;
+    }
+
+    /**
+     * Send a result with an HTTP status that matches what went wrong.
+     *
+     * Every failure used to arrive as 400 or 500 chosen by whether a metadata
+     * key happened to be set, so a client could not tell "your question was
+     * refused" from "the provider is rate limiting" from "the database is
+     * down" — and the one sensible response to a rate limit, waiting, was the
+     * one it had no way to choose. The status now comes from the error code,
+     * in one place, so the two cannot drift apart.
+     */
+    protected function respond(array $result)
+    {
+        $status = match ($result['status'] ?? 'error') {
+            'success', 'clarification_needed' => 200,
+            default => ErrorCode::httpStatus($result['error_code'] ?? null),
+        };
+
+        // Tells a client it is worth trying again, without it having to know
+        // which codes are transient.
+        if (($result['status'] ?? '') === 'error') {
+            $result['retryable'] = ErrorCode::isRetryable($result['error_code'] ?? null);
+        }
+
+        $response = response()->json($result, $status);
+
+        // Standard back-off signal, so generic HTTP clients and queue workers
+        // behave sensibly without reading the body at all.
+        if ($status === 429) {
+            $response->header('Retry-After', (string) config('naturalquery.retry.retry_after_seconds', 60));
+        }
+
+        return $response;
     }
 
     /**
@@ -76,14 +111,7 @@ class NaturalQueryController extends Controller
             'original_query' => $data['text'],
         ]);
 
-        $statusCode = match ($result['status'] ?? 'error') {
-            'success' => 200,
-            'clarification_needed' => 200,
-            'error' => isset($result['metadata']['processing_mode']) ? 400 : 500,
-            default => 200,
-        };
-
-        return response()->json($result, $statusCode);
+        return $this->respond($result);
     }
 
     /**
@@ -114,9 +142,7 @@ class NaturalQueryController extends Controller
             'processing_time_ms' => round((microtime(true) - $startTime) * 1000, 2),
         ]);
 
-        $statusCode = ($result['status'] ?? '') === 'error' ? 400 : 200;
-
-        return response()->json($result, $statusCode);
+        return $this->respond($result);
     }
 
     /**
@@ -207,8 +233,7 @@ class NaturalQueryController extends Controller
             $data['scheme'] ?? null
         );
 
-        $statusCode = ($result['status'] ?? '') === 'error' ? 400 : 200;
-        return response()->json($result, $statusCode);
+        return $this->respond($result);
     }
 
     /**

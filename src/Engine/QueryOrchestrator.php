@@ -122,7 +122,8 @@ class QueryOrchestrator
                 ]);
                 return $this->formatter->formatError(
                     $guardResult['blocked_reason'] ?? 'Query blocked for security reasons.',
-                    $metadata
+                    $metadata,
+                    ErrorCode::BLOCKED
                 );
             }
             $naturalLanguageQuery = $guardResult['query']; // Use sanitized version
@@ -239,7 +240,7 @@ class QueryOrchestrator
 
         } catch (\Exception $e) {
             Log::error('[NaturalQuery] Orchestrator error', ['error' => $e->getMessage()]);
-            return $this->formatter->formatError('An error occurred processing your query.', $metadata);
+            return $this->formatter->formatError('An error occurred processing your query.', $metadata, ErrorCode::INTERNAL);
         }
     }
 
@@ -307,13 +308,13 @@ class QueryOrchestrator
             // that is already refusing them. Tell the user the truth instead.
             if (($intent['status'] ?? null) === 429) {
                 return array_merge(
-                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata),
+                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
                     ['_rate_limited' => true]
                 );
             }
 
             return array_merge(
-                $this->formatter->formatError($intent['error'] ?? 'Failed to understand query', $metadata),
+                $this->formatter->formatError($intent['error'] ?? 'Failed to understand query', $metadata, ErrorCode::NOT_UNDERSTOOD),
                 ['_fallback_eligible' => true]
             );
         }
@@ -388,7 +389,7 @@ class QueryOrchestrator
         $queryResult = $this->sqlBuilder->buildQuery($intent);
         if (!$queryResult['success']) {
             return array_merge(
-                $this->formatter->formatError($queryResult['error'] ?? 'Failed to build query', $metadata),
+                $this->formatter->formatError($queryResult['error'] ?? 'Failed to build query', $metadata, ErrorCode::CANNOT_ANSWER),
                 ['_fallback_eligible' => true]
             );
         }
@@ -688,12 +689,12 @@ class QueryOrchestrator
         if (!$response['success']) {
             if (($response['status'] ?? null) === 429) {
                 return array_merge(
-                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata),
+                    $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
                     ['_rate_limited' => true]
                 );
             }
 
-            return $this->formatter->formatError($response['error'] ?? 'AI failed to generate SQL', $metadata);
+            return $this->formatter->formatError($response['error'] ?? 'AI failed to generate SQL', $metadata, ErrorCode::PROVIDER_ERROR);
         }
 
         $data = $response['data'];
@@ -717,7 +718,7 @@ class QueryOrchestrator
         $scheme = $data['scheme'] ?? $schemeHint;
 
         if (!$sql) {
-            return $this->formatter->formatError('AI did not generate a SQL query', $metadata);
+            return $this->formatter->formatError('AI did not generate a SQL query', $metadata, ErrorCode::PROVIDER_ERROR);
         }
 
         // Replace computed metric names if AI used them as column names
@@ -850,7 +851,8 @@ class QueryOrchestrator
 
         return $this->formatter->formatError(
             "Could not understand the query. Try mentioning a dataset name. Available: {$schemeList}",
-            $metadata
+            $metadata,
+            ErrorCode::NOT_UNDERSTOOD
         );
     }
 
@@ -936,7 +938,7 @@ class QueryOrchestrator
 
         if (!$validation['valid']) {
             Log::warning('[NaturalQuery] SQL validation failed', ['sql' => $sql, 'reason' => $validation['reason']]);
-            return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata);
+            return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata, ErrorCode::UNSAFE_SQL);
         }
 
         // Execute SQL (with parameterized bindings when available)
@@ -949,7 +951,7 @@ class QueryOrchestrator
                 : DB::select($sql, $bindings);
         } catch (\Exception $e) {
             Log::error('[NaturalQuery] SQL execution failed', ['sql' => $sql, 'error' => $e->getMessage()]);
-            return $this->formatter->formatError('Database query failed: ' . $this->sanitizeDbError($e->getMessage()), $metadata);
+            return $this->formatter->formatError('Database query failed: ' . $this->sanitizeDbError($e->getMessage()), $metadata, ErrorCode::DATABASE_ERROR);
         }
 
         // Empty results
@@ -1096,7 +1098,9 @@ class QueryOrchestrator
     {
         if (!$this->llmProvider->supportsVoice()) {
             return $this->formatter->formatError(
-                "Voice input is not supported by the '{$this->llmProvider->getName()}' provider. Use text input instead."
+                "Voice input is not supported by the '{$this->llmProvider->getName()}' provider. Use text input instead.",
+                [],
+                ErrorCode::VOICE_UNSUPPORTED
             );
         }
 
@@ -1109,10 +1113,10 @@ class QueryOrchestrator
                 return $this->query($transcribedText, $schemeHint);
             }
 
-            return $this->formatter->formatError('Could not transcribe audio. Please try again or use text input.');
+            return $this->formatter->formatError('Could not transcribe audio. Please try again or use text input.', [], ErrorCode::TRANSCRIPTION_FAILED);
         } catch (\Exception $e) {
             Log::error('[NaturalQuery] Voice query error', ['error' => $e->getMessage()]);
-            return $this->formatter->formatError('Voice processing failed: ' . $e->getMessage());
+            return $this->formatter->formatError('Voice processing failed: ' . $e->getMessage(), [], ErrorCode::PROVIDER_ERROR);
         }
     }
 

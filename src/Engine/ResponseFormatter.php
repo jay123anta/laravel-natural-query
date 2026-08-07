@@ -154,10 +154,18 @@ class ResponseFormatter
     /**
      * Format an error response.
      */
-    public function formatError(string $error, array $metadata = []): array
+    /**
+     * @param string $code Machine-readable reason — see ErrorCode.
+     */
+    public function formatError(string $error, array $metadata = [], string $code = ErrorCode::INTERNAL): array
     {
         return [
             'status' => 'error',
+            // The message is for a person and will be reworded. The code is for
+            // a client and will not: a frontend deciding whether to retry, ask
+            // again, or show a support link should never have to match on
+            // English prose.
+            'error_code' => $code,
             'error' => $error,
             'metadata' => $metadata,
         ];
