@@ -147,11 +147,25 @@ class ConversationManager
         Cache::put($this->historyKey($sessionId), $history, $this->contextTtl);
         Cache::put($this->cachePrefix . $this->scopeSession($sessionId), $state->toArray(), $this->contextTtl);
 
+        // The same conversation block state() returns, plus the fact that this
+        // one was a rewind. It used to report only the turn number, so a client
+        // that had just gone back could not tell whether it could go back
+        // again without asking a second time — and the natural thing to do
+        // with that missing answer is to leave the control enabled and let the
+        // user find out by pressing it.
         return [
             'status' => 'success',
             'state' => $state->toIntent(),
             'state_summary' => $state->summary($this->registry),
-            'conversation' => ['session_id' => $sessionId, 'turn' => $state->seq, 'rewound' => true],
+            'conversation' => [
+                'session_id' => $sessionId,
+                'turn' => $state->seq,
+                'rewound' => true,
+                'refinements' => $state->refinements,
+                'context_active' => !$state->isEmpty(),
+                'can_rewind' => count($history) > 1,
+                'max_refinements' => (int) config('naturalquery.conversation.max_refinements', 6),
+            ],
         ];
     }
 

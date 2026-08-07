@@ -958,6 +958,19 @@ $conv->rewind('session-123');          // step back one turn
 // POST /naturalquery/conversation/{session}/rewind
 ```
 
+The widget offers this as **Undo last step**, appearing when the server reports
+there is history behind the current turn. It matters more than it looks: if the
+only correction on offer is clearing the conversation, undoing "only in West"
+means retyping everything that came before it, so people start over instead of
+refining — the exact behaviour these endpoints exist to make unnecessary.
+
+**A page reload keeps the conversation.** The state lives on the server under a
+session id, so the widget persists that id per tab and asks
+`GET /conversation/{session}` on mount, reporting what is still in force. The
+rendered answers are not stored server-side and the thread does not come back —
+it says what it picked up rather than implying the screen was restored, because
+the next follow-up resolves against those filters either way.
+
 **Slots are validated against your schema before any SQL is built.** A metric
 that doesn't exist, or a breakdown that isn't a dimension, becomes a clarifying
 question - never a query. A confidently wrong number is worse than "I'm not

@@ -425,6 +425,118 @@ async function run() {
         });
     }
 
+    // -------------------------------------------------------- going back
+    //
+    // Before this, the only correction on offer was New topic. Undoing "only
+    // in West" meant retyping everything that came before it, so the cheap
+    // move was to start over — which is exactly the behaviour the conversation
+    // features were built to make unnecessary.
+    {
+        const ctx = mount({}, (url) => {
+            if (String(url).includes('/rewind')) {
+                return {
+                    status: 'success',
+                    state: { metric: 'revenue' },
+                    state_summary: 'Orders · revenue · by customer name',
+                    conversation: { turn: 1, rewound: true, can_rewind: false },
+                };
+            }
+            return answer({ conversation: { turn: 2, can_rewind: true } });
+        });
+
+        await check('undo is not offered before there is anything to undo', () => {
+            assert(ctx.widget.rewindBtn.classList.contains('nq-hidden'), 'undo offered on an empty thread');
+        });
+
+        ctx.widget.input.value = 'top 5 customers by revenue';
+        ctx.widget.submit();
+        await settle();
+
+        await check('undo appears when the SERVER says there is history', () => {
+            assert(!ctx.widget.rewindBtn.classList.contains('nq-hidden'), 'undo still hidden after a turn');
+        });
+
+        ctx.widget.rewindBtn.dispatchEvent(new ctx.window.Event('click'));
+        await settle();
+
+        await check('it asks the server to rewind rather than guessing locally', () => {
+            const req = ctx.requests.find((r) => String(r.url).includes('/rewind'));
+            assert(req, 'no rewind request was made');
+            assert(req.body.steps === 1, 'expected one step, got ' + JSON.stringify(req.body));
+        });
+
+        await check('the undone turn leaves the thread', () => {
+            assert(ctx.root.querySelectorAll('.nq-turn').length === 0,
+                'the answer that no longer describes the state is still on screen');
+        });
+
+        await check('and the state it went back to is stated', () => {
+            const notice = ctx.root.querySelector('.nq-notice');
+            assert(notice, 'no notice rendered');
+            assertContains(notice.textContent, 'revenue', 'restored state not shown');
+        });
+
+        await check('undo hides itself once there is nothing left to undo', () => {
+            assert(ctx.widget.rewindBtn.classList.contains('nq-hidden'),
+                'undo still offered after the server said can_rewind:false');
+        });
+    }
+
+    // ------------------------------------------------- surviving a reload
+    //
+    // The state lives on the server, keyed by session id. A fresh id per load
+    // orphaned it: the filters were still held server-side but unreachable, so
+    // a reload silently started over while the old context sat there.
+    {
+        const dom = new JSDOM('<!doctype html><html><body><div id="nq"></div></body></html>',
+            { url: 'http://localhost', runScripts: 'outside-only' });
+        const seen = [];
+        dom.window.fetch = function (url) {
+            seen.push(String(url));
+            return Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({
+                    status: 'success',
+                    state_summary: 'Orders · revenue · region is West',
+                    conversation: { context_active: true, can_rewind: true, turn: 2 },
+                }),
+            });
+        };
+        dom.window.eval(fs.readFileSync(WIDGET, 'utf8'));
+
+        const first = dom.window.NaturalQueryWidget.mount('#nq', { baseUrl: '/nq' });
+        const firstSession = first.sessionId;
+        await settle();
+
+        // A reload is a second mount against the same tab's storage.
+        dom.window.document.getElementById('nq').innerHTML = '';
+        const second = dom.window.NaturalQueryWidget.mount('#nq', { baseUrl: '/nq' });
+        await settle();
+
+        await check('a reload keeps the same conversation on the server', () => {
+            assert(second.sessionId === firstSession,
+                'session changed across a reload: ' + firstSession + ' → ' + second.sessionId);
+        });
+
+        await check('it asks the server what is still in force', () => {
+            assert(seen.some((u) => u.includes('/conversation/' + firstSession)),
+                'no state request made on mount: ' + seen.join(', '));
+        });
+
+        await check('and says what it picked up, rather than pretending to restore the thread', () => {
+            const notice = dom.window.document.querySelector('.nq-notice');
+            assert(notice, 'no resume notice rendered');
+            assertContains(notice.textContent, 'region is West', 'resumed state not shown');
+        });
+
+        await check('New topic starts a genuinely new session', () => {
+            second.newTopic();
+            assert(second.sessionId !== firstSession, 'New topic reused the old session id');
+            assert(dom.window.sessionStorage.getItem('nq-session:nq') === second.sessionId,
+                'the new session was not persisted');
+        });
+    }
+
     await settle();
 
     console.log('\n  ' + passed + ' passed, ' + failed + ' failed\n');

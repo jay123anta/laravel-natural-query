@@ -161,7 +161,26 @@ class ApiContractTest extends TestCase
         $this->postJson('/naturalquery/conversation/rw/rewind', ['steps' => 1])
             ->assertStatus(200)
             ->assertJsonPath('status', 'success')
-            ->assertJsonStructure(['state', 'state_summary', 'conversation']);
+            ->assertJsonPath('conversation.rewound', true)
+            // The same block state() returns. It reported only the turn number,
+            // so a client that had just gone back could not tell whether it
+            // could go back again — and the natural thing to do with a missing
+            // answer is leave the control enabled and let the user find out.
+            ->assertJsonStructure([
+                'state',
+                'state_summary',
+                'conversation' => ['session_id', 'turn', 'rewound', 'refinements', 'context_active', 'can_rewind', 'max_refinements'],
+            ]);
+    }
+
+    #[Test]
+    public function rewinding_to_the_first_turn_reports_that_there_is_no_more_history()
+    {
+        $this->postJson('/naturalquery/conversation', ['session_id' => 'edge', 'text' => 'revenue by customer']);
+        $this->postJson('/naturalquery/conversation', ['session_id' => 'edge', 'text' => 'only in West']);
+
+        $this->postJson('/naturalquery/conversation/edge/rewind', ['steps' => 1])
+            ->assertJsonPath('conversation.can_rewind', false);
     }
 
     #[Test]

@@ -219,6 +219,29 @@ next follow-up resolves against context the user can no longer see.
 ```
 
 Restores an earlier turn exactly, rather than re-interpreting the conversation.
+Returns the same body as `GET /conversation/{session}`, with
+`conversation.rewound: true` and a fresh `can_rewind` — so one call tells you
+both where you landed and whether going back again is possible.
+
+`{"status": "error"}` when there is nothing behind the current turn.
+
+**Offer this, not just a reset.** If the only correction available is clearing
+the conversation, undoing "only in West" means retyping everything before it,
+and people start over instead of refining — which is the behaviour the
+conversation endpoints exist to make unnecessary.
+
+### Surviving a page reload
+
+The state lives on the server, keyed by session id. A front end that mints a
+fresh id on every load orphans it: the filters are still held, but unreachable,
+so the reload silently starts over. Persist the session id (`sessionStorage`
+scopes it to the tab, which is usually what you want), then call
+`GET /conversation/{session}` on mount and show `state_summary` if
+`context_active` is true.
+
+The rendered answers are not stored server-side, so the thread itself cannot be
+restored. Say what is still in force rather than implying the screen was
+recovered — the next follow-up resolves against those filters either way.
 
 ### `DELETE /conversation/{session}`
 

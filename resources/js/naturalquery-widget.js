@@ -177,7 +177,9 @@
             + '.nq-turn{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}'
             + '.nq-you{align-self:flex-end;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:9px 14px;font-size:.92rem;max-width:82%;word-wrap:break-word}'
             + '.nq-slot{align-self:stretch}'
+            + '.nq-controls{display:flex;gap:6px;flex:none}'
             + '.nq-new-topic{font-size:.78rem;padding:6px 11px;flex:none}'
+            + '.nq-notice{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0 0 14px;padding:8px 12px;background:#f3f4f6;border-radius:8px}'
             + '.nq-steps{margin-top:12px;display:flex;flex-direction:column;gap:10px}'
             + '.nq-step{border-left:3px solid color-mix(in srgb,var(--nq) 45%,white);padding:6px 0 6px 12px}'
             + '.nq-step-q{font-size:.82rem;color:#6b7280;margin-bottom:4px}'
@@ -204,7 +206,8 @@
         this.opts.language = speechLocale(this.opts.language);
         numberLocale = numberLocaleFor(this.opts.numberFormat);
         this.root = root;
-        this.sessionId = uuid();
+        this.sessionId = this.restoreSessionId();
+        this.canRewind = false;
         this.listening = false;
         this.recognition = null;
         this.mediaRecorder = null;
@@ -215,7 +218,37 @@
         injectStyles(this.opts.themeColor);
         this.build();
         this.setupVoice();
+        this.restoreConversation();
     }
+
+    /**
+     * The same session across a page reload.
+     *
+     * The conversation state lives on the server, keyed by session id. A fresh
+     * id on every load orphaned it: the filters were still held server-side but
+     * unreachable, so a reload silently started over while the old context sat
+     * there until it expired. sessionStorage keeps the two in step, and scopes
+     * to the tab — a second tab is a second conversation, which is what someone
+     * opening one expects.
+     */
+    Widget.prototype.restoreSessionId = function () {
+        var key = 'nq-session:' + (this.root.id || 'default');
+        this.sessionKey = key;
+        try {
+            var stored = global.sessionStorage && global.sessionStorage.getItem(key);
+            if (stored) return stored;
+        } catch (e) { /* storage blocked; a per-load session still works */ }
+
+        var fresh = uuid();
+        this.rememberSessionId(fresh);
+        return fresh;
+    };
+
+    Widget.prototype.rememberSessionId = function (id) {
+        try {
+            if (global.sessionStorage) global.sessionStorage.setItem(this.sessionKey, id);
+        } catch (e) { /* nothing to do; the conversation just will not survive a reload */ }
+    };
 
     /**
      * A chat frame, not a search box.
@@ -245,6 +278,18 @@
         var header = h('div', 'nq-header');
         header.appendChild(h('p', 'nq-title', o.title || ''));
 
+        var controls = h('div', 'nq-controls');
+
+        // Going back one step, rather than throwing the whole thread away.
+        // Without this the only correction available was New topic, so undoing
+        // "only in West" meant retyping everything that came before it — and
+        // the cost of that is that people stop refining and start over instead.
+        this.rewindBtn = h('button', 'nq-btn nq-btn-ghost nq-new-topic nq-hidden', 'Undo last step');
+        this.rewindBtn.type = 'button';
+        this.rewindBtn.title = 'Go back to how things stood before the last question';
+        this.rewindBtn.addEventListener('click', function () { self.rewind(); });
+        controls.appendChild(this.rewindBtn);
+
         // Follow-ups inherit the previous question's dataset and filters, so
         // there has to be a way out of that context. Hidden until there is a
         // thread to reset.
@@ -252,7 +297,9 @@
         this.newTopicBtn.type = 'button';
         this.newTopicBtn.title = 'Forget the conversation so far and start again';
         this.newTopicBtn.addEventListener('click', function () { self.newTopic(); });
-        header.appendChild(this.newTopicBtn);
+        controls.appendChild(this.newTopicBtn);
+
+        header.appendChild(controls);
         frame.appendChild(header);
 
         // -- thread
@@ -518,6 +565,87 @@
         this.currentSlot.innerHTML = '';
     };
 
+    /**
+     * Pick up a conversation the server still remembers.
+     *
+     * The thread itself cannot come back — the server keeps the state, not the
+     * rendered answers — so this says what is still in force rather than
+     * pretending to restore the screen. Claiming more than it can deliver would
+     * be worse than saying nothing: the next follow-up resolves against these
+     * filters whether or not the user can see them.
+     */
+    Widget.prototype.restoreConversation = function () {
+        if (!this.opts.conversation) return;
+        var self = this;
+
+        fetch(this.opts.baseUrl + '/conversation/' + encodeURIComponent(this.sessionId), {
+            method: 'GET', headers: this.headers(), credentials: 'same-origin'
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var conv = (data && data.conversation) || {};
+                if (!conv.context_active || !data.state_summary) return;
+
+                self.setCanRewind(!!conv.can_rewind);
+                if (self.newTopicBtn) self.newTopicBtn.classList.remove('nq-hidden');
+
+                if (self.emptyState && self.emptyState.parentNode) {
+                    self.emptyState.parentNode.removeChild(self.emptyState);
+                }
+                self.resultArea.appendChild(
+                    self.noticeLine('Picking up where you left off', data.state_summary)
+                );
+                self.scrollToBottom();
+            })
+            .catch(function () { /* no stored conversation, or offline — start fresh */ });
+    };
+
+    /**
+     * Step back one turn.
+     *
+     * The server restores the exact state it held before, so this is a restore
+     * and not another interpretation. The last turn is dropped from the thread
+     * to match — leaving an answer on screen that no longer describes the state
+     * behind it is how a user ends up refining against something invisible.
+     */
+    Widget.prototype.rewind = function () {
+        var self = this;
+        this.rewindBtn.disabled = true;
+
+        fetch(this.opts.baseUrl + '/conversation/' + encodeURIComponent(this.sessionId) + '/rewind', {
+            method: 'POST', headers: this.headers(), body: JSON.stringify({ steps: 1 }), credentials: 'same-origin'
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || data.status !== 'success') {
+                    return self.renderError((data && data.error) || 'There is nothing to go back to.');
+                }
+
+                var turns = self.resultArea.querySelectorAll('.nq-turn');
+                if (turns.length) turns[turns.length - 1].remove();
+
+                self.currentSlot = null;
+                self.setCanRewind(!!(data.conversation || {}).can_rewind);
+                self.resultArea.appendChild(self.noticeLine('Went back to', data.state_summary || 'the previous step'));
+                self.scrollToBottom();
+            })
+            .catch(function () { self.renderError('Could not go back. Please try again.'); })
+            .finally(function () { self.rewindBtn.disabled = false; });
+    };
+
+    Widget.prototype.setCanRewind = function (on) {
+        this.canRewind = on;
+        if (this.rewindBtn) this.rewindBtn.classList.toggle('nq-hidden', !on);
+    };
+
+    /** A line from the widget itself, distinct from an answer. */
+    Widget.prototype.noticeLine = function (label, detail) {
+        var el = h('div', 'nq-notice');
+        el.appendChild(h('span', 'nq-state-lbl', label));
+        el.appendChild(h('span', 'nq-state-val', detail));
+        return el;
+    };
+
     /** Forget the conversation and start again. */
     Widget.prototype.newTopic = function () {
         var self = this;
@@ -530,8 +658,10 @@
 
         this.stopSpeaking();
         this.sessionId = uuid();
+        this.rememberSessionId(this.sessionId);
         this.resultArea.innerHTML = '';
         this.currentSlot = null;
+        this.setCanRewind(false);
         if (this.newTopicBtn) this.newTopicBtn.classList.add('nq-hidden');
         this.renderEmptyState();
         self.input.focus();
@@ -558,6 +688,12 @@
 
     Widget.prototype.renderResponse = function (data) {
         if (!data || typeof data !== 'object') return this.renderError('Unexpected response from server.');
+
+        // Whether going back is possible is the server's answer, not a guess
+        // from how many turns are on screen — a clarification adds a turn to
+        // the thread without adding one to the history.
+        if (data.conversation) this.setCanRewind(!!data.conversation.can_rewind);
+
         if (data.status === 'error') return this.renderError(data.error || 'The query could not be processed.');
         if (data.status === 'clarification_needed') return this.renderClarification(data);
         if (data.status !== 'success') return this.renderError('Unexpected response status.');
