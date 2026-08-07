@@ -357,7 +357,7 @@ Routes are registered at `/naturalquery/*` by default:
 
 ```
 POST /naturalquery/text              → Text query
-POST /naturalquery/voice             → Voice query (Gemini only)
+POST /naturalquery/voice             → Voice query (needs a transcriber; see Voice)
 POST /naturalquery/conversation      → Multi-turn conversation
 GET  /naturalquery/health            → Health check
 GET  /naturalquery/schemes           → Available schemas
@@ -393,9 +393,12 @@ about the South region?") via the conversation API.
   messaging app. A search box above a result reads as one question at a time,
   and people did not try follow-ups because nothing suggested they could.
 - **Voice works with every LLM provider** - speech-to-text happens in the
-  browser (Chrome/Edge/Safari). Where browser STT is unavailable, the widget
-  falls back to recording audio and sending it to `/voice` (needs a
-  voice-capable provider such as Gemini). Text input always works.
+  browser (Chrome/Edge/Safari), so the audio never leaves the user's machine
+  and no configuration is needed. Where the browser has no speech API, the
+  widget records and posts to `/voice`, which needs a transcriber configured -
+  a local Whisper server or a hosted one, independent of your LLM. See
+  [Voice and speech-to-text](#voice-and-speech-to-text). Text input always
+  works.
 - **No build step, no publishing** - the widget JS is served by the package at
   `/naturalquery/widget.js`. To bundle it yourself instead:
   `php artisan vendor:publish --tag=naturalquery-assets`
@@ -424,6 +427,61 @@ conversation mode).
 
 A ready-made demo page is available at `/naturalquery/demo` (enabled in the
 `local` environment by default; control with `NATURALQUERY_DEMO_PAGE`).
+
+## Voice and speech-to-text
+
+**Most apps need no configuration.** The widget transcribes speech in the
+browser and posts the text to `/text`. That works with every LLM — Gemini,
+Claude, OpenAI, Ollama, anything self-hosted — costs nothing, adds no latency,
+and the audio never leaves the user's machine.
+
+The `/voice` endpoint exists for the cases the browser cannot cover: Firefox,
+which has no `SpeechRecognition`, and native or mobile clients with a
+microphone but no speech API. It accepts recorded audio and transcribes it
+server-side.
+
+**Transcription is chosen separately from your LLM.** Point it at any endpoint
+speaking the OpenAI `/audio/transcriptions` shape:
+
+```env
+# Local — the recording never leaves your network
+NATURALQUERY_TRANSCRIBE_URL=http://127.0.0.1:8080/v1
+
+# Or hosted
+NATURALQUERY_TRANSCRIBE_URL=https://api.groq.com/openai/v1
+NATURALQUERY_TRANSCRIBE_KEY=gsk_...
+NATURALQUERY_TRANSCRIBE_MODEL=whisper-large-v3
+
+# Worth setting when you know it — short clips get detected as the wrong
+# language, which produces a transcript that is confident and entirely wrong
+NATURALQUERY_TRANSCRIBE_LANGUAGE=en
+```
+
+That one protocol covers whisper.cpp server, faster-whisper-server, LocalAI,
+LM Studio, Groq and OpenAI. **Your LLM is irrelevant to it**: an app running
+Ollama gets voice from a local Whisper server exactly as an app running Gemini
+does, and an app on Gemini can use a local server instead if it would rather
+keep the audio in its own network.
+
+`voice.driver` picks the strategy: `auto` (default) uses a configured endpoint
+if there is one, otherwise the LLM's own audio support if it has any — only
+Gemini does — otherwise nothing. `openai_compatible`, `provider` and `none`
+force the choice.
+
+`GET /health` reports what the app can actually do:
+
+```jsonc
+"provider": { "supports_voice": false },   // this LLM has no audio support
+"voice":    { "enabled": true, "transcriber": "openai-compatible" }
+```
+
+Read `voice.enabled`, not `provider.supports_voice` — they disagree for every
+setup pairing a local Whisper server with an LLM that cannot hear, which is
+the common case.
+
+> Earlier versions tied `/voice` to the LLM, so it only worked on Gemini and
+> every other provider was told it "does not support voice". That was a
+> limitation of the code, not of the provider.
 
 ## Building your own front end
 

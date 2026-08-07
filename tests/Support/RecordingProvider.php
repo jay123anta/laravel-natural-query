@@ -85,9 +85,16 @@ class RecordingProvider implements LlmProviderInterface
         return 'recording';
     }
 
+    /**
+     * Settable, so a test can stand in for a provider with no audio support —
+     * Claude, Ollama, most self-hosted models. Voice must work for those, and
+     * it cannot be shown to if the only fake in the suite can hear.
+     */
+    public bool $voiceSupported = true;
+
     public function supportsVoice(): bool
     {
-        return true;
+        return $this->voiceSupported;
     }
 
     /**

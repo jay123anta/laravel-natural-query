@@ -425,6 +425,112 @@ class DoctorCommandTest extends TestCase
         }
     }
 
+    /**
+     * Voice: silent when unconfigured, loud when configured wrong.
+     *
+     * No transcriber is the normal setup — the widget transcribes in the
+     * browser, which costs nothing and keeps the audio on the device — so
+     * saying anything would be nagging about a choice that is correct.
+     */
+    #[Test]
+    public function it_says_nothing_about_voice_when_there_is_nothing_to_say()
+    {
+        $this->createStubTables();
+
+        // No endpoint AND a provider that cannot hear. The default test
+        // provider is Gemini-shaped and DOES accept audio, so leaving it in
+        // place would give 'auto' something real to report — correctly — and
+        // this case would be testing the wrong thing.
+        $provider = new \Jayanta\NaturalQuery\Tests\Support\RecordingProvider();
+        $provider->voiceSupported = false;
+        $this->app->instance(\Jayanta\NaturalQuery\Contracts\LlmProviderInterface::class, $provider);
+
+        config([
+            'naturalquery.voice.driver' => 'auto',
+            'naturalquery.voice.transcribers.openai_compatible.base_url' => null,
+        ]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
+
+        $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('Speech-to-text', Artisan::output());
+        $this->assertSame(0, $exit, 'no server-side voice is a normal setup, not a fault');
+    }
+
+    /**
+     * And when the LLM does accept audio, 'auto' uses it and says so — no
+     * endpoint required. Gemini's inline audio is still a first-class option;
+     * it is just no longer the only one.
+     */
+    #[Test]
+    public function auto_reports_the_providers_own_audio_support_when_it_has_some()
+    {
+        $this->createStubTables();
+        config(['naturalquery.voice.transcribers.openai_compatible.base_url' => null]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringContainsString('Speech-to-text for /voice: provider:', Artisan::output());
+    }
+
+    #[Test]
+    public function it_confirms_the_transcriber_that_will_actually_run()
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.voice.driver' => 'auto',
+            'naturalquery.voice.transcribers.openai_compatible.base_url' => 'http://127.0.0.1:8080/v1',
+        ]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringContainsString('Speech-to-text for /voice: openai-compatible', Artisan::output());
+    }
+
+    /**
+     * A forced driver with nothing behind it fails silently at the moment a
+     * user first presses the microphone. Cheap to catch here instead.
+     */
+    #[Test]
+    public function it_flags_a_forced_transcriber_that_is_not_configured()
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.voice.driver' => 'openai_compatible',
+            'naturalquery.voice.transcribers.openai_compatible.base_url' => null,
+        ]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
+
+        $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('not configured', $output);
+        $this->assertStringContainsString('base_url', $output, 'the fix is not named');
+        $this->assertSame(1, $exit);
+    }
+
+    #[Test]
+    public function it_flags_voice_forced_onto_a_provider_that_cannot_hear()
+    {
+        $this->createStubTables();
+
+        $provider = new \Jayanta\NaturalQuery\Tests\Support\RecordingProvider();
+        $provider->voiceSupported = false;
+        $this->app->instance(\Jayanta\NaturalQuery\Contracts\LlmProviderInterface::class, $provider);
+
+        config(['naturalquery.voice.driver' => 'provider']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('does not accept audio', $output);
+        // Names the way out rather than leaving voice looking impossible.
+        $this->assertStringContainsString('openai_compatible', $output);
+    }
+
     #[Test]
     public function it_flags_a_default_scheme_that_matches_no_schema()
     {

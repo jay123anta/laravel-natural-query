@@ -60,8 +60,21 @@ resolve against the stored state and are never served from the query cache.
 { "audio": "<base64>", "mime_type": "audio/webm" }
 ```
 
-Requires a provider with audio support; otherwise `voice_unsupported`. Browser
-speech-to-text into `/text` works with every provider and is usually better.
+Returns the normal answer plus `transcribed_text`, so a wrong answer to a
+misheard question is recognisable as exactly that.
+
+Requires a transcriber — a local Whisper server or a hosted one — configured
+under `voice` in `config/naturalquery.php`. This is **independent of your LLM**:
+an app on Ollama or Claude gets voice the same way an app on Gemini does.
+Unconfigured returns `voice_unsupported` with instructions rather than blaming
+the provider.
+
+Check `voice.enabled` from `GET /health` before offering a microphone
+fallback — not `provider.supports_voice`, which answers a different question
+and is `false` for most working setups.
+
+Browser speech-to-text into `/text` needs no configuration, works with every
+provider, and keeps the audio on the device. Prefer it where available.
 
 ---
 
@@ -294,7 +307,7 @@ that exist.
 
 | Route | Purpose |
 |---|---|
-| `GET /health` | Provider and database reachability. **503** when unhealthy — probe this |
+| `GET /health` | Provider and database reachability, plus `voice.enabled`. **503** when unhealthy — probe this |
 | `GET /cache-stats` | Cache size and hit counts |
 | `POST /clear-cache` | `{ scheme?, older_than_days?, min_hits? }` |
 | `POST /feedback` | `{ query, scheme, correction?, corrected_sql?, feedback_type? }` — fed into later prompts |

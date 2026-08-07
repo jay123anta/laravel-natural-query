@@ -274,6 +274,41 @@ class ApiErrorSemanticsTest extends TestCase
         );
     }
 
+    /**
+     * The retry is the last thing to run, and it used to have the last word.
+     *
+     * Even after the two mislabelling sites were fixed, a provider failure was
+     * overwritten here with "Could not understand the query. Try mentioning a
+     * dataset name" whenever no dataset could be guessed from the words — which
+     * is exactly the case when the provider never answered, because there is no
+     * intent to guess from. Caught by pointing a real install at a provider
+     * with no API key.
+     */
+    #[Test]
+    public function the_retry_does_not_overwrite_a_provider_failure_with_a_comprehension_one()
+    {
+        config(['naturalquery.errors.retry_on_failure' => true]);
+
+        $provider = new RecordingProvider();
+        $unreachable = ['success' => false, 'error' => 'Unable to connect to AI service.'];
+        $provider->intentResponse = $unreachable;
+        $provider->sqlResponse = $unreachable;
+
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        // Deliberately names no dataset, so keyword detection finds nothing and
+        // the retry falls through to its final message.
+        $response = $this->postJson('/naturalquery/text', ['text' => 'what is the situation']);
+
+        $response->assertJsonPath('error_code', ErrorCode::PROVIDER_ERROR);
+        $this->assertStringNotContainsStringIgnoringCase(
+            'mentioning a dataset name',
+            (string) $response->json('error'),
+            'a provider that never answered was reported as a question nobody understood'
+        );
+    }
+
     #[Test]
     public function an_empty_question_is_still_a_validation_error()
     {

@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Server-side voice no longer depends on which LLM you chose.** Transcription
+  is its own capability behind `Contracts\TranscriberInterface`, configured
+  under `voice` in `config/naturalquery.php`. Point
+  `NATURALQUERY_TRANSCRIBE_URL` at anything speaking the OpenAI
+  `/audio/transcriptions` shape — a local whisper.cpp or faster-whisper server,
+  LocalAI, LM Studio, Groq, OpenAI — and `/voice` works regardless of provider.
+
+  Until now `/voice` only worked on Gemini, because Gemini accepts audio inline
+  in the same call that returns intent JSON and the feature had been built
+  around that. Every other provider was told it "does not support voice", which
+  was true of the provider and false of what was possible: an app on Ollama,
+  Claude or a self-hosted model had no route to voice at all — and self-hosted
+  is the case with the best reason to want it, since a local Whisper server
+  keeps the recording inside the network.
+
+  Gemini's inline path is still available as the `provider` driver. It is now
+  one option among several rather than the only one, and it was never buying a
+  round trip anyway: the orchestrator already discarded the intent it returned
+  and re-ran the query from the transcript.
+
+### Added
+- `voice.driver` — `auto` (a configured endpoint, else the provider's own audio
+  support, else nothing), `openai_compatible`, `provider`, or `none`.
+- `GET /health` reports `voice.enabled` and `voice.transcriber`. Read that
+  rather than `provider.supports_voice` when deciding whether to offer a
+  microphone: they disagree for every setup pairing a local Whisper server with
+  an LLM that has no audio support, which is the common case.
+- `/voice` answers now carry `transcribed_text`, so a wrong answer to a
+  misheard question is recognisable as exactly that.
+- `naturalquery:doctor` reports which transcriber will run, and flags a forced
+  driver that is not configured — including `provider` on an LLM that cannot
+  hear.
+- Transcription failures map to real codes: a throttled service is
+  `rate_limited` (429, retryable), a rejected key says so rather than blaming
+  the recording, and a `base_url` ending in `/audio/transcriptions` names that
+  specific mistake.
+
+### Fixed
+- `ssl_verify` now applies to every outbound call the package makes, not only
+  LLM ones. A transcription endpoint that ignored it would fail at the
+  handshake while the LLM calls worked — a bewildering thing to debug on a
+  stack whose PHP has no CA store.
+
 ## [1.0.0-rc.2] - 2026-08-08
 
 Everything here rolls into 1.0.0. This release is about the HTTP API: the

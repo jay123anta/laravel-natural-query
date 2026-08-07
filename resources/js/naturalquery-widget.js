@@ -11,10 +11,13 @@
  * Or simply use the Blade component: <x-naturalquery::widget />
  *
  * Voice strategy:
- *   1. Browser SpeechRecognition (Chrome/Edge/Safari) — free, works with EVERY
- *      LLM provider because transcription happens client-side → /text endpoint.
- *   2. Fallback: MediaRecorder → base64 audio → /voice endpoint (server-side
- *      transcription; requires a provider with supportsVoice(), e.g. Gemini).
+ *   1. Browser SpeechRecognition (Chrome/Edge/Safari) — free, needs no setup,
+ *      works with EVERY LLM provider because transcription happens on the
+ *      device and only text is sent → /text endpoint.
+ *   2. Fallback: MediaRecorder → base64 audio → /voice endpoint, which
+ *      transcribes server-side. That needs a transcriber configured — a local
+ *      Whisper server or a hosted one — and is independent of which LLM is in
+ *      use, so it is available on local models as much as commercial ones.
  *   3. Neither available → mic button hidden; text input always works.
  */
 (function (global) {

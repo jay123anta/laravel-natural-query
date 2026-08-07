@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Log;
  */
 abstract class AbstractProvider
 {
+    // Shared with the transcription drivers, so one ssl_verify setting covers
+    // every outbound call the package makes rather than only the LLM ones.
+    use \Jayanta\NaturalQuery\Support\ResolvesSslOptions;
+
     protected array $config;
     protected int $maxRetries;
     protected int $timeout;
@@ -383,43 +387,6 @@ abstract class AbstractProvider
         $json = preg_replace('/^\x{FEFF}/u', '', $json);
 
         return trim($json);
-    }
-
-    /**
-     * Resolve HTTP client SSL options from the ssl_verify config value.
-     *
-     * Accepted values:
-     *   true / "true" / "1"    → verify against the system CA bundle (default; no override)
-     *   false / "false" / "0"  → disable verification (NOT recommended)
-     *   "/path/to/cacert.pem"  → verify against this CA bundle file — the fix
-     *                            for local stacks (XAMPP/WAMP) whose PHP has no
-     *                            CA store, without touching php.ini
-     *
-     * @return array Guzzle options to merge in, or [] for default behavior
-     */
-    protected function sslOptions(): array
-    {
-        $verify = config('naturalquery.ssl_verify', true);
-
-        if ($verify === false) {
-            return ['verify' => false];
-        }
-
-        if (is_string($verify)) {
-            $normalized = strtolower(trim($verify));
-            if (in_array($normalized, ['', '1', 'true', 'on', 'yes'], true)) {
-                return [];
-            }
-            if (in_array($normalized, ['0', 'false', 'off', 'no'], true)) {
-                return ['verify' => false];
-            }
-            // Anything else is treated as a CA bundle path. Passed through
-            // as-is: a bad path fails loudly with a clear Guzzle error rather
-            // than being silently ignored.
-            return ['verify' => $verify];
-        }
-
-        return [];
     }
 
     /**

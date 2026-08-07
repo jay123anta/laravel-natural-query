@@ -652,6 +652,65 @@ return [
     ],
 
     // ==========================================================================
+    // VOICE / SPEECH-TO-TEXT
+    // ==========================================================================
+    // Most apps need nothing here.
+    //
+    // The widget transcribes speech in the BROWSER and posts the text to
+    // /text. That works with every LLM provider — local or commercial — costs
+    // nothing, and the audio never leaves the user's machine.
+    //
+    // This block is only for the /voice endpoint, which accepts recorded audio
+    // server-side. It exists for browsers without SpeechRecognition (mainly
+    // Firefox) and for native or mobile clients that have audio but no speech
+    // API of their own.
+    'voice' => [
+
+        // Which transcriber handles /voice:
+        //
+        //   'auto'               a configured endpoint below if there is one,
+        //                        otherwise the LLM provider if it accepts audio
+        //                        (Gemini does; Claude and Ollama do not),
+        //                        otherwise nothing
+        //   'openai_compatible'  always the endpoint below
+        //   'provider'           always the LLM provider's own audio support
+        //   'none'               disable /voice entirely
+        'driver' => env('NATURALQUERY_VOICE_DRIVER', 'auto'),
+
+        'transcribers' => [
+
+            // Speech to text over the OpenAI /audio/transcriptions shape.
+            //
+            // Deliberately the only endpoint driver, because everything speaks
+            // this one protocol. Point base_url at whatever you run:
+            //
+            //   http://127.0.0.1:8080/v1        whisper.cpp server
+            //   http://127.0.0.1:8000/v1        faster-whisper-server
+            //   http://127.0.0.1:8080/v1        LocalAI
+            //   http://127.0.0.1:1234/v1        LM Studio
+            //   https://api.groq.com/openai/v1  Groq (whisper-large-v3)
+            //   https://api.openai.com/v1       OpenAI (whisper-1)
+            //
+            // A local server keeps the recording inside your network, which is
+            // the strongest reason to run one. api_key is optional and most
+            // local servers ignore it.
+            'openai_compatible' => [
+                'base_url' => env('NATURALQUERY_TRANSCRIBE_URL'),
+                'model' => env('NATURALQUERY_TRANSCRIBE_MODEL', 'whisper-1'),
+                'api_key' => env('NATURALQUERY_TRANSCRIBE_KEY'),
+
+                // BCP-47 or ISO-639-1 hint, e.g. 'en', 'hi', 'as'. Worth
+                // setting when you know it: short clips are often detected as
+                // the wrong language, which produces a transcript that is
+                // confident and completely wrong.
+                'language' => env('NATURALQUERY_TRANSCRIBE_LANGUAGE'),
+
+                'timeout' => 60,
+            ],
+        ],
+    ],
+
+    // ==========================================================================
     // DROP-IN FRONTEND WIDGET
     // ==========================================================================
     // The package ships an embeddable text + voice widget. Add it to any Blade
@@ -660,10 +719,10 @@ return [
     //     <x-naturalquery::widget />
     //
     // The widget JS is served at {prefix}/widget.js (no publishing required).
-    // Voice input uses the browser's speech recognition (works with EVERY LLM
-    // provider); when unavailable it falls back to recording audio and sending
-    // it to the /voice endpoint (requires a provider with voice support, e.g.
-    // Gemini). Text input always works.
+    // Voice input uses the browser's speech recognition, which works with
+    // EVERY LLM provider; when the browser has none it falls back to recording
+    // audio and sending it to /voice, which needs the 'voice' block above.
+    // Text input always works.
     'widget' => [
         // Widget header title
         'title' => env('NATURALQUERY_WIDGET_TITLE', 'Ask your data'),

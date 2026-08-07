@@ -8,6 +8,10 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\TranscriberInterface;
+use Jayanta\NaturalQuery\Transcription\NullTranscriber;
+use Jayanta\NaturalQuery\Transcription\OpenAiCompatibleTranscriber;
+use Jayanta\NaturalQuery\Transcription\ProviderTranscriber;
 use Jayanta\NaturalQuery\LlmProviders\GeminiProvider;
 use Jayanta\NaturalQuery\LlmProviders\OpenAiProvider;
 use Jayanta\NaturalQuery\LlmProviders\ClaudeProvider;
@@ -64,6 +68,36 @@ class NaturalQueryServiceProvider extends ServiceProvider
                         . "For any OpenAI-compatible service (DeepSeek, Groq, vLLM, LM Studio, …) add a "
                         . "'llm.providers.{$driver}' config block with 'base_url' and 'model'."
                     ),
+            };
+        });
+
+        // Speech to text, chosen independently of the LLM.
+        //
+        // Tying the two together is what made server-side voice a Gemini-only
+        // feature: audio support happened to live in one vendor's chat call,
+        // so everyone else was told their provider "does not support voice".
+        // Picking a transcriber separately means an app on Ollama or Claude
+        // can run voice through a local Whisper server, and an app on Gemini
+        // can too if it would rather keep the audio in its own network.
+        $this->app->singleton(TranscriberInterface::class, function ($app) {
+            $driver = config('naturalquery.voice.driver', 'auto');
+            $endpoint = config('naturalquery.voice.transcribers.openai_compatible', []);
+
+            $openAiCompatible = fn () => new OpenAiCompatibleTranscriber($endpoint);
+            $fromProvider = fn () => new ProviderTranscriber($app->make(LlmProviderInterface::class));
+
+            return match ($driver) {
+                'none' => new NullTranscriber(),
+                'openai_compatible' => $openAiCompatible(),
+                'provider' => $fromProvider(),
+                // 'auto': an endpoint the app configured on purpose outranks
+                // whatever the LLM happens to do, then the provider's own
+                // audio support, then nothing — which is a normal setup, since
+                // the widget transcribes in the browser by default.
+                default => $this->firstConfigured([
+                    $openAiCompatible,
+                    $fromProvider,
+                ]) ?? new NullTranscriber(),
             };
         });
 
@@ -164,5 +198,23 @@ class NaturalQueryServiceProvider extends ServiceProvider
             ->middleware($middleware)
             ->name(config('naturalquery.routes.name_prefix', 'naturalquery.'))
             ->group(__DIR__ . '/../routes/api.php');
+    }
+
+    /**
+     * The first candidate that reports itself ready, or null if none is.
+     *
+     * @param array<int, callable(): TranscriberInterface> $candidates
+     */
+    protected function firstConfigured(array $candidates): ?TranscriberInterface
+    {
+        foreach ($candidates as $build) {
+            $candidate = $build();
+
+            if ($candidate->isConfigured()) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 }
