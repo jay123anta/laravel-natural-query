@@ -547,7 +547,7 @@ so the choice is yours rather than a guess from the wording:
 'tables' => [
     'primary' => [
         'name' => 'orders',
-        'date_column' => 'order_date',   // falls back to the first date column
+        'date_column' => 'order_date',   // written for you by discover
         'columns' => [ ... ],
     ],
 ],

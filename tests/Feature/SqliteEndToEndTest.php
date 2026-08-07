@@ -109,6 +109,49 @@ class SqliteEndToEndTest extends TestCase
         $this->assertSame('order_date', $registry->getDateColumn(array_key_first($registry->all())));
     }
 
+    /**
+     * Written into the file, not left to a fallback.
+     *
+     * A table often has several dates and they answer different questions.
+     * Inferring one silently is the kind of unstated choice that has produced
+     * wrong numbers here before; stated in the schema, it is visible and the
+     * user can change it.
+     */
+    #[Test]
+    public function discovery_records_which_date_a_period_applies_to()
+    {
+        Artisan::call('naturalquery:discover', [
+            '--table' => ['shop_orders'],
+            '--output' => $this->schemaPath,
+            '--no-verify' => true,
+            '--force' => true,
+        ]);
+
+        $written = include $this->schemaPath . '/shop_orders.php';
+
+        $this->assertSame('order_date', $written['tables']['primary']['date_column']);
+    }
+
+    #[Test]
+    public function a_table_with_no_dates_says_so_rather_than_guessing()
+    {
+        \Illuminate\Support\Facades\Schema::create('shop_regions', function ($t) {
+            $t->id();
+            $t->string('name');
+        });
+
+        Artisan::call('naturalquery:discover', [
+            '--table' => ['shop_regions'],
+            '--output' => $this->schemaPath,
+            '--no-verify' => true,
+            '--force' => true,
+        ]);
+
+        $written = include $this->schemaPath . '/shop_regions.php';
+
+        $this->assertNull($written['tables']['primary']['date_column']);
+    }
+
     #[Test]
     public function a_question_is_answered_correctly_on_sqlite()
     {

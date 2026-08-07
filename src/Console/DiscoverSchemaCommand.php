@@ -423,6 +423,14 @@ class DiscoverSchemaCommand extends Command
                     'name' => $fullName,
                     'description' => $description,
                     'group_column' => $groupColumn,
+                    // Which date "last month" narrows on, written out rather
+                    // than inferred. A table often has several — ordered,
+                    // shipped, created — and they answer different questions;
+                    // the engine falls back to the first one it finds, which
+                    // is a silent choice on exactly the kind of question where
+                    // a silent choice has bitten us before. Stated here, it is
+                    // visible and editable.
+                    'date_column' => $this->guessDateColumn($columnDefs),
                     'columns' => $columnDefs,
                     // Real foreign keys, as config rather than a comment. The
                     // prompt lists these so the model can join to reach a name
@@ -639,6 +647,46 @@ class DiscoverSchemaCommand extends Command
      * "settled" rather than by customer. Prefer a column that reads like a
      * label; fall back to the first dimension only when there isn't one.
      */
+    /**
+     * The date a period should narrow on.
+     *
+     * Prefers the one that reads like when the thing HAPPENED — an order date
+     * over a created_at — because that is what "last month" means to the person
+     * asking. Null when the table has no dates, which is honest: the schema
+     * then says so instead of leaving the reader to guess.
+     */
+    protected function guessDateColumn(array $columns): ?string
+    {
+        $dates = [];
+
+        foreach ($columns as $name => $definition) {
+            if (in_array(strtolower((string) ($definition['type'] ?? '')), ['date', 'datetime', 'timestamp'], true)) {
+                $dates[] = $name;
+            }
+        }
+
+        if (!$dates) {
+            return null;
+        }
+
+        // A business date beats a bookkeeping one.
+        foreach (['/_date$/i', '/^date_/i', '/_on$/i', '/_at$/i'] as $preference) {
+            foreach ($dates as $name) {
+                if (preg_match($preference, $name) && !preg_match('/^(created|updated|deleted)_/i', $name)) {
+                    return $name;
+                }
+            }
+        }
+
+        foreach ($dates as $name) {
+            if (!preg_match('/^(created|updated|deleted)_/i', $name)) {
+                return $name;
+            }
+        }
+
+        return $dates[0];
+    }
+
     protected function guessGroupColumn(array $columns): string
     {
         $dimensions = array_values(array_filter(
