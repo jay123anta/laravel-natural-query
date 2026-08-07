@@ -53,7 +53,51 @@ First public release.
   support, so every published version carries advisories and Composer refuses
   to install them under its default `policy.advisories.block`. A version the
   package manager will not install is not a version worth claiming.
-- Pluggable schema introspection: `pgsql`, `mysql` and `mariadb` are built in,
+- **SQLite is supported.** `laravel new` creates a SQLite app, so this is the
+  database most people who try the package already have; installing it used to
+  end in "go and set up MySQL first". Structure comes from `sqlite_master` and
+  the PRAGMA functions, with foreign keys whose target column is omitted
+  resolved against the referenced primary key, composite keys paired by
+  position, and declared types normalised by SQLite's affinity rules — date and
+  boolean checked first, since both have NUMERIC affinity and a DATE column is
+  meant as a date.
+- **Time periods.** `date_from` / `date_to` in the intent, with the column
+  chosen by the schema's `date_column` — a table often has several dates and
+  they answer different questions. Providers are told today's date, since a
+  model cannot otherwise resolve "last month". Dates are pattern-checked and
+  bound; a period that cannot be parsed is refused rather than ignored.
+- **Escalation beyond the intent contract.** In `auto` mode a question whose
+  wording needs SQL the contract cannot express — `HAVING`, a numeric filter, a
+  comparison against an aggregate, an exclusion, `DISTINCT`, a ratio, several
+  aggregates at once, a list of columns, a per-group top-N — goes straight to
+  SQL generation instead of being answered as a narrower question. Costs
+  nothing: both modes are one API call.
+- **Counting.** Every dataset has an implicit `record_count` metric, so "how
+  many orders by status" is answered by counting rather than by falling back to
+  whichever measure is default.
+- **Breakdowns and cross-column filters.** `group_by` decides what the rows
+  are; `filter_column` says which column a filter value belongs to, so
+  "quantity by customer for Grocery" filters on the category while grouping by
+  the customer. An unusable breakdown or filter is refused with the list of
+  what is available.
+- **Conversation as structured state.** Each turn is classified
+  (`new_query` / `refinement` / `drill_down` / `reference`), merged into a slot
+  object in PHP rather than by rewriting the question, and validated against the
+  schema before any SQL is built. Every answer reports the state it was
+  understood as; `POST /conversation/{session}/rewind` restores an earlier turn;
+  refinements are capped; follow-ups never touch the query cache.
+- **Multi-step answers and suggested follow-ups.** A question needing several
+  queries is split, answered per step and combined, with the arithmetic done in
+  PHP on values already fetched. Every answer carries follow-up questions
+  derived from the schema — no API call, and incapable of proposing a breakdown
+  the validator would refuse.
+- **Spending limits.** `limits.queries_per_day` (default 200 per person)
+  alongside the existing rate limit, applied by the package so that customising
+  `routes.middleware` cannot drop it.
+- **Accuracy is measured, not asserted.** An execution-accuracy harness grades
+  generated SQL against hand-written gold SQL by comparing result sets, the way
+  Spider and BIRD do. Run with `NATURALQUERY_BENCHMARK=1`.
+- Pluggable schema introspection: `sqlite`, `pgsql`, `mysql` and `mariadb` are built in,
   and any other database can be supported by implementing
   `Contracts\SchemaIntrospectorInterface` and registering it under
   `sql.introspectors`. The built-in map lives in code, not in the publishable

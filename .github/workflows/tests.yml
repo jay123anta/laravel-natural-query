@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # A button in the Actions tab. Push events are the normal trigger, but when
+  # they do not arrive there is otherwise no way to ask for a run, and "is the
+  # suite green" stops being answerable at exactly the moment it matters.
+  workflow_dispatch:
+
+# Several pushes in quick succession used to queue a full matrix each, so runs
+# piled up behind one another and the newest — the only one anybody cares
+# about — waited longest. Superseded runs are abandoned instead.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
