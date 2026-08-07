@@ -174,6 +174,37 @@ class ApiErrorSemanticsTest extends TestCase
             ->assertJsonPath('status', 'clarification_needed');
     }
 
+    /**
+     * The same question must be accepted wherever it arrives.
+     *
+     * /text demanded three characters while /conversation accepted one, so a
+     * follow-up like "no" was answered by one endpoint and rejected by the
+     * other with a validation error the user could do nothing about. Short
+     * questions are real questions.
+     */
+    #[Test]
+    public function a_short_follow_up_is_accepted_by_every_endpoint()
+    {
+        $this->failWith('anything', ErrorCode::NOT_UNDERSTOOD);
+
+        foreach (['no', 'up', '2025'] as $short) {
+            $response = $this->postJson('/naturalquery/text', ['text' => $short]);
+
+            // Reaches the engine (422 from the stubbed failure) rather than
+            // being turned away by validation.
+            $response->assertStatus(422);
+            $response->assertJsonPath('error_code', 'not_understood');
+        }
+    }
+
+    #[Test]
+    public function an_empty_question_is_still_a_validation_error()
+    {
+        $this->postJson('/naturalquery/text', ['text' => ''])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('text');
+    }
+
     #[Test]
     public function every_code_maps_to_a_status_and_nothing_falls_through_to_500_by_accident()
     {

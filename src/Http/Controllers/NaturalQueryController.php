@@ -34,14 +34,24 @@ class NaturalQueryController extends Controller
     }
 
     /**
+     * One rule for a question, wherever it arrives.
+     *
+     * /text demanded three characters while /conversation accepted one, so the
+     * same follow-up — "no", "up", a bare year — was answered by one endpoint
+     * and rejected by the other with a validation error the user could do
+     * nothing about. Short questions are real questions.
+     */
+    protected function questionRules(): string
+    {
+        return 'required|string|min:1|max:' . config('naturalquery.privacy.max_query_length', 1000);
+    }
+
+    /**
      * Send a result with an HTTP status that matches what went wrong.
      *
-     * Every failure used to arrive as 400 or 500 chosen by whether a metadata
-     * key happened to be set, so a client could not tell "your question was
-     * refused" from "the provider is rate limiting" from "the database is
-     * down" — and the one sensible response to a rate limit, waiting, was the
-     * one it had no way to choose. The status now comes from the error code,
-     * in one place, so the two cannot drift apart.
+     * The status comes from the error code, in one place, so the two cannot
+     * drift apart — a rate limit arriving as 400 told every client its request
+     * was malformed.
      */
     protected function respond(array $result)
     {
@@ -92,7 +102,7 @@ class NaturalQueryController extends Controller
     public function textQuery(Request $request)
     {
         $data = $request->validate([
-            'text' => 'required|string|min:3|max:' . config('naturalquery.privacy.max_query_length', 1000),
+            'text' => $this->questionRules(),
             'scheme' => 'nullable|string|max:100',
             'disable_tts' => 'boolean',
         ]);
@@ -157,9 +167,6 @@ class NaturalQueryController extends Controller
         ]), $health['status'] === 'healthy' ? 200 : 503);
     }
 
-    /**
-     * List available schemes.
-     */
     /**
      * Everything a front end needs to show what can be asked.
      *
@@ -260,7 +267,7 @@ class NaturalQueryController extends Controller
     public function conversationQuery(Request $request)
     {
         $data = $request->validate([
-            'text' => 'required|string|min:1|max:' . config('naturalquery.privacy.max_query_length', 1000),
+            'text' => $this->questionRules(),
             'session_id' => 'required|string|max:100',
             'scheme' => 'nullable|string|max:100',
         ]);
@@ -274,9 +281,6 @@ class NaturalQueryController extends Controller
         return $this->respond($result);
     }
 
-    /**
-     * Clear conversation context.
-     */
     /**
      * Step back to how the query stood before the last turn.
      *
