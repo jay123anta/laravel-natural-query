@@ -557,6 +557,25 @@ return [
         // routes spend money on your API key: without authentication the widget
         // is an LLM proxy anyone can use, and limits.queries_per_day below is
         // then counted per IP, which is easy to get around.
+        //
+        // BUILDING A REACT / VUE FRONT END?
+        //
+        // 'web' means session cookies, which is right for a Blade app or an
+        // SPA served from the same domain (Laravel Sanctum's stateful mode).
+        // A separate origin — a Vite dev server on :3000, a mobile app —
+        // needs token auth and CORS instead:
+        //
+        //     'middleware' => ['api', 'auth:sanctum', 'throttle:60,1'],
+        //
+        // and add the prefix to config/cors.php:
+        //
+        //     'paths' => ['api/*', 'naturalquery/*'],
+        //     'supports_credentials' => true,   // only if using cookies
+        //
+        // Without both, the browser blocks the response before your code sees
+        // it and the failure looks like a network error rather than a policy
+        // one — which is why it is written here rather than left to be
+        // discovered.
         'middleware' => ['web', 'auth', 'throttle:60,1'],
 
         // Route name prefix

@@ -391,6 +391,47 @@ class DoctorCommand extends Command
      * one thing worth saying here is: you have this choice, and nobody has made
      * it yet.
      */
+    /**
+     * A separate front end needs CORS, and the failure without it is silent.
+     *
+     * When the routes are configured for token auth or the `api` stack, the
+     * app is almost certainly being called from another origin — a Vite dev
+     * server, a mobile client. If the prefix is not listed in config/cors.php
+     * the browser blocks the response before any JavaScript sees it, so the
+     * developer gets a network error with no mention of policy, on a request
+     * the server answered perfectly.
+     */
+    protected function checkCrossOriginSetup(array $middleware): void
+    {
+        $looksLikeSpa = (bool) array_filter(
+            $middleware,
+            fn ($m) => is_string($m) && ($m === 'api' || str_starts_with($m, 'auth:sanctum') || str_starts_with($m, 'auth:api'))
+        );
+
+        if (!$looksLikeSpa) {
+            return;
+        }
+
+        $prefix = trim((string) config('naturalquery.routes.prefix', 'naturalquery'), '/');
+        $paths = (array) config('cors.paths', []);
+
+        foreach ($paths as $path) {
+            $pattern = rtrim((string) $path, '*');
+
+            if ($path === '*' || ($pattern !== '' && str_starts_with($prefix . '/', $pattern))) {
+                $this->pass("CORS covers /{$prefix} (cors.paths)");
+                return;
+            }
+        }
+
+        $this->warn_(
+            "Routes are set up for a separate front end, but /{$prefix} is not in cors.paths",
+            "A browser on another origin will block the response before your code sees it, and it will "
+                . "look like a network error rather than a policy one. Add '{$prefix}/*' to 'paths' in "
+                . "config/cors.php (and set supports_credentials if you use cookies)."
+        );
+    }
+
     protected function checkCompetingMeasures(SchemaRegistry $registry): void
     {
         if (trim((string) config('naturalquery.system_instructions', '')) !== '') {
@@ -551,6 +592,8 @@ class DoctorCommand extends Command
         $middleware = (array) config('naturalquery.routes.middleware', []);
         $hasAuth = (bool) array_filter($middleware, fn($m) => is_string($m) && str_starts_with($m, 'auth'));
         $hasThrottle = (bool) array_filter($middleware, fn($m) => is_string($m) && str_starts_with($m, 'throttle'));
+
+        $this->checkCrossOriginSetup($middleware);
 
         if (!$hasAuth && !$hasThrottle) {
             $this->warn_(

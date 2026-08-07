@@ -187,6 +187,54 @@ class DoctorCommandTest extends TestCase
         $this->assertStringNotContainsString('datasets have their own measures', Artisan::output());
     }
 
+    /**
+     * Without CORS the browser blocks the response before any JavaScript sees
+     * it, so a correctly answered request surfaces as a network error with no
+     * mention of policy. Cheap to detect, baffling to debug.
+     */
+    #[Test]
+    public function it_flags_a_separate_front_end_with_no_cors_entry()
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.routes.middleware' => ['api', 'auth:sanctum'],
+            'cors.paths' => ['api/*'],
+        ]);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('not in cors.paths', $output);
+        $this->assertStringContainsString('config/cors.php', $output);
+    }
+
+    #[Test]
+    public function it_stays_quiet_once_cors_covers_the_prefix()
+    {
+        $this->createStubTables();
+        config([
+            'naturalquery.routes.middleware' => ['api', 'auth:sanctum'],
+            'cors.paths' => ['api/*', 'naturalquery/*'],
+        ]);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('not in cors.paths', Artisan::output());
+    }
+
+    #[Test]
+    public function a_same_domain_blade_app_is_never_asked_about_cors()
+    {
+        // Session cookies on one origin need no CORS at all, and warning about
+        // it there would be noise on the most common setup.
+        $this->createStubTables();
+        config(['naturalquery.routes.middleware' => ['web', 'auth'], 'cors.paths' => []]);
+
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+
+        $this->assertStringNotContainsString('cors.paths', Artisan::output());
+    }
+
     #[Test]
     public function it_flags_a_missing_api_key()
     {
