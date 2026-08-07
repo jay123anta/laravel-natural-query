@@ -156,6 +156,14 @@ class SqlValidator implements SqlValidatorInterface
         $requireLimit = $options['require_limit'] ?? true;
         $maxLimit = $options['max_limit'] ?? config('naturalquery.sql.max_limit');
 
+        // A bare aggregate returns exactly one row. Requiring a LIMIT on
+        // "SELECT SUM(revenue) FROM orders WHERE …" refuses a correct query
+        // for a danger that cannot arise, and it refused every total the
+        // moment a schema set max_limit.
+        if ($requireLimit && $this->returnsOneRow($sqlClean)) {
+            $requireLimit = false;
+        }
+
         if ($requireLimit && !preg_match('/\bLIMIT\s+\d+/i', $sqlClean)) {
             return $this->fail('Query must include a LIMIT clause');
         }
@@ -184,6 +192,18 @@ class SqlValidator implements SqlValidatorInterface
     protected function extractTableReferences(string $sql): array
     {
         $tables = [];
+        // (table extraction continues below)
+
+        // FROM is not always a table reference. EXTRACT(YEAR FROM order_date),
+        // TRIM(BOTH ' ' FROM name) and SUBSTRING(name FROM 1 FOR 3) all use the
+        // keyword inside a function call, and reading the argument as a table
+        // refused ordinary SQL with "Unauthorized table: order_date" — a column
+        // name, reported as an unauthorised table, on a question as plain as
+        // "total revenue this year".
+        //
+        // Neutralised on a copy used only for finding tables, so the real SQL
+        // is untouched and a genuine table inside such a query is still seen.
+        $sql = $this->neutraliseFunctionKeywords($sql);
 
         // Match FROM clause: FROM schema.table, FROM table1, table2
         // Handles comma-separated tables and tables inside CTEs
@@ -222,6 +242,91 @@ class SqlValidator implements SqlValidatorInterface
     /**
      * Return a validation failure result.
      */
+    /**
+     * Blank out FROM where it belongs to a function, not to a table.
+     *
+     * EXTRACT(YEAR FROM col), TRIM(BOTH ' ' FROM col), SUBSTRING(col FROM 1 FOR
+     * 2) and OVERLAY(... FROM ...) are standard SQL. Only the keyword is
+     * replaced — the argument is left in place, so nothing that follows can
+     * shift position and nothing real is hidden.
+     */
+    protected function neutraliseFunctionKeywords(string $sql): string
+    {
+        $patterns = [
+            '/\b(EXTRACT\s*\(\s*\w+\s+)FROM\b/i',
+            '/\b(TRIM\s*\(\s*(?:BOTH|LEADING|TRAILING)?\s*(?:\'[^\']*\'\s*)?)FROM\b/i',
+            '/\b(SUBSTRING\s*\(\s*[^()]*?\s)FROM\b/i',
+            '/\b(OVERLAY\s*\(\s*[^()]*?\s)FROM\b/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $replaced = preg_replace($pattern, '$1     ', $sql);
+
+            // A failed pattern returns null. Keeping the original is the safe
+            // direction: the table check then runs on unmodified SQL and can
+            // only be stricter, never blinder.
+            if (is_string($replaced)) {
+                $sql = $replaced;
+            }
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Does this query return exactly one row regardless of the data?
+     *
+     * True for a SELECT whose every output is an aggregate and which has no
+     * GROUP BY. Anything less certain returns false, so LIMIT enforcement still
+     * applies to it.
+     */
+    protected function returnsOneRow(string $sql): bool
+    {
+        if (preg_match('/\bGROUP\s+BY\b/i', $sql) || preg_match('/\bUNION\b/i', $sql)) {
+            return false;
+        }
+
+        if (!preg_match('/^\s*SELECT\s+(.*?)\s+FROM\b/is', $sql, $m)) {
+            return false;
+        }
+
+        foreach ($this->splitTopLevel($m[1]) as $expression) {
+            if (!preg_match('/^\s*(?:COUNT|SUM|AVG|MIN|MAX)\s*\(/i', $expression)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Split a select list on commas that are not inside parentheses. */
+    protected function splitTopLevel(string $list): array
+    {
+        $parts = [];
+        $depth = 0;
+        $current = '';
+
+        foreach (str_split($list) as $char) {
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+            }
+
+            if ($char === ',' && $depth === 0) {
+                $parts[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $parts[] = $current;
+
+        return array_filter(array_map('trim', $parts), fn ($p) => $p !== '');
+    }
+
     protected function fail(string $reason): array
     {
         return ['valid' => false, 'reason' => $reason];

@@ -299,6 +299,37 @@ async function run() {
             assertContains(ctx.root.textContent, 'revenue in 2025');
             assert(ctx.root.querySelectorAll('.nq-step').length === 2, 'expected 2 steps rendered');
         });
+
+        await check('the steps stay inside ONE turn, not one thread each', () => {
+            assert(ctx.root.querySelectorAll('.nq-turn').length === 1,
+                'expected 1 turn, got ' + ctx.root.querySelectorAll('.nq-turn').length);
+        });
+    }
+
+    // A step that reports a number without saying which period produced it is
+    // how "last year" silently became a trailing twelve months.
+    {
+        const ctx = mount({}, () => answer({
+            type: 'multi_step',
+            answer: 'Revenue is down 44.6%.',
+            steps: [
+                { n: 1, question: 'total revenue this year', status: 'success',
+                  period: '2026-01-01 to 2026-12-31', answer: 'Total: 11,503,983', rows: [] },
+                { n: 2, question: 'total revenue last year', status: 'success',
+                  period: '2025-01-01 to 2025-12-31', answer: 'Total: 9,507,105', rows: [] },
+            ],
+        }));
+        ctx.widget.input.value = 'revenue this year versus last year';
+        ctx.widget.submit();
+        await settle();
+
+        await check('each step states the period it actually used', () => {
+            const periods = Array.from(ctx.root.querySelectorAll('.nq-step-period'))
+                .map((el) => el.textContent);
+            assert(periods.length === 2, 'expected a period on each step, got ' + periods.length);
+            assertContains(periods[0], '2026-01-01');
+            assertContains(periods[1], '2025-01-01');
+        });
     }
 
     // --------------------------------------------------------------- errors

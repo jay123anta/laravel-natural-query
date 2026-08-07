@@ -47,6 +47,10 @@ class ResponseFormatter
                 // Paired, so the conversation can carry them forward without
                 // guessing which value belongs to which column.
                 'filters' => $queryResult['filters'] ?? [],
+                // The period actually applied. "Last year" is read as calendar
+                // 2025 by some models and as a trailing twelve months by
+                // others, and the difference is invisible in the number alone.
+                'period' => $queryResult['time_filter'] ?? null,
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',

@@ -434,6 +434,12 @@ class QueryOrchestrator
                     'rows' => $result['rows'] ?? [],
                     'metric' => $result['parsed_query']['metric'] ?? null,
                     'group_by' => $result['parsed_query']['group_by'] ?? null,
+                    // The period this step actually used. "Last year" is read
+                    // as calendar 2025 by some models and as a trailing twelve
+                    // months by others; the two differ by millions and the
+                    // number alone shows nothing. A step that states its own
+                    // period lets the reader see which was meant.
+                    'period' => $result['parsed_query']['period'] ?? null,
                     'insights' => $result['insights'] ?? null,
                     'next_steps' => $result['next_steps'] ?? [],
                 ];

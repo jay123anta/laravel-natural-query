@@ -163,6 +163,7 @@
             + '.nq-step{border-left:3px solid color-mix(in srgb,var(--nq) 45%,white);padding:6px 0 6px 12px}'
             + '.nq-step-q{font-size:.82rem;color:#6b7280;margin-bottom:4px}'
             + '.nq-step-q b{color:var(--nq);font-weight:600}'
+            + '.nq-step-period{margin-left:8px;padding:1px 7px;border-radius:6px;background:#f3f4f6;color:#6b7280;font-size:.72rem}'
             + '.nq-step-a{font-size:.9rem;color:#1f2937}'
             + '.nq-step-failed{border-left-color:#fecaca}'
             + '.nq-step-failed .nq-step-a{color:#b91c1c}'
@@ -638,6 +639,14 @@
             var n = h('b', null, 'Step ' + step.n + ': ');
             q.appendChild(n);
             q.appendChild(document.createTextNode(step.question || ''));
+
+            // The period the step resolved to. "Last year" can mean calendar
+            // 2025 or a trailing twelve months, and the two differ by millions
+            // with nothing in the number to say which was used.
+            if (step.period) {
+                q.appendChild(h('span', 'nq-step-period', step.period));
+            }
+
             el.appendChild(q);
 
             el.appendChild(h('div', 'nq-step-a', step.answer || (failed ? 'Could not be answered.' : '')));
