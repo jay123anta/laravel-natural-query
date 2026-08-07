@@ -235,6 +235,45 @@ class ApiErrorSemanticsTest extends TestCase
         );
     }
 
+    /**
+     * Do not ask for the one thing that was never missing.
+     *
+     * When the dataset has been identified and the provider answers without
+     * any SQL, the fallback told the user to "try mentioning a dataset name"
+     * — sending them off supplying exactly what the engine already had, while
+     * the real problem (no such measure, a breakdown that isn't there) went
+     * unsaid.
+     */
+    #[Test]
+    public function naming_the_dataset_is_not_the_advice_when_the_dataset_was_understood()
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        $provider = new RecordingProvider();
+        // Intent parsing produces nothing usable, so the retry runs; the retry's
+        // call succeeds but comes back with no SQL in it.
+        $provider->intentResponse = ['success' => true, 'scheme' => null, 'metric' => null, 'confidence' => 0.1];
+        $provider->sqlResponse = ['success' => true, 'data' => ['explanation' => 'I cannot express that.']];
+
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        $response = $this->postJson('/naturalquery/text', ['text' => 'the vibe of sales last quarter']);
+
+        $error = (string) $response->json('error');
+
+        // Named explicitly so this cannot pass by taking some other route to
+        // some other error.
+        $response->assertJsonPath('error_code', ErrorCode::CANNOT_ANSWER);
+        $this->assertStringContainsString('Sales', $error, 'the identified dataset is not named back');
+        $this->assertStringNotContainsStringIgnoringCase(
+            'mentioning a dataset name',
+            $error,
+            'told the user to name a dataset that had already been identified'
+        );
+    }
+
     #[Test]
     public function an_empty_question_is_still_a_validation_error()
     {

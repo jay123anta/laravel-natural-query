@@ -859,30 +859,42 @@ class QueryOrchestrator
                 return $this->providerFailure($response, $metadata);
             }
 
-            if (isset($response['data']['sql'])) {
-                $data = $response['data'];
-                $schemaData = $this->registry->get($scheme);
+            if (!isset($response['data']['sql'])) {
+                // The dataset was identified and the provider answered without
+                // SQL. Telling the user to name a dataset would send them off
+                // supplying the one thing that was never missing.
+                $name = $this->registry->get($scheme)['name'] ?? $scheme;
 
-                $queryResult = [
-                    'success' => true,
-                    'sql' => $data['sql'],
-                    'scheme' => $scheme,
-                    'scheme_name' => $schemaData['name'] ?? $scheme,
-                    'metric' => $data['metric'] ?? null,
-                    'metric_description' => $data['explanation'] ?? '',
-                    'metric_unit' => '',
-                    'metric_type' => 'neutral',
-                    'group_value' => $data['group_value'] ?? null,
-                    'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
-                    'order' => $data['order'] ?? 'DESC',
-                    'query_type' => $data['query_type'] ?? 'ranking',
-                    'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
-                ];
-
-                $result = $this->validateAndExecute($queryResult, $scheme, $metadata);
-                $result['_retried'] = true;
-                return $result;
+                return $this->formatter->formatError(
+                    "That could not be answered from {$name}. Try naming the measure you want, or rephrasing the breakdown.",
+                    $metadata,
+                    ErrorCode::CANNOT_ANSWER
+                );
             }
+
+            $data = $response['data'];
+            $schemaData = $this->registry->get($scheme);
+
+            $queryResult = [
+                'success' => true,
+                'sql' => $data['sql'],
+                'scheme' => $scheme,
+                'scheme_name' => $schemaData['name'] ?? $scheme,
+                'metric' => $data['metric'] ?? null,
+                'metric_description' => $data['explanation'] ?? '',
+                'metric_unit' => '',
+                'metric_type' => 'neutral',
+                'group_value' => $data['group_value'] ?? null,
+                'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
+                'order' => $data['order'] ?? 'DESC',
+                'query_type' => $data['query_type'] ?? 'ranking',
+                'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
+            ];
+
+            $result = $this->validateAndExecute($queryResult, $scheme, $metadata);
+            $result['_retried'] = true;
+
+            return $result;
         }
 
         // Strategy 2: Return a helpful error with available schemes
