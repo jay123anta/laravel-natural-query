@@ -70,7 +70,7 @@ except the two error codes noted under Fixed.
   dataset that cannot answer reports `cannot_answer`. Clients branching on
   `error_code` for these two cases should check both.
 
-Tests: 432 PHP, 43 widget. Benchmarks against a live provider: Spider dev
+Tests: 437 PHP, 43 widget. Benchmarks against a live provider: Spider dev
 29/36 (81%), execution accuracy 10/14 (71%).
 
 ## [1.0.0] - unreleased
