@@ -335,15 +335,9 @@ class ResponseFormatter
             return 'card';
         }
 
-        if ($rowCount <= 5) {
-            return 'bar';
-        }
-
-        if ($rowCount <= 20) {
-            return 'bar';
-        }
-
-        return 'table';
+        // Bars stop being readable somewhere past twenty rows; a table stays
+        // readable at any length.
+        return $rowCount <= 20 ? 'bar' : 'table';
     }
 
     /**

@@ -411,8 +411,29 @@ Site-wide defaults live in `config/naturalquery.php` under `widget`
 A ready-made demo page is available at `/naturalquery/demo` (enabled in the
 `local` environment by default; control with `NATURALQUERY_DEMO_PAGE`).
 
-Using your own frontend instead? Everything the widget does goes through the
-public REST endpoints listed above - the widget is optional sugar.
+## Building your own front end
+
+The widget is a reference implementation, not the product. Most applications
+will build their own in React, Vue, Inertia or Blade, and everything the widget
+does goes through the same public REST endpoints.
+
+**→ [docs/API.md](docs/API.md) — the full HTTP reference.** Every endpoint,
+every response field, the error codes and their HTTP statuses, the conversation
+state shape, and CORS/token setup for a front end on a different origin.
+
+The response shape is pinned by `tests/Feature/ApiContractTest.php`, so fields
+do not disappear between releases without a changelog entry.
+
+Three things worth knowing before you start:
+
+- **`parsed_query` and `state_summary` are not debug output.** They state which
+  measure, breakdown, filters and dates were actually used. Showing them is how
+  a user catches a misreading instead of believing a wrong number.
+- **Branch on `error_code`, never on the message.** `retryable` tells you
+  whether trying again can possibly help.
+- **A different origin needs CORS.** Without it the browser blocks the response
+  before your code runs, and it looks like a network fault rather than a policy
+  one. `php artisan naturalquery:doctor` checks for this.
 
 ## Configuration
 
