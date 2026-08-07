@@ -160,23 +160,61 @@ class NaturalQueryController extends Controller
     /**
      * List available schemes.
      */
+    /**
+     * Everything a front end needs to show what can be asked.
+     *
+     * This used to return a key and a name, with metrics behind a second call
+     * and dimensions not exposed at all — so a "what can I ask?" panel, the
+     * first thing anyone builds, could not be built. The hardest part of
+     * querying your own data in words is knowing which questions the data can
+     * answer, and the schema already knows.
+     *
+     * One call, everything: measures, breakdowns, the date a period applies to,
+     * and the example questions from the schema files.
+     */
     public function schemes(Request $request)
     {
-        $schemes = $this->orchestrator->getSchemes();
+        $registry = $this->orchestrator->registry();
+        $only = $request->query('scheme');
+        $datasets = [];
 
-        // If a specific scheme is requested, include its metrics
-        $schemeKey = $request->query('scheme');
-        if ($schemeKey) {
-            $metrics = $this->orchestrator->getSchemeMetrics($schemeKey);
-            return response()->json([
-                'scheme' => $schemeKey,
-                'metrics' => $metrics,
-            ]);
+        foreach ($registry->getAvailableSchemes() as $scheme) {
+            if ($only && $scheme['key'] !== $only) {
+                continue;
+            }
+
+            $key = $scheme['key'];
+
+            $datasets[] = $scheme + [
+                'metrics' => $registry->getSchemeMetrics($key),
+                // What the rows can be broken down by. Without this a client
+                // cannot offer "by region" without guessing at column names.
+                'dimensions' => $registry->getGroupableColumns($key),
+                'default_dimension' => $registry->getGroupColumn($key),
+                'date_column' => $registry->getDateColumn($key),
+                'examples' => array_values(array_filter(array_map(
+                    fn ($e) => is_array($e) ? ($e['natural'] ?? null) : (is_string($e) ? $e : null),
+                    $registry->getExampleQueries($key)
+                ))),
+            ];
+        }
+
+        if ($only) {
+            if (!$datasets) {
+                return response()->json([
+                    'status' => 'error',
+                    'error_code' => ErrorCode::CANNOT_ANSWER,
+                    'error' => "No dataset named '{$only}'.",
+                    'available' => array_column($registry->getAvailableSchemes(), 'key'),
+                ], 404);
+            }
+
+            return response()->json($datasets[0]);
         }
 
         return response()->json([
-            'schemes' => $schemes,
-            'total' => count($schemes),
+            'schemes' => $datasets,
+            'total' => count($datasets),
         ]);
     }
 

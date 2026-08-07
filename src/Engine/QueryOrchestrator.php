@@ -1129,6 +1129,18 @@ class QueryOrchestrator
         return $this->registry->getAvailableSchemes();
     }
 
+    /**
+     * The schema registry this orchestrator resolves against.
+     *
+     * Exposed so callers describing what can be asked — the /schemes endpoint,
+     * a custom front end — read the same registry the engine answers from,
+     * rather than a copy that can disagree with it.
+     */
+    public function registry(): SchemaRegistry
+    {
+        return $this->registry;
+    }
+
     public function getSchemeMetrics(string $schemeKey): array
     {
         return $this->registry->getSchemeMetrics($schemeKey);
