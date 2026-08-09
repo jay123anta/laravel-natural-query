@@ -88,15 +88,23 @@ vendor/bin/phpunit --testsuite Conformance
 | DeepSeek | deepseek-v4-flash | 12/12 |
 | Mistral | mistral-large-latest | 12/12 |
 | Groq | llama-3.3-70b-versatile | 12/12 |
-| Groq | llama-3.1-8b-instant | 11/12 |
+| OpenRouter | x-ai/grok-4.5 | 12/12 |
+| Groq | llama-3.1-8b-instant | 10/12 |
 
 **On model size.** The 70B open-weight model passes everything, which is the
-result that matters if you self-host — that class runs on one good GPU. The 8B
-missed one case: it did not pick "in Guwahati" out of *"total amount in
-Guwahati"* and answered for every city. Nothing else differed. **Use a
-70B-class model or better for anything where a wrong number matters**, and if
-you must run something smaller, describe your columns well — the aliases and
+result that matters if you self-host — that class runs on one good GPU.
+
+The 8B fails two cases, repeatably: it did not pick "in Guwahati" out of *"total
+amount in Guwahati"*, and it answered "how many invoices are there" with 1
+instead of 3. Both are wrong numbers that look perfectly reasonable. **Use a
+70B-class model or better for anything where a wrong number matters.** If you
+must run something smaller, describe your columns well — the aliases and
 descriptions in your schema files are what a small model leans on hardest.
+
+Frontier models are not immune to variance either: one Grok run missed a filter
+and the next two did not. Run the battery more than once before trusting a
+single result — which is exactly why the expected values are arithmetic you can
+check yourself.
 
 It exists because unit tests could not find what it finds. A canned response
 happily answers a request the real API would reject, so Claude's driver was

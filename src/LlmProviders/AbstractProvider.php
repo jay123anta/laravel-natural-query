@@ -117,7 +117,18 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
                     continue;
                 }
 
-                return ['success' => false, 'error' => "API error: HTTP {$status}", 'status' => $status];
+                // The provider almost always says WHY in the body, and
+                // discarding it left "API error: HTTP 403" — a number, and
+                // nothing a user can act on. The same 403 meant "your team has
+                // no credits yet", which is a five-minute fix once you can read
+                // it. Same for a rejected key, a retired model, a malformed
+                // request: all of them explain themselves and none of it was
+                // being shown.
+                return [
+                    'success' => false,
+                    'error' => "API error: HTTP {$status}" . $this->explain($response),
+                    'status' => $status,
+                ];
 
             } catch (\Exception $e) {
                 // Redact secrets BEFORE logging — exception messages can embed
@@ -389,6 +400,50 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
         $json = preg_replace('/^\x{FEFF}/u', '', $json);
 
         return trim($json);
+    }
+
+    /**
+     * The provider's own explanation for a failed call, if it gave one.
+     *
+     * Every provider nests it somewhere slightly different — OpenAI and its
+     * imitators use error.message, Anthropic the same, Google error.message on
+     * a differently-shaped envelope — so several shapes are tried before
+     * falling back to the raw body.
+     *
+     * Truncated and stripped of secrets: this text reaches an HTTP response,
+     * and a provider echoing part of the request must not echo a key with it.
+     *
+     * @param \Illuminate\Http\Client\Response $response
+     */
+    protected function explain($response): string
+    {
+        try {
+            $body = $response->json();
+        } catch (\Throwable $e) {
+            $body = null;
+        }
+
+        $message = null;
+
+        if (is_array($body)) {
+            $message = $body['error']['message']
+                ?? $body['error']
+                ?? $body['message']
+                ?? $body['detail']
+                ?? null;
+        }
+
+        if (!is_string($message) || trim($message) === '') {
+            $message = (string) $response->body();
+        }
+
+        $message = trim(preg_replace('/\s+/', ' ', $message));
+
+        if ($message === '') {
+            return '';
+        }
+
+        return ' — ' . $this->redactSecrets(mb_substr($message, 0, 180));
     }
 
     /**

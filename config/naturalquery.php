@@ -102,6 +102,15 @@ return [
                 // Many self-hosted servers reject OpenAI's response_format param.
                 'force_json' => (bool) env('SELFHOSTED_LLM_FORCE_JSON', false),
             ],
+            'openrouter' => [
+                'api_key' => env('OPENROUTER_API_KEY'),
+                'model' => env('OPENROUTER_MODEL', 'x-ai/grok-4.5'),
+                'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'max_retries' => 3,
+                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'force_json' => true,
+            ],
             'groq' => [
                 'api_key' => env('GROQ_API_KEY'),
                 'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
