@@ -78,6 +78,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **"breakdown by client" was reported as a refinement when it is a drill-down.**
+  Every drill pattern read `break\s+…`, so the one-word spelling people
+  actually type fell past all of them and landed on the refinement default.
+
+  Not only a label. A drill-down changes the breakdown and leaves everything
+  else standing; a refinement merges whatever the model re-read from the
+  sentence, so a re-guessed measure could overwrite the one already
+  established. Found in a browser: "total amount by city" then "breakdown by
+  client" — both totalling 12,100, so nothing had been narrowed.
+
+  Drill patterns are now two tiers. Ones that point at the last answer in so
+  many words ("break THAT down") win outright. Bare ones ("breakdown by X",
+  "split by X", "group by X") are checked after the standsAlone test, because
+  those words also appear in self-contained questions — "what is the breakdown
+  of revenue by city" names its own measure and is a new question.
 - **The widget turned every framework-level refusal into "Unexpected response
   status."** It read the HTTP status and threw it away. A 401, an expired
   session (419), a throttle (429) and a 500 all produced the same message,

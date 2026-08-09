@@ -32,13 +32,38 @@ class TurnClassifier
         '/^\s*(?:what|who|which)\s+(?:is|are|was|were)\s+(?:that|those|it|they)\b/i',
     ];
 
-    /** "Break that down by category" — same question, more detail. */
-    protected const DRILL_PATTERNS = [
-        '/\bbreak\s+(?:it|that|this|them)?\s*down\b/i',
-        '/^\s*(?:in|by)\s+which\b/i',
-        '/^\s*split\s+(?:it|that|this)\b/i',
+    /**
+     * "Break THAT down by category" — points at the last answer in so many
+     * words, so it is a drill-down whatever else it mentions. "Break that down
+     * by revenue" names a measure and is still plainly about the answer on
+     * screen.
+     */
+    protected const ANAPHORIC_DRILL_PATTERNS = [
+        '/\bbreak\s+(?:it|that|this|them)\s+down\b/i',
+        '/^\s*split\s+(?:it|that|this|them)\b/i',
+        '/^\s*group\s+(?:it|that|this|them)\s+by\b/i',
         '/^\s*drill\s+(?:down|into)\b/i',
-        '/^\s*group\s+(?:it|that|this)?\s*by\b/i',
+    ];
+
+    /**
+     * "Breakdown by client" — names a breakdown but not what to break down, so
+     * it only makes sense against the previous answer. Checked AFTER
+     * standsAlone(), because these words also appear in self-contained
+     * questions: "what is the breakdown of revenue by city" names its own
+     * measure and is a new question.
+     *
+     * The one-word spelling is here because it was missing, and that is the
+     * spelling people type. "breakdown by client" fell past every drill pattern
+     * — `break\s+…` needs whitespace — and landed on the refinement default. It
+     * still inherited correctly, so the answer was right; it was reported as a
+     * narrowing when nothing had been narrowed, and it let the model's
+     * re-reading of the measure overwrite the one already established.
+     */
+    protected const BARE_DRILL_PATTERNS = [
+        '/\bbreak[\s-]*down\b/i',
+        '/^\s*(?:in|by)\s+which\b/i',
+        '/^\s*split\s+by\b/i',
+        '/^\s*group(?:ed)?\s+by\b/i',
     ];
 
     /** "Only in West" — same question, narrower. */
@@ -80,7 +105,7 @@ class TurnClassifier
             }
         }
 
-        foreach (self::DRILL_PATTERNS as $pattern) {
+        foreach (self::ANAPHORIC_DRILL_PATTERNS as $pattern) {
             if (preg_match($pattern, $q)) {
                 return self::DRILL_DOWN;
             }
@@ -91,6 +116,15 @@ class TurnClassifier
         // last turn's filters would quietly narrow it.
         if ($this->standsAlone($q, $state)) {
             return self::NEW_QUERY;
+        }
+
+        // Below standsAlone on purpose: these words appear in self-contained
+        // questions too, and only the ones that name no measure of their own
+        // are actually asking about the previous answer.
+        foreach (self::BARE_DRILL_PATTERNS as $pattern) {
+            if (preg_match($pattern, $q)) {
+                return self::DRILL_DOWN;
+            }
         }
 
         foreach (self::REFINEMENT_PATTERNS as $pattern) {
