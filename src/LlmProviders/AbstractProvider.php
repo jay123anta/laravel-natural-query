@@ -392,6 +392,22 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
     }
 
     /**
+     * 'asc' or 'desc', from whatever the model sent or did not send.
+     *
+     * Shared because three providers had the same defect: the null-coalesce
+     * guarded the validity check and not the branch that used the value, so a
+     * model omitting the field passed the check and then read the missing key.
+     * Gemini always sends it, so the only provider under live test never
+     * triggered it.
+     */
+    protected function normalizeOrder(mixed $order): string
+    {
+        $normalized = strtolower(trim((string) ($order ?? '')));
+
+        return in_array($normalized, ['asc', 'desc'], true) ? $normalized : 'desc';
+    }
+
+    /**
      * Add the usage block from one response to this instance's running total.
      *
      * Accumulated rather than replaced, because answering one question can

@@ -52,6 +52,24 @@ class SchemaRegistry
             $key = pathinfo($file, PATHINFO_FILENAME);
             try {
                 $schema = require $file;
+
+                if (is_array($schema) && self::isUntouchedTemplate($schema)) {
+                    // The file naturalquery:install writes, still pointing at
+                    // its placeholder table. Loading it makes a dataset the
+                    // model can pick and no query can satisfy — on a fresh
+                    // install a plain "total amount" chose it roughly half the
+                    // time and came back "no such table: schema", which names
+                    // nothing the user has ever seen.
+                    //
+                    // Skipped rather than repaired: there is nothing to repair.
+                    // naturalquery:doctor still reports the file so it does not
+                    // vanish silently.
+                    Log::info('[NaturalQuery:SchemaRegistry] Ignoring the unedited example template', [
+                        'file' => $file,
+                    ]);
+                    continue;
+                }
+
                 if (is_array($schema)) {
                     $this->schemas[$key] = $schema;
                 }
@@ -64,6 +82,26 @@ class SchemaRegistry
         }
 
         return $this->schemas;
+    }
+
+    /**
+     * Is this the shipped template, still pointing at its placeholder table?
+     *
+     * Matched on the table name rather than the file name, so a copy under any
+     * name is recognised — and so a template that HAS been pointed at a real
+     * table is treated as the ordinary schema it now is, which is the whole
+     * point of editing it.
+     *
+     * Static and public because naturalquery:doctor asks the same question,
+     * and the two must never disagree about which files are real.
+     *
+     * @param array<string, mixed> $schema
+     */
+    public static function isUntouchedTemplate(array $schema): bool
+    {
+        $table = $schema['tables']['primary']['name'] ?? null;
+
+        return is_string($table) && strtolower(trim($table)) === 'schema_name.table_name';
     }
 
     /**

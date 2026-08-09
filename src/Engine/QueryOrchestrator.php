@@ -326,6 +326,10 @@ class QueryOrchestrator
             }
         }
 
+        // A total is one number. Applied after the cache too, since a stored
+        // intent can carry the same invented breakdown.
+        $intent = $this->dropUnaskedBreakdown($intent, $query);
+
         // Apply scheme hint
         if ($schemeHint && empty($intent['scheme'])) {
             if ($this->registry->has($schemeHint)) {
@@ -619,6 +623,69 @@ class QueryOrchestrator
      * @param array<string, mixed> $intent
      * @return array<string, mixed>
      */
+    /**
+     * "How many invoices are pending" is one number, not a league table.
+     *
+     * Both Gemini and DeepSeek answered that question with
+     * query_type=ranking and group_by=client, producing "Rekha Stores: 1
+     * records" where the answer is "1". Two providers agreeing means the
+     * prompt is not carrying it, so this is decided locally instead — the same
+     * reasoning as every other guard here: a rule that must hold is cheaper to
+     * enforce than to ask for.
+     *
+     * The count was right, which is what makes it worth fixing. A wrong number
+     * gets questioned; a right number wearing the wrong shape gets read as
+     * "only Rekha Stores has pending invoices", which is a different claim and
+     * one nobody checked.
+     *
+     * Only fires when the sentence asks for a total AND names no breakdown. A
+     * breakdown that was asked for is never touched, and neither is a question
+     * that did not ask for a total — "top clients by amount" has no total
+     * wording and keeps its grouping.
+     *
+     * @param array<string, mixed> $intent
+     * @return array<string, mixed>
+     */
+    protected function dropUnaskedBreakdown(array $intent, string $query): array
+    {
+        // Deliberately NOT skipped when group_by is empty. The breakdown comes
+        // from two places: the model can name one, and SqlBuilder falls back to
+        // the schema's default group column when it does not. An early return
+        // on an empty group_by fixed DeepSeek, which names one, and left Gemini
+        // exactly as it was, because Gemini names none and the default supplies
+        // it downstream. Saying "aggregation" is what stops that fallback.
+
+        // "by region", "per customer", "for each status", "breakdown by" — any
+        // of these and the grouping was requested.
+        if (preg_match('/\b(?:by|per|each|breakdown|split|grouped)\b/i', $query)) {
+            return $intent;
+        }
+
+        // Asks for a single figure over the whole set.
+        $wantsOneNumber = preg_match(
+            '/\b(?:how\s+many|how\s+much|total|sum|count|average|mean|number\s+of)\b/i',
+            $query
+        );
+
+        if (!$wantsOneNumber) {
+            return $intent;
+        }
+
+        if (($intent['query_type'] ?? null) === 'aggregation' && empty($intent['group_by'])) {
+            return $intent; // already right; nothing to say
+        }
+
+        Log::info('[NaturalQuery] Answering as a total, not a breakdown', [
+            'group_by' => $intent['group_by'] ?? '(schema default)',
+            'query' => $query,
+        ]);
+
+        $intent['group_by'] = null;
+        $intent['query_type'] = 'aggregation';
+
+        return $intent;
+    }
+
     protected function normalizeIntent(array $intent): array
     {
         if (!array_key_exists('group_value', $intent) && array_key_exists('district', $intent)) {
@@ -626,6 +693,52 @@ class QueryOrchestrator
         }
 
         unset($intent['district']);
+
+        return $this->dropDuplicatedGroupValue($intent);
+    }
+
+    /**
+     * One constraint, expressed twice.
+     *
+     * Models sometimes put the same value in `group_value` AND in `filters`.
+     * "How many invoices are pending" came back with filters=[status:pending]
+     * and group_value="pending" — the same narrowing said two ways.
+     *
+     * That is not harmless. `group_value` matches against the GROUP column, so
+     * the copy asks for a *client* named "pending"; and its mere presence
+     * disqualifies the query from being a total, which is how a question with
+     * a plain numeric answer came back as a one-row league table.
+     *
+     * `filters` is the better of the two — it names the column — so the bare
+     * copy goes. Compared case-insensitively, since the two rarely agree on
+     * capitalisation.
+     *
+     * @param array<string, mixed> $intent
+     * @return array<string, mixed>
+     */
+    protected function dropDuplicatedGroupValue(array $intent): array
+    {
+        $value = $intent['group_value'] ?? null;
+
+        if ($value === null || $value === '' || empty($intent['filters']) || !is_array($intent['filters'])) {
+            return $intent;
+        }
+
+        foreach ($intent['filters'] as $filter) {
+            if (!is_array($filter) || !isset($filter['value'])) {
+                continue;
+            }
+
+            if (strcasecmp(trim((string) $filter['value']), trim((string) $value)) === 0) {
+                Log::info('[NaturalQuery] Same filter given twice; keeping the one that names its column', [
+                    'group_value' => $value,
+                    'column' => $filter['column'] ?? null,
+                ]);
+
+                $intent['group_value'] = null;
+                break;
+            }
+        }
 
         return $intent;
     }

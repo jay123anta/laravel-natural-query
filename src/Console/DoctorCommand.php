@@ -440,9 +440,23 @@ class DoctorCommand extends Command
 
         $schemas = $registry->all();
 
+        // Reported from the DIRECTORY, because the registry deliberately drops
+        // these — an unedited template names a placeholder table, and offering
+        // it to the model produces "no such table: schema" on a fresh install.
+        // Without this the file would vanish from view entirely: excluded from
+        // the engine and unmentioned by the one command meant to explain the
+        // setup.
+        $templates = $this->unEditedTemplates($path);
+
+        foreach ($templates as $name) {
+            $this->skip("'{$name}' is the shipped template, still on its placeholder table — not queried. Edit it or delete it.");
+        }
+
         if (empty($schemas)) {
             $this->problem(
-                'No schema files found in ' . $path,
+                $templates
+                    ? 'No usable schema files in ' . $path . ' — only the unedited template'
+                    : 'No schema files found in ' . $path,
                 'Generate one from your live database: php artisan naturalquery:discover'
             );
             return;
@@ -781,9 +795,36 @@ class DoctorCommand extends Command
      * is recognised, and so a template that HAS been pointed at a real table is
      * checked like any other schema — which is the whole point of editing it.
      */
+    /**
+     * Schema files in the directory that are still the unedited template.
+     *
+     * @return array<int, string> file basenames, without .php
+     */
+    protected function unEditedTemplates(string $path): array
+    {
+        $found = [];
+
+        foreach (glob(rtrim($path, '/\\') . '/*.php') ?: [] as $file) {
+            try {
+                $schema = require $file;
+            } catch (\Throwable $e) {
+                continue; // a broken file is a different problem, reported elsewhere
+            }
+
+            if (is_array($schema) && SchemaRegistry::isUntouchedTemplate($schema)) {
+                $found[] = pathinfo($file, PATHINFO_FILENAME);
+            }
+        }
+
+        return $found;
+    }
+
     protected function isUntouchedExample(string $table): bool
     {
-        return strtolower($table) === 'schema_name.table_name';
+        // Delegated so doctor and the registry can never disagree about which
+        // files are real. They did briefly: doctor said the template "is not
+        // queried" while the registry was happily offering it to the model.
+        return SchemaRegistry::isUntouchedTemplate(['tables' => ['primary' => ['name' => $table]]]);
     }
 
     protected function problem(string $message, string $fix): void

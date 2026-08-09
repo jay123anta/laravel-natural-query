@@ -391,9 +391,77 @@ class DoctorCommandTest extends TestCase
                 $output,
                 'the template was reported as a broken schema'
             );
-            $this->assertSame(0, $exit, 'a fresh install must not exit non-zero');
+
+            // Nothing but the template IS a problem — there is no dataset any
+            // question could be answered from — but the reason given must be
+            // that, not a phantom missing table.
+            $this->assertStringContainsString('No usable schema files', $output);
+            $this->assertSame(1, $exit);
         } finally {
             @unlink($dir . '/example.php');
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * The realistic fresh install: `install` writes the template, `discover`
+     * adds a real dataset. That setup works, so doctor must pass — and must
+     * still mention the template, since the engine now ignores it and the file
+     * would otherwise disappear from view entirely.
+     */
+    #[Test]
+    public function a_template_alongside_a_real_schema_is_a_working_install()
+    {
+        $dir = $this->useShippedTemplate();
+        copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        Schema::create('orders', function ($table) {
+            $table->id();
+            $table->string('customer_name');
+            $table->decimal('amount', 12, 2);
+            $table->string('status');
+        });
+
+        try {
+            $exit = Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+            $output = Artisan::output();
+
+            $this->assertStringContainsString('shipped template', $output, 'the template went unmentioned');
+            $this->assertStringNotContainsString('No usable schema files', $output);
+            $this->assertSame(0, $exit, 'install + discover must be a clean bill of health');
+        } finally {
+            @unlink($dir . '/example.php');
+            @unlink($dir . '/test_orders.php');
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * The reason the registry drops it at all.
+     *
+     * On a fresh install the template was a selectable dataset whose table is
+     * a placeholder, so a plain "total amount" chose it perhaps half the time
+     * and came back "Database query failed: no such table: schema" — a name
+     * appearing nowhere the user has ever looked. Found with DeepSeek; Gemini
+     * had simply been picking the other one.
+     */
+    #[Test]
+    public function the_engine_is_never_offered_the_template_as_a_dataset()
+    {
+        $dir = $this->useShippedTemplate();
+        copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+
+        try {
+            $registry = $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+            $keys = array_column($registry->getAvailableSchemes(), 'key');
+
+            $this->assertNotContains('example', $keys, 'the model can still pick the template');
+            $this->assertContains('test_orders', $keys, 'a real schema was dropped too');
+        } finally {
+            @unlink($dir . '/example.php');
+            @unlink($dir . '/test_orders.php');
             @rmdir($dir);
         }
     }

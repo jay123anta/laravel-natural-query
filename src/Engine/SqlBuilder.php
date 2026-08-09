@@ -205,7 +205,24 @@ class SqlBuilder
             }
 
             $bindings = [];
-            if ($filtersAnotherColumn) {
+            if ($wantsTotal) {
+                // Before the filter branch, because a filter NARROWS a total —
+                // it does not turn it into a league table. "How many invoices
+                // are pending" is one number over the pending ones.
+                //
+                // The other order shipped, and that question came back grouped
+                // by client: "Rekha Stores: 1 records" where the answer is "1".
+                // Right count, wrong question — and the wrong question is the
+                // one a reader believes, because nothing about it looks broken.
+                //
+                // wantsTotal is already narrow: the model said aggregation AND
+                // no breakdown was requested AND no single record was named. A
+                // question that asked for a breakdown never gets here.
+                $result = $this->buildTotalQuery($fromClause, $metricExpr, $metric, $aggregate, $time, $filters);
+                $sql = $result['sql'];
+                $bindings = $result['bindings'];
+                $queryType = 'aggregation';
+            } elseif ($filtersAnotherColumn) {
                 // Still a ranking — "quantity by customer for Grocery" wants
                 // every customer within that category, not one row.
                 $result = $this->buildFilteredRankingQuery(
@@ -223,11 +240,6 @@ class SqlBuilder
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'ranking';
-            } elseif ($wantsTotal) {
-                $result = $this->buildTotalQuery($fromClause, $metricExpr, $metric, $aggregate, $time);
-                $sql = $result['sql'];
-                $bindings = $result['bindings'];
-                $queryType = 'aggregation';
             } elseif ($groupValue) {
                 $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey, $time);
                 $sql = $result['sql'];
@@ -603,12 +615,24 @@ class SqlBuilder
      *
      * @return array{sql: string, bindings: array}
      */
+    /**
+     * One number over the whole set — narrowed, if the question narrowed it.
+     *
+     * Filters used to be missing here, and the branch that handles them ran
+     * first, so "how many invoices are pending" never reached this method at
+     * all: it was answered as a filtered RANKING and came back grouped by
+     * client. The count was right and the shape was a different question.
+     *
+     * @param array{clauses?: array<int, string>, bindings?: array<int, mixed>} $filters
+     * @param array{clause?: string, bindings?: array<int, mixed>} $time
+     */
     protected function buildTotalQuery(
         string $fromClause,
         string $metricExpr,
         string $metricAlias,
         bool $aggregate,
-        array $time
+        array $time,
+        array $filters = []
     ): array {
         // By this point an aggregatable column is already wrapped in SUM() and
         // a computed metric may aggregate on its own. Only a bare column still
@@ -617,11 +641,19 @@ class SqlBuilder
             ? $metricExpr
             : "SUM({$metricExpr})";
 
-        $where = !empty($time['clause']) ? " WHERE {$time['clause']}" : '';
+        $conditions = $filters['clauses'] ?? [];
+
+        if (!empty($time['clause'])) {
+            $conditions[] = $time['clause'];
+        }
+
+        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
 
         return [
             'sql' => "SELECT {$expr} AS {$metricAlias} FROM {$fromClause}{$where}",
-            'bindings' => $time['bindings'] ?? [],
+            // Filters first, then the period: the same order the clauses are
+            // concatenated in, which is the order the placeholders bind in.
+            'bindings' => array_merge($filters['bindings'] ?? [], $time['bindings'] ?? []),
         ];
     }
 

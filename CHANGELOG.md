@@ -78,6 +78,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **A total with a filter came back as a league table.** "How many invoices
+  are pending" answered "Rekha Stores: 1 records" — right count, wrong
+  question, and the wrong question is the one a reader believes because
+  nothing about it looks broken. SqlBuilder tested "has a filter" before
+  "is a total", so any total carrying a filter became a filtered ranking;
+  buildTotalQuery also took no filters, so the narrowing had nowhere to go.
+  Both fixed: a filter narrows a total rather than reshaping it.
+- **The same narrowing given twice disqualified a total.** Models put the
+  value in `filters` AND in `group_value`. group_value matches against the
+  GROUP column, so the copy asked for a *client* named "pending" — and its
+  mere presence stops a query being an aggregation. The bare copy is dropped;
+  `filters` is kept because it names its column. A group_value that is not a
+  duplicate is untouched.
+- **`$parsed[order]` was read unguarded in three providers.** The
+  null-coalesce protected the validity check and not the branch that used the
+  value, so a model omitting the field passed the check and then read the
+  missing key. Gemini always sends it, which is why it survived: the only
+  provider under live test could never trigger it. Now one shared
+  `normalizeOrder()`.
+- **The install template was a selectable dataset.** `naturalquery:install`
+  writes `example.php`, pointing at the placeholder `schema_name.table_name`,
+  and the registry loaded it — so on a fresh install the model could pick it,
+  and a plain "total amount" then failed with "no such table: schema", a name
+  appearing nowhere the user has ever looked. The registry now ignores an
+  unedited template; `naturalquery:doctor` reports it from the directory so
+  the file does not vanish from view. One predicate, shared, so the two can
+  never disagree.
 - **"breakdown by client" was reported as a refinement when it is a drill-down.**
   Every drill pattern read `break\s+…`, so the one-word spelling people
   actually type fell past all of them and landed on the refinement default.

@@ -148,7 +148,13 @@ PROMPT;
             'scheme' => $scheme,
             'metric' => $parsed['metric'] ?? null,
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
-            'order' => in_array(strtolower($parsed['order'] ?? 'desc'), ['asc', 'desc']) ? strtolower($parsed['order']) : 'desc',
+            // Coalesced ONCE. The old line guarded the in_array check with
+            // ?? 'desc' and then re-read the key unguarded in the true branch,
+            // so a model that omits 'order' — DeepSeek does — passed the check
+            // and hit strtolower(null). Gemini always sends it, which is why
+            // this survived: three providers carried it and only the tested one
+            // never triggered it.
+            'order' => $this->normalizeOrder($parsed['order'] ?? null),
             'group_value' => $parsed['group_value'] ?? null,
             'group_by' => $parsed['group_by'] ?? null,
             'filter_column' => $parsed['filter_column'] ?? null,
