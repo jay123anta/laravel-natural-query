@@ -995,6 +995,14 @@ class QueryOrchestrator
             'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
             'order' => $data['order'] ?? 'DESC',
             'query_type' => $data['query_type'] ?? 'ranking',
+            // Reported so a generated query says which dates it covered.
+            // Intent mode derives this from date_from/date_to; SQL
+            // generation writes the WHERE itself, so it had nothing to
+            // report and every step of a decomposed question came back
+            // with a blank period — while the README promises each one
+            // states the range it used. The model knows; it just was not
+            // being asked.
+            'time_filter' => $data['period'] ?? null,
             'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
         ];
 
@@ -1139,6 +1147,14 @@ class QueryOrchestrator
                 'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
                 'order' => $data['order'] ?? 'DESC',
                 'query_type' => $data['query_type'] ?? 'ranking',
+            // Reported so a generated query says which dates it covered.
+            // Intent mode derives this from date_from/date_to; SQL
+            // generation writes the WHERE itself, so it had nothing to
+            // report and every step of a decomposed question came back
+            // with a blank period — while the README promises each one
+            // states the range it used. The model knows; it just was not
+            // being asked.
+            'time_filter' => $data['period'] ?? null,
                 'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
             ];
 

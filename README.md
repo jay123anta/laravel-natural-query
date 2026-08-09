@@ -69,9 +69,10 @@ Read that as: roughly one question in five is wrong on an *uncurated* schema.
 That is why every answer shows the measure, breakdown and filters it used —
 a misreading you can see is a different thing from one you cannot.
 
-**Every provider is checked against the same battery.** Twelve cases with
+**Every provider is checked against the same battery.** Seventeen cases with
 answers you can verify by hand on three rows of seeded data — totals, counts,
-filters, averages, rankings, and a conversation that narrows, drills down and
+filters, averages, rankings, calendar periods, a decomposed comparison, the
+follow-up suggestions, and a conversation that narrows, drills down and
 rewinds:
 
 ```bash
@@ -83,12 +84,12 @@ vendor/bin/phpunit --testsuite Conformance
 
 | Provider | Model | Result |
 |---|---|---|
-| Gemini | gemini-2.5-flash | 12/12 |
-| Claude | claude-sonnet-5 | 12/12 |
-| DeepSeek | deepseek-v4-flash | 12/12 |
-| Mistral | mistral-large-latest | 12/12 |
-| Groq | llama-3.3-70b-versatile | 12/12 |
-| OpenRouter | x-ai/grok-4.5 | 12/12 |
+| Gemini | gemini-2.5-flash | 17/17 |
+| Claude | claude-sonnet-5 | 17/17 |
+| DeepSeek | deepseek-v4-flash | 17/17 |
+| Mistral | mistral-large-latest | 17/17 |
+| Groq | llama-3.3-70b-versatile | 17/17 |
+| OpenRouter | x-ai/grok-4.5 | 12/12 on the shorter battery; the account ran out of credits before the rest |
 | Groq | llama-3.1-8b-instant | 10/12 |
 
 **On model size.** The 70B open-weight model passes everything, which is the
@@ -111,6 +112,11 @@ happily answers a request the real API would reject, so Claude's driver was
 broken on every call and nothing failed; and a filter dropped in the engine
 only showed up on a two-turn chain. Add `NATURALQUERY_CONFORMANCE_DELAY=20`
 for a free tier.
+
+**CI runs it on every push** for whichever providers have their key set as a
+repository secret (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`),
+and skips the ones that do not — a fork is never failed by a secret it cannot
+have.
 
 It ships knowing nothing about your domain. `naturalquery:discover` reads
 *your* database and writes a config file per table; those files are the only

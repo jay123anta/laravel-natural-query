@@ -115,6 +115,7 @@ Respond with ONLY a JSON object (no markdown):
     "group_value": "a specific record name to filter to, if the user named one, else null — never a category or column name",
     "order": "DESC or ASC",
     "limit": {$defaultLimit},
+    "period": "the date range your WHERE clause applies, as YYYY-MM-DD to YYYY-MM-DD, or null if you filtered no dates",
     "explanation": "Brief explanation of what the query does"
 }
 
@@ -226,6 +227,7 @@ Return JSON only (no markdown):
     "group_value": "specific group name if mentioned, or null",
     "order": "DESC or ASC",
     "limit": {$defaultLimit},
+    "period": "the date range your WHERE clause applies, as YYYY-MM-DD to YYYY-MM-DD, or null if you filtered no dates",
     "explanation": "Brief explanation"
 }
 

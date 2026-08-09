@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Run it more than once before believing a single result: one Grok run missed
   a filter and the two after it did not.
+
+  Extended to seventeen cases — calendar periods, a decomposed comparison and
+  the follow-up suggestions were all documented and none were exercised. The
+  multi-step path is the most complex in the package and had never been checked
+  against a real provider at all.
+
+  **CI runs it on every push** for whichever providers have a key set as a
+  repository secret, and skips the rest, so a fork is never failed by a secret
+  it cannot have. That turns "a driver silently broken against a live API" from
+  something an adopter discovers into something the build catches.
 - **Each turn says whether it stood alone.** The widget shows *New topic*,
   *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
   context was carried, with the reason on hover.
@@ -95,6 +105,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **A generated query never said which dates it covered.** Intent mode derives
+  `period` from `date_from`/`date_to`; SQL generation writes the `WHERE` itself
+  and had nothing to report, so every step of a decomposed question came back
+  with a blank period — while the README promises each one states the range it
+  used. "Last year" meaning a calendar year or a trailing twelve months is
+  invisible in a total, which is the entire reason for showing it. The SQL
+  prompts now ask for the range applied, and it is reported like any other.
 - **A failed provider call threw away the provider's own explanation.** "API
   error: HTTP 403" is a number. The same 403 carried "Your newly created team
   doesn't have any credits or licenses yet", with a link — a five-minute fix

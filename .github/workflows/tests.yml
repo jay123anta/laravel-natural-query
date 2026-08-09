@@ -295,3 +295,59 @@ jobs:
       # owns the lock), so there is nothing to check it against.
       - name: Validate composer.json
         run: composer validate --strict --no-check-lock
+
+  # ---------------------------------------------------------------------------
+  # Provider conformance.
+  #
+  # Twelve-plus cases whose answers are arithmetic on three seeded rows, run
+  # against a REAL provider. The unit suite cannot find what this finds: a
+  # canned response is perfectly happy to answer a request the live API would
+  # reject, which is how the Claude driver stayed broken on every call while
+  # every test passed.
+  #
+  # Skips itself when the secret is absent, so forks and PRs from outside the
+  # repository are unaffected rather than failing on something they cannot fix.
+  # ---------------------------------------------------------------------------
+  conformance:
+    name: Conformance · ${{ matrix.provider }}
+    runs-on: ubuntu-latest
+    # Never on a fork: secrets are not available there, and a red tick nobody
+    # can clear teaches people to ignore red ticks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: gemini
+            secret: GEMINI_API_KEY
+          - provider: claude
+            secret: ANTHROPIC_API_KEY
+          - provider: deepseek
+            secret: DEEPSEEK_API_KEY
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Run conformance against ${{ matrix.provider }}
+        env:
+          NATURALQUERY_CONFORMANCE: '1'
+          NATURALQUERY_LLM_DRIVER: ${{ matrix.provider }}
+          NATURALQUERY_CONFORMANCE_KEY: ${{ secrets[matrix.secret] }}
+          # Shared runners are noisy neighbours on a free tier.
+          NATURALQUERY_CONFORMANCE_DELAY: '3'
+        run: |
+          if [ -z "$NATURALQUERY_CONFORMANCE_KEY" ]; then
+            echo "::notice::No ${{ matrix.secret }} secret set — conformance skipped for ${{ matrix.provider }}."
+            exit 0
+          fi
+          vendor/bin/phpunit --testsuite Conformance

@@ -306,6 +306,58 @@ class ProviderConformanceTest extends TestCase
             ($rewound['status'] ?? '') === 'success' && ($rewound['state_summary'] ?? '') !== $before,
             (string) ($rewound['state_summary'] ?? ''));
 
+        // ------------------------------------------------------------ periods
+        //
+        // The seeded invoices straddle two months on purpose: two in July
+        // (4200 + 1800 = 6000) and one in August (6100). A period that is
+        // silently ignored returns 12100 and looks like a perfectly good
+        // answer, so the wrong number here is the whole point.
+        $this->pace();
+        $r = $o->query('total amount in July 2026');
+        $this->check('period: July = 6000 (not 12100)', $this->scalar($r) == 6000.0, $this->detail($r));
+
+        $this->pace();
+        $r = $o->query('total amount in August 2026');
+        $this->check('period: August = 6100', $this->scalar($r) == 6100.0, $this->detail($r));
+
+        // --------------------------------------------------------- multi-step
+        //
+        // The most complex path in the package and the one never checked
+        // against a real provider: the question is decomposed, each step is
+        // answered separately, and the parts are combined. The steps must carry
+        // the periods they actually used — "last month" resolving differently
+        // from what the user meant is invisible in a combined figure.
+        $this->pace();
+        $r = $o->query('compare total amount in July 2026 and August 2026');
+        $steps = $r['steps'] ?? [];
+        $values = array_map(
+            fn ($s) => (float) (array_values((array) (($s['rows'][0] ?? [])))[0] ?? 0),
+            $steps
+        );
+        sort($values);
+
+        $this->check('multi-step: two steps, 6000 and 6100',
+            count($steps) === 2 && $values === [6000.0, 6100.0],
+            count($steps) . ' step(s): ' . json_encode($values) ?: $this->detail($r));
+
+        $this->check('multi-step: each step states its period',
+            count($steps) === 2
+                && !empty($steps[0]['period'] ?? null)
+                && !empty($steps[1]['period'] ?? null),
+            json_encode(array_column($steps, 'period')));
+
+        // --------------------------------------------------------- next steps
+        //
+        // Schema-derived, so no API call is made for them and they can only
+        // propose breakdowns the validator would accept. A front end renders
+        // them as buttons; empty means the widget shows a dead end.
+        $this->pace();
+        $r = $o->query('total amount by city');
+        $next = $r['next_steps'] ?? [];
+        $this->check('next steps: suggestions offered, each with a query',
+            count($next) > 0 && !empty($next[0]['query'] ?? null),
+            json_encode(array_column($next, 'label')));
+
         // ---------------------------------------------------------- reporting
         $failed = array_filter($this->results, fn ($r) => !$r['passed']);
 
