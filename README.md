@@ -1075,6 +1075,17 @@ starts with.
 the widget, so a misread is caught rather than trusted, and "no, I meant X"
 corrects something visible.
 
+**And whether the turn stood alone.** Beside the state the widget shows
+**New topic**, **Follow-up**, **Drill-down** or **Same query**, from
+`conversation.classification`, tinted when context was carried.
+
+The state summary cannot convey this by itself. Ask "total amount by city" then
+"breakdown by client" and both read `amount · by client` whether the second
+inherited the measure or worked it out afresh — identical text, two different
+things happening. And when a filter *is* inherited, knowing it was inherited
+rather than asked for is the difference between trusting a number and checking
+it.
+
 **Going back is a restore, not a re-interpretation.** Every turn's state is
 kept:
 

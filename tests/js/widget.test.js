@@ -649,6 +649,50 @@ async function run() {
         });
     }
 
+    // --------------------------------------- did this turn stand alone or not
+    //
+    // Asked after real use: two turns on screen, and no way to tell whether the
+    // second inherited the first. The state summary cannot answer it — "total
+    // amount by city" then "breakdown by client" both read "amount · by client"
+    // whether the metric was inherited or worked out afresh. Identical text,
+    // two different things happening.
+    {
+        const kinds = [
+            ['new_query', 'New topic', false],
+            ['refinement', 'Follow-up', true],
+            ['drill_down', 'Drill-down', true],
+            ['reference', 'Same query', true],
+        ];
+
+        for (const [classification, label, carried] of kinds) {
+            await check(classification + ' is shown as "' + label + '"', async () => {
+                const ctx = mount({}, () => answer({
+                    state_summary: 'Invoices · amount · by client',
+                    conversation: { turn: 2, classification: classification },
+                }));
+                ctx.widget.input.value = 'breakdown by client';
+                ctx.widget.submit();
+                await settle();
+
+                const badge = ctx.root.querySelector('.nq-kind');
+                assert(badge, 'no turn-kind badge rendered for ' + classification);
+                assert(badge.textContent === label, 'got "' + badge.textContent + '", wanted "' + label + '"');
+                assert(badge.classList.contains('nq-kind-carried') === carried,
+                    classification + ' marked as ' + (carried ? 'standalone' : 'carried') + ' — the wrong way round');
+                assert((badge.title || '').length > 0, 'no explanation on hover');
+            });
+        }
+
+        await check('a one-shot answer carries no badge, since there is no thread', async () => {
+            const ctx = mount({ conversation: false }, () => answer());
+            ctx.widget.input.value = 'total amount by city';
+            ctx.widget.submit();
+            await settle();
+
+            assert(!ctx.root.querySelector('.nq-kind'), 'a badge appeared with no conversation');
+        });
+    }
+
     await settle();
 
     console.log('\n  ' + passed + ' passed, ' + failed + ' failed\n');

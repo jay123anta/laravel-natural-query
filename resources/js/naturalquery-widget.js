@@ -98,6 +98,31 @@
         return docLang || navigator.language || 'en-US';
     }
 
+    /**
+     * How a turn was classified, in words a user reads rather than an enum.
+     *
+     * `carried` is the part that matters: it says the previous turn's dataset,
+     * measure and filters are still in force. Everything else is detail.
+     */
+    function turnKind(classification) {
+        switch (classification) {
+            case 'new_query':
+                return { label: 'New topic', carried: false,
+                         hint: 'Read on its own. Nothing was carried over from the last question.' };
+            case 'refinement':
+                return { label: 'Follow-up', carried: true,
+                         hint: 'Narrowed the previous question. Its dataset, measure and filters still apply.' };
+            case 'drill_down':
+                return { label: 'Drill-down', carried: true,
+                         hint: 'Changed the breakdown of the previous question. Its filters still apply.' };
+            case 'reference':
+                return { label: 'Same query', carried: true,
+                         hint: 'Asked about the answer already on screen. The query did not change.' };
+            default:
+                return null;
+        }
+    }
+
     function titleCase(s) {
         return String(s).replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
     }
@@ -181,6 +206,10 @@
             + '.nq-options{display:flex;flex-wrap:wrap;gap:8px}'
             + '.nq-state{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0 0 12px;padding:7px 11px;background:color-mix(in srgb,var(--nq) 6%,white);border:1px solid color-mix(in srgb,var(--nq) 18%,white);border-radius:8px}'
             + '.nq-state-lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#9ca3af;flex:none}'
+            // A carried turn is tinted; a new topic is grey. The colour is the
+            // fast signal, the word is the precise one.
+            + '.nq-kind{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:#e5e7eb;color:#4b5563;flex:none;cursor:help}'
+            + '.nq-kind-carried{background:color-mix(in srgb,var(--nq) 16%,white);color:color-mix(in srgb,var(--nq) 80%,black)}'
             + '.nq-state-val{font-size:.85rem;color:#374151;font-weight:500}'
             // Question right, answer left — the arrangement every messaging app
             // uses, so who said what needs no explaining.
@@ -732,6 +761,23 @@
         // and "no, I meant X" becomes a correction of something visible.
         if (data.state_summary) {
             var state = h('div', 'nq-state');
+
+            // Whether this turn stands alone or carried the last one forward.
+            //
+            // The state summary alone cannot answer that. Ask "total amount by
+            // city" then "breakdown by client" and both read "Invoices ·
+            // amount · by client" whether the second inherited the metric or
+            // worked it out afresh — identical text, two different things
+            // happening. And when a filter IS inherited, knowing it was
+            // inherited rather than asked for is the difference between
+            // trusting a number and checking it.
+            var kind = turnKind((data.conversation || {}).classification);
+            if (kind) {
+                var badge = h('span', 'nq-kind' + (kind.carried ? ' nq-kind-carried' : ''), kind.label);
+                badge.title = kind.hint;
+                state.appendChild(badge);
+            }
+
             state.appendChild(h('span', 'nq-state-lbl', 'Reading this as'));
             state.appendChild(h('span', 'nq-state-val', data.state_summary));
             card.appendChild(state);

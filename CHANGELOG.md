@@ -7,49 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- **Authorization is now a gate, not `auth` middleware.** Walking the documented
-  install on a virgin Laravel 13 app — require, install, migrate, key, discover —
-  the first thing it does is fail: `/naturalquery/demo`, the page the README
-  sends you to, returns **500 `RouteNotFoundException: Route [login] not
-  defined`**. A fresh Laravel app has no auth scaffolding, so `auth` had nowhere
-  to redirect. The package looked broken while working exactly as configured.
-
-  Following the pattern Telescope and Horizon use for the same problem:
-
-  - a `viewNaturalQuery` gate defined by your app decides, always — including
-    when it says no in local;
-  - no gate, `local` or `testing` → allowed, so the package works on install and
-    an adopter's first feature test does not fail with 403;
-  - no gate, anywhere else → an authenticated user is required, as before.
-
-  Refusals are **403 naming the gate**, never a redirect. The check is appended
-  by the package whatever `routes.middleware` contains, since emptying that list
-  is the first thing people do to make the widget public. `GET /widget.js` stays
-  public — a static file with no data and no key, and gating it only stops the
-  widget rendering.
-
-  **Upgrading:** a published `config/naturalquery.php` keeps `auth` and is
-  unaffected. Remove it to get the gate behaviour, and define the gate if the
-  app is more than you. New installs get `['web', 'throttle:60,1']`.
-
-### Fixed
-- **The widget turned every framework-level refusal into "Unexpected response
-  status."** It read the HTTP status and threw it away. A 401, an expired
-  session (419), a throttle (429) and a 500 all produced the same message,
-  which describes nothing and suggests nothing — and these are precisely the
-  first-run failures. Each now says what happened and what to do, and an HTML
-  error page no longer crashes the parse.
-- **A test was silently disabling the rest of the suite.** `InstallCommandTest`
-  ran the real installer, which publishes `config/naturalquery.php` — and under
-  Testbench `config_path()` points inside `vendor/orchestra/testbench-core`,
-  which survives between runs. That published copy then **shadowed the package
-  config for every test**, so the suite was asserting against a stale snapshot.
-  Nothing failed; it just stopped testing the current code, which is the
-  dangerous kind. The installer now runs against a temp directory and removes
-  anything it creates.
-
 ### Added
+- **Each turn says whether it stood alone.** The widget shows *New topic*,
+  *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
+  context was carried, with the reason on hover.
+
+  Raised by manual testing: two turns on screen and no way to tell whether the
+  second inherited the first. The state summary cannot convey it — "total
+  amount by city" then "breakdown by client" both read `amount · by client`
+  whether the measure was inherited or worked out afresh. Identical text, two
+  different things happening. `conversation.classification` was already in the
+  response; only the widget was silent about it.
+
 - **Events.** `QuestionAsked`, `QuestionAnswered`, `QuestionFailed` and
   `UnsafeSqlRejected`. The package answered questions and told nobody anything:
   there was no way to attribute cost to a user, alert on a provider outage, or
@@ -77,7 +46,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interface — adding to `LlmProviderInterface` would break every custom
   provider already written.
 
+### Changed
+- **Authorization is now a gate, not `auth` middleware.** Walking the documented
+  install on a virgin Laravel 13 app — require, install, migrate, key, discover —
+  the first thing it does is fail: `/naturalquery/demo`, the page the README
+  sends you to, returns **500 `RouteNotFoundException: Route [login] not
+  defined`**. A fresh Laravel app has no auth scaffolding, so `auth` had nowhere
+  to redirect. The package looked broken while working exactly as configured.
+
+  Following the pattern Telescope and Horizon use for the same problem:
+
+  - a `viewNaturalQuery` gate defined by your app decides, always — including
+    when it says no in local;
+  - no gate, `local` or `testing` → allowed, so the package works on install and
+    an adopter's first feature test does not fail with 403;
+  - no gate, anywhere else → an authenticated user is required, as before.
+
+  Refusals are **403 naming the gate**, never a redirect. The check is appended
+  by the package whatever `routes.middleware` contains, since emptying that list
+  is the first thing people do to make the widget public. `GET /widget.js` stays
+  public — a static file with no data and no key, and gating it only stops the
+  widget rendering.
+
+  **Upgrading:** a published `config/naturalquery.php` keeps `auth` and is
+  unaffected. Remove it to get the gate behaviour, and define the gate if the
+  app is more than you. New installs get `['web', 'throttle:60,1']`.
+
+- `widget.language` is documented as an **English accent** selector (`en-US`,
+  `en-GB`, `en-IN`, `en-AU`), which measurably changes recognition accuracy.
+  Other locales are not supported: the browser will attempt them, but the
+  prompts, schema text and answers are all English.
+
 ### Fixed
+- **The widget turned every framework-level refusal into "Unexpected response
+  status."** It read the HTTP status and threw it away. A 401, an expired
+  session (419), a throttle (429) and a 500 all produced the same message,
+  which describes nothing and suggests nothing — and these are precisely the
+  first-run failures. Each now says what happened and what to do, and an HTML
+  error page no longer crashes the parse.
+- **A test was silently disabling the rest of the suite.** `InstallCommandTest`
+  ran the real installer, which publishes `config/naturalquery.php` — and under
+  Testbench `config_path()` points inside `vendor/orchestra/testbench-core`,
+  which survives between runs. That published copy then **shadowed the package
+  config for every test**, so the suite was asserting against a stale snapshot.
+  Nothing failed; it just stopped testing the current code, which is the
+  dangerous kind. The installer now runs against a temp directory and removes
+  anything it creates.
+
 - `composer.json` was missing `illuminate/view`, `illuminate/validation` and
   `ext-json`, all of which the package uses directly — Blade components and
   the demo view, `$request->validate()` in the controller, and JSON handling
@@ -115,12 +130,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **If you were using `/voice`:** use the browser's `SpeechRecognition` and post
   the transcript to `/text` — see [docs/API.md](docs/API.md#voice--there-is-no-audio-endpoint).
   Firefox has no speech API, so people type there.
-
-### Changed
-- `widget.language` is documented as an **English accent** selector (`en-US`,
-  `en-GB`, `en-IN`, `en-AU`), which measurably changes recognition accuracy.
-  Other locales are not supported: the browser will attempt them, but the
-  prompts, schema text and answers are all English.
 
 ## [1.0.0-rc.2] - 2026-08-08
 
