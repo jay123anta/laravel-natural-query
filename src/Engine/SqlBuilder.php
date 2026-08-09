@@ -402,10 +402,20 @@ class SqlBuilder
                             . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')];
             }
 
-            if ($resolved === $groupColumn) {
-                continue;
-            }
-
+            // A filter on the column being grouped by is NOT redundant, and
+            // skipping it here silently discarded the narrowing.
+            //
+            // "Total amount by city" then "only in Guwahati" produces exactly
+            // that shape — group_by=city, filters=[city:Guwahati] — and every
+            // city came back, the instruction gone without trace. All three
+            // providers were emitting the filter correctly; it was thrown away
+            // here. GROUP BY city WHERE city = 'Guwahati' is well-formed and
+            // returns the one row the question asked for.
+            //
+            // The skip presumably dated from group_value being the only way to
+            // name a value on the group column, which the group_detail branch
+            // handles separately. Filters carry a column of their own, so
+            // there is nothing to disambiguate.
             $value = $this->sanitizeGroupValue((string) $value);
 
             if ($value === null || $value === '') {

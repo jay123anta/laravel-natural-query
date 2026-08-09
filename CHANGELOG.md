@@ -78,6 +78,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **A filter on the column being grouped by was silently discarded.**
+  "Total amount by city" then "only in Guwahati" returned every city — the
+  narrowing gone without trace, which is the failure this package exists to
+  prevent. All three providers were emitting `filters:[{city:Guwahati}]`
+  correctly; `resolveFilters` skipped any filter whose column matched the
+  group column. `GROUP BY city WHERE city = Guwahati` is well-formed and
+  returns the one row asked for.
+- **A follow-up narrowing is no longer read as a request for detail rows.**
+  A bare `group_value` means "one named record" and returns every column of
+  the matching rows — a fair reading of "revenue for Guwahati" asked cold,
+  and the wrong one for "only in Guwahati" said after "total amount by
+  city". Inside a conversation it is now re-read as a filter on the column
+  already grouped by. One-shot questions keep the detail reading.
+- The conversation-state prompt now names the slot a narrowing belongs in.
+  Left implicit, one provider dropped it entirely and two put it in
+  group_value.
 - **The Claude driver was completely broken, and had been the whole time.**
   Its first live call returned 400 on every question, for two reasons at
   once: `temperature` is deprecated on current models, and the assistant

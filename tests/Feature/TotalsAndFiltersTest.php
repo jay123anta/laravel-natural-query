@@ -144,6 +144,74 @@ class TotalsAndFiltersTest extends TestCase
         $this->assertSame('Ada', $result['parsed_query']['group_value'] ?? null);
     }
 
+    /**
+     * "Total amount by city" then "only in Guwahati".
+     *
+     * That produces group_by=city with filters=[city:Guwahati] — a filter on
+     * the very column being grouped by — and resolveFilters skipped exactly
+     * that case, so every city came back and the narrowing vanished without a
+     * word. All three providers were emitting the filter correctly; it was
+     * discarded here.
+     *
+     * GROUP BY region WHERE region = 'West' is well-formed and returns the one
+     * row the question asked for.
+     */
+    #[Test]
+    public function a_filter_on_the_grouping_column_is_applied_not_skipped()
+    {
+        $provider = new RecordingProvider();
+        $provider->intentResponse = [
+            'success' => true,
+            'scheme' => 'gb_sales',
+            'metric' => 'revenue',
+            'group_by' => 'region',
+            'filters' => [['column' => 'region', 'value' => 'West']],
+            'confidence' => 0.9,
+            'needs_clarification' => false,
+        ];
+
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        $result = $this->app->make(QueryOrchestrator::class)->query('revenue by region only in West');
+
+        $this->assertSame('success', $result['status']);
+        $this->assertCount(1, $result['rows'], 'the narrowing was dropped and every region came back');
+
+        $row = (array) $result['rows'][0];
+        $this->assertSame('West', $row['region']);
+        $this->assertEquals(800, (float) $row['revenue']);
+    }
+
+    /**
+     * And it must still be visible. A filter that runs but goes unmentioned is
+     * only half the fix — the point of the summary is that a narrowing can be
+     * seen rather than assumed.
+     */
+    #[Test]
+    public function that_filter_is_reported_in_the_parsed_query()
+    {
+        $provider = new RecordingProvider();
+        $provider->intentResponse = [
+            'success' => true,
+            'scheme' => 'gb_sales',
+            'metric' => 'revenue',
+            'group_by' => 'region',
+            'filters' => [['column' => 'region', 'value' => 'West']],
+            'confidence' => 0.9,
+            'needs_clarification' => false,
+        ];
+
+        $this->app->instance(LlmProviderInterface::class, $provider);
+        $this->app->forgetInstance(QueryOrchestrator::class);
+
+        $filters = $this->app->make(QueryOrchestrator::class)
+            ->query('revenue by region only in West')['parsed_query']['filters'] ?? [];
+
+        $this->assertCount(1, $filters);
+        $this->assertSame('West', $filters[0]['value'] ?? null);
+    }
+
     #[Test]
     public function a_breakdown_that_was_asked_for_is_still_a_breakdown()
     {

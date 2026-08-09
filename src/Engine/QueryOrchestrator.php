@@ -352,6 +352,8 @@ class QueryOrchestrator
             $intent = \Jayanta\NaturalQuery\Conversation\QueryState::fromArray(['slots' => $context['state']])
                 ->merge($intent, 0)
                 ->toIntent() + $intent;
+
+            $intent = $this->narrowingRatherThanDetail($intent);
         }
 
         // Handle parse failure.
@@ -584,9 +586,18 @@ class QueryOrchestrator
             return $query;
         }
 
+        // The narrowing rule is spelled out because leaving it implicit lost
+        // it. "Only in Guwahati" after "total amount by city" came back from
+        // one provider with no filter at all — every city returned, the
+        // instruction silently discarded — and from two others as a request for
+        // one record's detail rows. Naming the slot removes the guess.
         return "CURRENT QUERY STATE (carry these forward unless the instruction changes them):\n"
             . '  ' . implode('; ', $slots) . "\n"
             . "NEW INSTRUCTION: \"{$query}\"\n"
+            . "A narrowing — \"only in X\", \"just for X\", \"in X\" — goes in filters as "
+            . "{\"column\":\"<the column X belongs to>\",\"value\":\"X\"}, and the existing "
+            . "group_by STAYS. Do not put it in group_value: that means one named record "
+            . "and returns its detail rows instead of the narrowed answer.\n"
             . 'Return the FULL intent after applying the instruction to that state.';
     }
 
@@ -682,6 +693,64 @@ class QueryOrchestrator
 
         $intent['group_by'] = null;
         $intent['query_type'] = 'aggregation';
+
+        return $intent;
+    }
+
+    /**
+     * "Only in Guwahati" narrows the answer; it does not ask for a file card.
+     *
+     * A bare `group_value` means "one named record" and routes to the detail
+     * view — every column of the matching rows. That is a reasonable reading of
+     * "revenue for Guwahati" asked cold. It is the wrong reading of "only in
+     * Guwahati" said straight after "total amount by city", where the user is
+     * plainly narrowing the answer they are looking at.
+     *
+     * Three providers demonstrated three different wrong answers to exactly
+     * that pair. Claude and DeepSeek set group_value and got a raw dump of
+     * invoice rows with the breakdown silently changed; Gemini set nothing at
+     * all and returned every city, the narrowing quietly discarded.
+     *
+     * So during a conversation a bare group_value is re-read as a filter on the
+     * column already being grouped by, which is what "only in X" means. The
+     * grouping survives, so the answer is the one row asked for rather than a
+     * table with the question changed underneath it.
+     *
+     * Only inside a conversation. A one-shot "revenue for Guwahati" has no
+     * established breakdown to narrow and keeps the detail reading.
+     *
+     * @param array<string, mixed> $intent
+     * @return array<string, mixed>
+     */
+    protected function narrowingRatherThanDetail(array $intent): array
+    {
+        $value = $intent['group_value'] ?? null;
+        $groupBy = $intent['group_by'] ?? null;
+
+        if ($value === null || $value === '' || empty($groupBy)) {
+            return $intent;
+        }
+
+        // Already expressed as a filter, on any column: leave it alone.
+        foreach (($intent['filters'] ?? []) as $filter) {
+            if (is_array($filter) && isset($filter['value'])
+                && strcasecmp(trim((string) $filter['value']), trim((string) $value)) === 0) {
+                $intent['group_value'] = null;
+
+                return $intent;
+            }
+        }
+
+        Log::info('[NaturalQuery] Reading a follow-up as a narrowing, not a detail view', [
+            'value' => $value,
+            'column' => $groupBy,
+        ]);
+
+        $intent['filters'] = array_merge(
+            is_array($intent['filters'] ?? null) ? $intent['filters'] : [],
+            [['column' => $groupBy, 'value' => $value]]
+        );
+        $intent['group_value'] = null;
 
         return $intent;
     }
