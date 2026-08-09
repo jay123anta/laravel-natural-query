@@ -102,6 +102,15 @@ return [
                 // Many self-hosted servers reject OpenAI's response_format param.
                 'force_json' => (bool) env('SELFHOSTED_LLM_FORCE_JSON', false),
             ],
+            'mistral' => [
+                'api_key' => env('MISTRAL_API_KEY'),
+                'model' => env('MISTRAL_MODEL', 'mistral-large-latest'),
+                'base_url' => env('MISTRAL_BASE_URL', 'https://api.mistral.ai/v1'),
+                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'max_retries' => 3,
+                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'force_json' => true,
+            ],
             'claude' => [
                 'api_key' => env('ANTHROPIC_API_KEY'),
                 // claude-sonnet-4-20250514 was RETIRED and returns 404, so the

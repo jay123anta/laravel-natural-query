@@ -69,6 +69,31 @@ Read that as: roughly one question in five is wrong on an *uncurated* schema.
 That is why every answer shows the measure, breakdown and filters it used —
 a misreading you can see is a different thing from one you cannot.
 
+**Every provider is checked against the same battery.** Twelve cases with
+answers you can verify by hand on three rows of seeded data — totals, counts,
+filters, averages, rankings, and a conversation that narrows, drills down and
+rewinds:
+
+```bash
+NATURALQUERY_CONFORMANCE=1 \
+NATURALQUERY_LLM_DRIVER=claude \
+NATURALQUERY_CONFORMANCE_KEY=sk-... \
+vendor/bin/phpunit --testsuite Conformance
+```
+
+| Provider | Model | Result |
+|---|---|---|
+| Gemini | gemini-2.5-flash | 12/12 |
+| Claude | claude-sonnet-5 | 12/12 |
+| DeepSeek | deepseek-v4-flash | 12/12 |
+| Mistral | mistral-large-latest | 12/12 |
+
+It exists because unit tests could not find what it finds. A canned response
+happily answers a request the real API would reject, so Claude's driver was
+broken on every call and nothing failed; and a filter dropped in the engine
+only showed up on a two-turn chain. Add `NATURALQUERY_CONFORMANCE_DELAY=20`
+for a free tier.
+
 It ships knowing nothing about your domain. `naturalquery:discover` reads
 *your* database and writes a config file per table; those files are the only
 thing that makes it understand your data, so any schema works without code

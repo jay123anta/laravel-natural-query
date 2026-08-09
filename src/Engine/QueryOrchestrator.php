@@ -198,7 +198,7 @@ class QueryOrchestrator
 
             // Route to appropriate mode
             if ($queryMode === 'sql_generation') {
-                $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
             } elseif ($queryMode === 'intent') {
                 $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
             } else {
@@ -218,7 +218,7 @@ class QueryOrchestrator
                     ]);
                     $metadata['query_mode'] = 'auto→sql_generation';
                     $metadata['escalated_for'] = $beyond;
-                    $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                    $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
                 } else {
                     $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
 
@@ -235,7 +235,7 @@ class QueryOrchestrator
                             'after' => $result['status'] ?? '?',
                         ]);
                         $metadata['query_mode'] = 'auto→sql_generation';
-                        $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata);
+                        $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
 
                         // Keep the clarification if generation did no better —
                         // a usable question beats a bare failure.
@@ -876,9 +876,25 @@ class QueryOrchestrator
      * Flow: AI receives full schema → generates SQL → validate → execute
      * The AI sees every table, column, type, description, alias, and JOIN.
      */
-    protected function processWithSqlGeneration(string $query, ?string $schemeHint, ?array $cached, array &$metadata): array
+    protected function processWithSqlGeneration(string $query, ?string $schemeHint, ?array $cached, array &$metadata, array $context = []): array
     {
         $metadata['query_mode_used'] = 'sql_generation';
+
+        // The conversation, carried into the SQL prompt.
+        //
+        // This method did not take $context at all, so every follow-up that
+        // escalated here lost the whole accumulated state. "Total amount by
+        // city" → "only in Guwahati" → "breakdown by client" came back with
+        // all three clients: the Guwahati filter, established two turns
+        // earlier and displayed in the state summary the user was reading,
+        // simply gone from the SQL. A complete answer to a question nobody
+        // asked, which is the failure this package exists to prevent.
+        //
+        // Intent mode had carried state since conversations were built. This
+        // path never did, and only showed it when a follow-up happened to
+        // escalate — which depends on the provider, so it hid behind whichever
+        // one was being tested.
+        $stated = $this->withState($query, $context);
 
         // Check if we have a cached SQL result
         if ($cached && isset($cached['intent']['_sql_result'])) {
@@ -918,10 +934,14 @@ class QueryOrchestrator
         // table, their relationships, and permission to join — is the only one
         // that can answer. Fall back to the focused prompt when there is one
         // dataset, or when nothing is related and a join is impossible anyway.
+        // $stated, not $query: the SQL must reflect the conversation, not just
+        // the last sentence of it. Scheme detection above deliberately still
+        // uses the bare question — the state block would match every dataset
+        // name it mentions.
         if ($scheme && $this->registry->has($scheme) && !$this->registry->hasLinkedSchemas()) {
-            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
+            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $stated);
         } else {
-            $prompt = $this->promptBuilder->buildMultiSchemePrompt($query);
+            $prompt = $this->promptBuilder->buildMultiSchemePrompt($stated);
         }
 
         // Ask AI to generate SQL

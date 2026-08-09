@@ -18,5 +18,16 @@
         <testsuite name="Benchmark">
             <directory>tests/Benchmark</directory>
         </testsuite>
+
+        <!--
+            Provider conformance. Self-skips unless
+            NATURALQUERY_CONFORMANCE=1, because it makes real API calls.
+            Every expected value is arithmetic on three rows of seeded
+            data, so a failure is a defect and not a model having an off
+            day. Run it per provider — that is the point.
+        -->
+        <testsuite name="Conformance">
+            <directory>tests/Conformance</directory>
+        </testsuite>
     </testsuites>
 </phpunit>

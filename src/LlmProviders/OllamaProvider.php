@@ -64,7 +64,7 @@ DATASETS:
 {$schemeInfo}
 
 query_type = "aggregation" for one number over the whole dataset ("total revenue", "how many orders"), else "ranking".
-filters = full list of active filters as [{"column":..,"value":..}]; omitting one switches it off.
+filters = EVERY narrowing, as [{"column":..,"value":..}] — including one stated in the question: "how many invoices are pending" is [{"column":"status","value":"pending"}]. In a conversation repeat the ones still in force; omitting one switches it off.
 filter_column = the column group_value belongs to when it is not the grouping column ("by customer_name where product_category is Grocery").
 group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
 Never ask for clarification on a HOW MANY question — record_count always exists.

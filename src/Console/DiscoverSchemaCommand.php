@@ -68,8 +68,18 @@ class DiscoverSchemaCommand extends Command
         $this->validator = $validator;
 
         $connection = $this->option('connection') ?? config('naturalquery.sql.database_connection');
-        $schemas = $this->option('schema') ?: [];
-        $specificTables = $this->option('table') ?: [];
+        // Cast, because these are array options ({--table=*}) and a scalar
+        // reaches them the moment anyone calls this programmatically:
+        //
+        //     Artisan::call('naturalquery:discover', ['--table' => 'invoices'])
+        //
+        // From the command line Symfony wraps it; through Artisan::call it does
+        // not, and the string went straight into in_array() as a haystack — a
+        // raw TypeError from inside the command, naming nothing the caller did.
+        // The package's own harnesses invoke it this way, so it is a supported
+        // path and not a misuse to be punished.
+        $schemas = (array) ($this->option('schema') ?: []);
+        $specificTables = (array) ($this->option('table') ?: []);
         $outputPath = $this->option('output') ?? config('naturalquery.schema.config_path', config_path('naturalquery-schemas'));
         $includeViews = $this->option('views');
         $dryRun = $this->option('dry-run');

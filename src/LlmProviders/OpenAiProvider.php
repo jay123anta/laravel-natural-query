@@ -110,7 +110,7 @@ When the user asks HOW MANY — "how many orders", "number of tickets", "orders 
 
 query_type: "aggregation" when the user wants ONE number for the whole dataset ("total revenue", "how many orders are there") with no breakdown and no named record; "ranking" for a list, which is the usual case; "group_detail" when they named one record.
 
-filters: the COMPLETE list of column filters in force after applying the instruction, as [{"column":"region","value":"East"}]. Repeat the ones that still apply — a filter you leave out is switched off. Use this whenever more than one filter applies, or when correcting one of several.
+filters: EVERY narrowing that applies, as [{"column":"region","value":"East"}]. This includes one stated in the question itself — "how many invoices are pending" is [{"column":"status","value":"pending"}], "sales in the West" is [{"column":"region","value":"West"}]. Match the value to the column it belongs to. In a conversation, also repeat the ones still in force — a filter you leave out is switched off.
 
 filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
 
@@ -133,7 +133,20 @@ PROMPT;
                 ['role' => 'user', 'content' => $prompt],
             ],
             'temperature' => 0.1,
-            'max_tokens' => 1024,
+            // The configured budget, not a hardcoded 1024.
+            //
+            // A reasoning model spends output tokens thinking before it writes
+            // anything, and DeepSeek v4 was seen using 400–800 on this prompt.
+            // Past the ceiling the reply is cut off mid-JSON — the observed
+            // response was the single character "{" — which parsed as nothing,
+            // reported "Failed to parse intent response", and quietly dropped
+            // to SQL generation. That answered "how many invoices are pending"
+            // with 3 instead of 1: the filter lost, the number wrong, and no
+            // sign anywhere that a fallback had happened.
+            //
+            // Raising NATURALQUERY_MAX_OUTPUT_TOKENS had no effect before,
+            // because this line ignored it.
+            'max_tokens' => max(1024, $this->maxTokens),
         ];
         $payload = $this->withJsonFormat($payload);
 
@@ -151,6 +164,18 @@ PROMPT;
         $parsed = $this->parseJsonResponse($responseText);
 
         if (!$parsed) {
+            // Say which of the two it was. "Failed to parse" is true of a
+            // truncated reply and useless as advice — the fix for running out
+            // of tokens is a setting, and the user cannot guess that from a
+            // parser complaint.
+            if (($response['data']['choices'][0]['finish_reason'] ?? null) === 'length') {
+                return $this->errorResponse(
+                    'The model ran out of output tokens before finishing its answer. '
+                    . 'Raise NATURALQUERY_MAX_OUTPUT_TOKENS — reasoning models spend '
+                    . 'part of that budget thinking.'
+                );
+            }
+
             return $this->errorResponse('Failed to parse intent response');
         }
 

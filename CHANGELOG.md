@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A provider conformance battery** — `tests/Conformance`, twelve cases with
+  answers verifiable by hand on three seeded rows: totals, counts, filters,
+  averages, rankings, and a conversation that narrows, drills down and
+  rewinds. Run it per provider; it self-skips without a key.
+
+  It exists because unit tests structurally cannot find what it finds. A
+  canned response happily answers a request the real API would reject.
+  Gemini, Claude, DeepSeek and Mistral now all pass 12/12.
 - **Each turn says whether it stood alone.** The widget shows *New topic*,
   *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
   context was carried, with the reason on hover.
@@ -78,6 +86,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **Conversation state never reached SQL generation.** `processWithSqlGeneration`
+  did not take the context at all, so any follow-up that escalated lost every
+  accumulated filter — silently, while the state summary still displayed it.
+  Which follow-ups escalate depends on the provider, so it hid behind
+  whichever one was being tested.
+- **Intent parsing hardcoded `max_tokens: 1024`** on OpenAI-compatible
+  providers, ignoring the configured budget. A reasoning model spends part of
+  that thinking: DeepSeek v4 returned the single character `{`, which parsed
+  as nothing, reported "failed to parse", and dropped to SQL generation —
+  answering "how many invoices are pending" with 3 instead of 1. A truncated
+  reply now says so and names the setting.
+- **The filter instruction only described carrying filters FORWARD**, never
+  extracting one stated in the question. Stronger models inferred it; DeepSeek
+  did not, and returned no filter for "how many invoices are pending". Now
+  explicit in all four prompts — which matters most for the local models this
+  package is meant to serve.
+- `naturalquery:discover` crashed with a raw TypeError when `--table` was
+  passed a string through `Artisan::call`. Array options are cast now.
 - **A filter on the column being grouped by was silently discarded.**
   "Total amount by city" then "only in Guwahati" returned every city — the
   narrowing gone without trace, which is the failure this package exists to

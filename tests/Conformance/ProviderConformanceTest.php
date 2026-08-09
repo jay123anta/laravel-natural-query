@@ -1,0 +1,318 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Conformance;
+
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Conversation\ConversationManager;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+/**
+ * Does this provider actually work, on every documented feature?
+ *
+ * The unit suite proves the ENGINE is right by feeding it canned intents. That
+ * is necessary and it is blind to a whole class of failure, because a stubbed
+ * response is perfectly happy to answer a request the real API would reject.
+ * Everything below was found only by making real calls:
+ *
+ *   - Claude's driver returned 400 on every question — `temperature` deprecated
+ *     and assistant prefill refused — and its shipped default model 404'd.
+ *   - Three providers read $parsed['order'] unguarded; only the one never
+ *     live-tested sent responses without it.
+ *   - "Only in Guwahati" after "total amount by city" returned every city.
+ *
+ * That last one is why this exists. It was not a provider bug at all — the
+ * engine discarded a filter on the grouping column — but no single-turn test
+ * and no single provider revealed it. It took a two-turn chain run against
+ * several models.
+ *
+ * So this is a CONFORMANCE battery, not an accuracy benchmark. Every expected
+ * value below can be checked by hand against six rows of data. A failure here
+ * is a defect, not a model having an off day.
+ *
+ *   NATURALQUERY_CONFORMANCE=1 \
+ *   NATURALQUERY_LLM_DRIVER=claude \
+ *   NATURALQUERY_CONFORMANCE_KEY=sk-... \
+ *   vendor/bin/phpunit --testsuite Conformance
+ *
+ * NATURALQUERY_CONFORMANCE_DELAY spaces the calls out for a free tier.
+ */
+class ProviderConformanceTest extends TestCase
+{
+    private string $driver;
+    private array $results = [];
+
+    /**
+     * Six rows. Every expectation in this file is arithmetic on these.
+     *
+     *   Guwahati = 4200 + 6100 = 10300      paid    = 4200 + 6100 = 10300
+     *   Jorhat   = 1800                     pending = 1800
+     *   all      = 12100                    average = 12100 / 3 = 4033.33
+     */
+    private function seedInvoices(): void
+    {
+        Schema::dropIfExists('invoices');
+        Schema::create('invoices', function ($t) {
+            $t->id();
+            $t->string('client');
+            $t->string('city');
+            $t->string('status');
+            $t->decimal('amount', 12, 2);
+            $t->date('issued_on');
+        });
+
+        DB::table('invoices')->insert([
+            ['client' => 'Nabajyoti Ltd', 'city' => 'Guwahati', 'status' => 'paid', 'amount' => 4200, 'issued_on' => '2026-07-02'],
+            ['client' => 'Rekha Stores', 'city' => 'Jorhat', 'status' => 'pending', 'amount' => 1800, 'issued_on' => '2026-07-11'],
+            ['client' => 'Bora Traders', 'city' => 'Guwahati', 'status' => 'paid', 'amount' => 6100, 'issued_on' => '2026-08-01'],
+        ]);
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (env('NATURALQUERY_CONFORMANCE') !== '1') {
+            $this->markTestSkipped('Set NATURALQUERY_CONFORMANCE=1 to run (real API calls).');
+        }
+
+        if (!env('NATURALQUERY_CONFORMANCE_KEY')) {
+            $this->markTestSkipped('Set NATURALQUERY_CONFORMANCE_KEY to the provider API key.');
+        }
+
+        $this->driver = (string) (env('NATURALQUERY_LLM_DRIVER') ?: 'gemini');
+
+        config([
+            'naturalquery.llm.driver' => $this->driver,
+            "naturalquery.llm.providers.{$this->driver}.api_key" => env('NATURALQUERY_CONFORMANCE_KEY'),
+            // Every question must reach the provider. A cache hit would report
+            // a pass for a call that never happened.
+            'naturalquery.cache.enabled' => false,
+            'naturalquery.feedback.enabled' => false,
+            // Whatever discovery produces, uncurated — the state of an install
+            // on day one.
+            'naturalquery.system_instructions' => '',
+        ]);
+
+        if ($model = env('NATURALQUERY_CONFORMANCE_MODEL')) {
+            config(["naturalquery.llm.providers.{$this->driver}.model" => $model]);
+        }
+
+        if ($ca = env('NATURALQUERY_SSL_VERIFY')) {
+            config(['naturalquery.ssl_verify' => $ca]);
+        }
+
+        $path = sys_get_temp_dir() . '/nq-conformance-' . getmypid();
+        if (!is_dir($path)) {
+            mkdir($path, 0777, true);
+        }
+        config(['naturalquery.schema.config_path' => $path]);
+
+        $this->seedInvoices();
+        $this->forgetSchemaBoundServices();
+
+        Artisan::call('naturalquery:discover', [
+            '--table' => 'invoices',
+            '--output' => $path,
+            '--no-verify' => true,
+            '--force' => true,
+        ]);
+
+        $this->forgetSchemaBoundServices();
+    }
+
+    private function forgetSchemaBoundServices(): void
+    {
+        foreach ([
+            SchemaRegistry::class,
+            QueryOrchestrator::class,
+            ConversationManager::class,
+            \Jayanta\NaturalQuery\Engine\SqlBuilder::class,
+            \Jayanta\NaturalQuery\Engine\PromptBuilder::class,
+            \Jayanta\NaturalQuery\Engine\QueryPlanner::class,
+            \Jayanta\NaturalQuery\Engine\NextStepSuggester::class,
+            \Jayanta\NaturalQuery\Engine\IntentCoverage::class,
+            \Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class,
+        ] as $service) {
+            $this->app->forgetInstance($service);
+        }
+    }
+
+    private function pace(): void
+    {
+        if ($delay = (int) env('NATURALQUERY_CONFORMANCE_DELAY', 0)) {
+            sleep($delay);
+        }
+    }
+
+    /** @return array<int, array<string, mixed>> rows, as plain arrays */
+    private function rows(array $result): array
+    {
+        return array_map(fn ($r) => array_change_key_case((array) $r), $result['rows'] ?? []);
+    }
+
+    /**
+     * What to print beside a result.
+     *
+     * An errored answer has no `rows`, so reporting rows alone rendered a rate
+     * limit as "[]" — indistinguishable from a query that ran and matched
+     * nothing. Two Mistral failures looked like wrong SQL and were the free
+     * tier throttling. A harness whose failures need their own investigation
+     * is not doing its job.
+     */
+    private function detail(array $result): string
+    {
+        if (($result['status'] ?? null) === 'error') {
+            return '[' . ($result['error_code'] ?? 'error') . '] '
+                . mb_substr((string) ($result['error'] ?? ''), 0, 90);
+        }
+
+        if (($result['status'] ?? null) === 'clarification_needed') {
+            return '[clarification] ' . mb_substr((string) ($result['message'] ?? ''), 0, 80);
+        }
+
+        return json_encode($this->rows($result));
+    }
+
+    /** The single numeric value in a one-row answer, whatever it got called. */
+    private function scalar(array $result): ?float
+    {
+        $rows = $this->rows($result);
+
+        if (count($rows) !== 1) {
+            return null;
+        }
+
+        foreach ($rows[0] as $value) {
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function record(string $case, bool $passed, string $detail = ''): void
+    {
+        $this->results[] = compact('case', 'passed', 'detail');
+    }
+
+    private function check(string $case, bool $passed, string $detail = ''): void
+    {
+        $this->record($case, $passed, $detail);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->results) {
+            $failed = array_filter($this->results, fn ($r) => !$r['passed']);
+            $lines = ["", "  CONFORMANCE — " . strtoupper($this->driver ?? '?'), ""];
+
+            foreach ($this->results as $r) {
+                $lines[] = sprintf('  %-5s %-46s %s', $r['passed'] ? 'ok' : 'FAIL', $r['case'], $r['detail']);
+            }
+
+            $lines[] = '';
+            $lines[] = sprintf('  %d/%d passed', count($this->results) - count($failed), count($this->results));
+            $lines[] = '';
+
+            fwrite(STDERR, implode("\n", $lines) . "\n");
+        }
+
+        parent::tearDown();
+    }
+
+    // =====================================================================
+
+    #[Test]
+    public function it_conforms_on_every_documented_feature()
+    {
+        $o = $this->app->make(QueryOrchestrator::class);
+
+        // ---------------------------------------------------- one-shot answers
+        $r = $o->query('total amount');
+        $this->check('aggregation: total amount = 12100', $this->scalar($r) == 12100.0, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('total amount by city');
+        $rows = $this->rows($r);
+        $this->check('breakdown: by city = 2 rows', count($rows) === 2, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('how many invoices are there');
+        $this->check('count: how many invoices = 3', $this->scalar($r) == 3.0, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('how many invoices are pending');
+        $this->check('count + filter: pending = 1', $this->scalar($r) == 1.0, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('average amount');
+        $avg = $this->scalar($r);
+        $this->check('average: = 4033.33 (not the sum)', $avg !== null && abs($avg - 4033.33) < 1, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('total amount in Guwahati');
+        $this->check('total + filter: Guwahati = 10300', $this->scalar($r) == 10300.0, $this->detail($r));
+        $this->pace();
+
+        $r = $o->query('top clients by amount');
+        $rows = $this->rows($r);
+        $this->check('ranking: 3 clients, Bora first',
+            count($rows) === 3 && str_contains(strtolower(json_encode($rows[0])), 'bora'), $this->detail($r));
+        $this->pace();
+
+        // ------------------------------------------------------- conversation
+        $c = $this->app->make(ConversationManager::class);
+        $session = 'conformance-' . getmypid();
+
+        $c->query($session, 'total amount by city');
+        $this->pace();
+
+        // The chain that exposed the dropped filter.
+        $r = $c->query($session, 'only in Guwahati');
+        $rows = $this->rows($r);
+        $this->check('follow-up narrowing: 1 row, 10300',
+            count($rows) === 1 && str_contains(strtolower($this->detail($r)), 'guwahati')
+                && str_contains($this->detail($r), '10300'),
+            $this->detail($r));
+        $this->check('narrowing is shown in the state summary',
+            stripos((string) ($r['state_summary'] ?? ''), 'guwahati') !== false,
+            (string) ($r['state_summary'] ?? ''));
+        $this->pace();
+
+        // The filter must SURVIVE a change of breakdown: Guwahati has two
+        // clients, so three rows means it was silently dropped.
+        $r = $c->query($session, 'breakdown by client');
+        $rows = $this->rows($r);
+        $this->check('drill-down keeps the filter: 2 clients, not 3',
+            count($rows) === 2, $this->detail($r));
+        $this->pace();
+
+        // A question naming its own measure inherits nothing.
+        $r = $c->query($session, 'how many invoices are pending');
+        $this->check('new topic drops the inherited filter: = 1',
+            $this->scalar($r) == 1.0, $this->detail($r));
+        $this->pace();
+
+        // ------------------------------------------------------------ rewind
+        $before = $c->state($session)['state_summary'] ?? '';
+        $rewound = $c->rewind($session);
+        $this->check('rewind returns a restored state',
+            ($rewound['status'] ?? '') === 'success' && ($rewound['state_summary'] ?? '') !== $before,
+            (string) ($rewound['state_summary'] ?? ''));
+
+        // ---------------------------------------------------------- reporting
+        $failed = array_filter($this->results, fn ($r) => !$r['passed']);
+
+        $this->assertSame(
+            [],
+            array_map(fn ($r) => $r['case'] . ' → ' . $r['detail'], $failed),
+            strtoupper($this->driver) . ' failed conformance'
+        );
+    }
+}
