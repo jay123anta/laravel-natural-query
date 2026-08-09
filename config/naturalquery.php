@@ -104,7 +104,13 @@ return [
             ],
             'claude' => [
                 'api_key' => env('ANTHROPIC_API_KEY'),
-                'model' => env('CLAUDE_MODEL', 'claude-sonnet-4-20250514'),
+                // claude-sonnet-4-20250514 was RETIRED and returns 404, so the
+                // first question anyone asked on this driver failed. Dated
+                // model IDs expire; the -latest style alias does not, which is
+                // what a default should be. Check with:
+                //   curl https://api.anthropic.com/v1/models \
+                //     -H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01"
+                'model' => env('CLAUDE_MODEL', 'claude-sonnet-5'),
                 'timeout' => env('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
             ],

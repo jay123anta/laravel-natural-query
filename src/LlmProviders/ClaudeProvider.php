@@ -23,19 +23,59 @@ class ClaudeProvider extends AbstractProvider implements LlmProviderInterface
         $this->model = $config['model'] ?? 'claude-sonnet-4-20250514';
     }
 
-    public function generateSql(string $prompt): array
+    /**
+     * One request shape for both calls, and two things it deliberately omits.
+     *
+     * The first live Claude call this package ever made returned 400 on every
+     * question, for two reasons at once:
+     *
+     *   "`temperature` is deprecated for this model."
+     *   "This model does not support assistant message prefill. The
+     *    conversation must end with a user message."
+     *
+     * Both were sent on every request. The prefill was the older trick for
+     * forcing JSON — send a trailing assistant turn containing "{" and glue it
+     * back on afterwards — and current models refuse it outright. They also do
+     * not need it: with "respond with valid JSON only" in the system prompt
+     * they return clean JSON, and parseJsonResponse already strips code fences
+     * and repairs the usual malformations.
+     *
+     * So neither is sent. Omitting both is valid on EVERY Claude model, old or
+     * new, which is why there is no model sniffing here — a version check
+     * would be one more thing to get wrong the next time the API moves.
+     *
+     * temperature can be set explicitly for a model that still honours it;
+     * null, the default, leaves it out.
+     *
+     * @return array<string, mixed>
+     */
+    protected function payload(int $maxTokens, string $system, string $prompt): array
     {
         $payload = [
             'model' => $this->model,
-            'max_tokens' => 512,
+            'max_tokens' => $maxTokens,
+            'system' => $system,
             'messages' => [
                 ['role' => 'user', 'content' => $prompt],
-                // Prefill assistant response with { to force JSON output
-                ['role' => 'assistant', 'content' => '{'],
             ],
-            'system' => 'You are a SQL query generator. You MUST respond with valid JSON only. No markdown, no explanation, no code blocks. Start your response with { and end with }.',
-            'temperature' => 0.1,
         ];
+
+        $temperature = $this->config['temperature'] ?? null;
+
+        if ($temperature !== null) {
+            $payload['temperature'] = (float) $temperature;
+        }
+
+        return $payload;
+    }
+
+    public function generateSql(string $prompt): array
+    {
+        $payload = $this->payload(
+            512,
+            'You are a SQL query generator. You MUST respond with valid JSON only. No markdown, no explanation, no code blocks. Start your response with { and end with }.',
+            $prompt
+        );
 
         $response = $this->callWithRetry(
             "{$this->baseUrl}/messages",
@@ -50,10 +90,7 @@ class ClaudeProvider extends AbstractProvider implements LlmProviderInterface
             return $response;
         }
 
-        $text = $response['data']['content'][0]['text'] ?? '';
-        // Prepend { since we used prefilled assistant response
-        $text = '{' . $text;
-        $parsed = $this->parseJsonResponse($text);
+        $parsed = $this->parseJsonResponse($response['data']['content'][0]['text'] ?? '');
 
         if (!$parsed) {
             return ['success' => false, 'error' => 'Invalid JSON response from Claude'];
@@ -95,16 +132,11 @@ If the user asks for a breakdown that is NOT in that dataset's group_by list, se
 Return JSON only: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
-        $payload = [
-            'model' => $this->model,
-            'max_tokens' => 256,
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt],
-                ['role' => 'assistant', 'content' => '{'],
-            ],
-            'system' => 'You parse natural language queries into structured intent. You MUST respond with valid JSON only. No markdown, no explanation. Start with { and end with }.',
-            'temperature' => 0.1,
-        ];
+        $payload = $this->payload(
+            256,
+            'You parse natural language queries into structured intent. You MUST respond with valid JSON only. No markdown, no explanation. Start with { and end with }.',
+            $prompt
+        );
 
         $response = $this->callWithRetry(
             "{$this->baseUrl}/messages",
@@ -119,9 +151,7 @@ PROMPT;
             return $this->errorResponse($response['error'], $response['status'] ?? null);
         }
 
-        $responseText = $response['data']['content'][0]['text'] ?? '';
-        $responseText = '{' . $responseText;
-        $parsed = $this->parseJsonResponse($responseText);
+        $parsed = $this->parseJsonResponse($response['data']['content'][0]['text'] ?? '');
 
         if (!$parsed) {
             return $this->errorResponse('Failed to parse intent response');

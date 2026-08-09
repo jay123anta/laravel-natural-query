@@ -78,6 +78,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **The Claude driver was completely broken, and had been the whole time.**
+  Its first live call returned 400 on every question, for two reasons at
+  once: `temperature` is deprecated on current models, and the assistant
+  prefill trick — a trailing `{` turn used to force JSON — is now refused
+  outright ("the conversation must end with a user message"). Both were sent
+  on every request. Neither is needed: with "respond with JSON only" in the
+  system prompt the model returns clean JSON, and omitting both is valid on
+  every Claude model, so there is no version sniffing.
+
+  `temperature` can still be set explicitly for a model that honours it.
+
+- **The shipped Claude default model was retired.** `claude-sonnet-4-20250514`
+  returns 404 — the exact `gemini-2.0-flash` failure Rule 5 exists to catch.
+  Now `claude-sonnet-5`.
+
+  Unit tests could not have caught either: they assert on the parsed result,
+  and a canned response happily answers a request the real API would refuse.
+  `ClaudeRequestShapeTest` now pins what goes on the wire instead.
 - **"Average amount" returned the sum.** 12,100 where the answer was
   4,033.33 — a plausible number, three times too large, labelled "average".
   The intent contract names a METRIC and nothing about what to do with it,
