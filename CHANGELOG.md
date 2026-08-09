@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Events.** `QuestionAsked`, `QuestionAnswered`, `QuestionFailed` and
+  `UnsafeSqlRejected`. The package answered questions and told nobody anything:
+  there was no way to attribute cost to a user, alert on a provider outage, or
+  review the questions being answered badly, short of patching it. Listening to
+  none of them changes nothing.
+
+  `QuestionAnswered` carries the SQL that ran (server-side only — it is
+  deliberately absent from the HTTP response) and a **row count, never the
+  rows**. Result rows on an event walk into log drivers, queue payloads and
+  error trackers, which is the one direction this package exists to keep data
+  out of. A clarification fires neither the answered nor the failed event —
+  being asked which measure you meant is the system working.
+- **Token counts.** `metadata.usage` reports what a question cost when the
+  provider says, reading both dialects (Gemini `usageMetadata`, OpenAI
+  `usage`). Counts accumulate across every call one question took — a fallback,
+  a retry, the steps of a decomposed question — since those are one question to
+  the user. Absent on a cache hit; absent rather than zero when unreported,
+  because a zero understates a bill.
+
+  `limits.queries_per_day` counts questions, which is a rough proxy: a question
+  against a two-table schema and one against a fourteen-table schema differ by
+  an order of magnitude in prompt tokens.
+
+  Custom providers opt in via `Contracts\ReportsUsage`. Deliberately a separate
+  interface — adding to `LlmProviderInterface` would break every custom
+  provider already written.
+
+### Fixed
+- `composer.json` was missing `illuminate/view`, `illuminate/validation` and
+  `ext-json`, all of which the package uses directly — Blade components and
+  the demo view, `$request->validate()` in the controller, and JSON handling
+  throughout. They resolve in practice because any Laravel app has them, but a
+  package that declares granular `illuminate/*` dependencies should declare
+  what it uses.
+- The `NaturalQuery` facade's docblock had drifted from the class: `query()`
+  gained a `$context` argument, and `getSchemeMetrics()` / `registry()` were
+  missing. A facade docblock is what an IDE completes against, so a stale one
+  is worse than none.
+
 ### Removed
 - **Server-side speech-to-text, and the `POST /voice` endpoint with it.**
 

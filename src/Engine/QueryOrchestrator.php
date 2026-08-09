@@ -4,7 +4,13 @@ namespace Jayanta\NaturalQuery\Engine;
 
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\ReportsUsage;
 use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Events\QuestionAnswered;
+use Jayanta\NaturalQuery\Events\QuestionAsked;
+use Jayanta\NaturalQuery\Events\QuestionFailed;
+use Jayanta\NaturalQuery\Events\UnsafeSqlRejected;
+use Illuminate\Support\Facades\Event;
 use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +71,9 @@ class QueryOrchestrator
      */
     protected bool $inStepExecution = false;
 
+    /** SQL from the most recent execution, for the QuestionAnswered event. */
+    protected ?string $lastSql = null;
+
     public function __construct(
         LlmProviderInterface $llmProvider,
         QueryCacheInterface $cache,
@@ -112,6 +121,20 @@ class QueryOrchestrator
         $queryMode = config('naturalquery.query_mode', 'auto');
         $metadata = ['processing_mode' => $this->llmProvider->getName(), 'query_mode' => $queryMode];
 
+        // Token counts are per-question, so the running total starts here. The
+        // provider is a singleton for the request; without this, the second
+        // question of a conversation reports the first one's tokens too.
+        //
+        // Not reset for the steps of a decomposed question — those are one
+        // question to the user and should be billed as one.
+        if (!$this->inStepExecution) {
+            $this->lastSql = null;
+
+            if ($this->llmProvider instanceof ReportsUsage) {
+                $this->llmProvider->resetUsage();
+            }
+        }
+
         try {
             // Security: Validate and sanitize input BEFORE it reaches the AI
             $guardResult = $this->inputGuard->validate($naturalLanguageQuery);
@@ -127,6 +150,19 @@ class QueryOrchestrator
                 );
             }
             $naturalLanguageQuery = $guardResult['query']; // Use sanitized version
+
+            // Announced after the guard and before any spending, so a listener
+            // can attribute cost, enforce a quota the package knows nothing
+            // about, or record who asked what. Steps of a decomposed question
+            // stay silent — the user asked one question.
+            if (!$this->inStepExecution) {
+                Event::dispatch(new QuestionAsked(
+                    $naturalLanguageQuery,
+                    $schemeHint,
+                    $queryMode,
+                    $context['session_id'] ?? null
+                ));
+            }
 
             // Apply default scheme if configured and no hint provided
             if (!$schemeHint) {
@@ -233,9 +269,20 @@ class QueryOrchestrator
                 'provider' => $this->llmProvider->getName(),
             ]);
 
+            // What this answer cost. Absent for a cache hit, which is the
+            // point of the cache, and absent for providers that report no
+            // usage — an omitted figure is honest, a zero is not.
+            if ($usage = $this->usageForThisQuestion()) {
+                $result['metadata']['usage'] = $usage;
+            }
+
             // Audit logging
             if (config('naturalquery.privacy.audit_queries', true) && ($result['status'] ?? '') === 'success') {
                 $this->auditLog($result, $cacheHit, $startTime);
+            }
+
+            if (!$this->inStepExecution) {
+                $this->announceOutcome($naturalLanguageQuery, $result, $cacheHit, $startTime);
             }
 
             return $result;
@@ -1011,6 +1058,12 @@ class QueryOrchestrator
     {
         $sql = $queryResult['sql'];
 
+        // Remembered for the QuestionAnswered event, which is server-side.
+        // The SQL is deliberately kept OUT of the HTTP response — a browser has
+        // no use for it and it describes the shape of the database — but it is
+        // the single most useful field a listener can log.
+        $this->lastSql = $sql;
+
         // Validate SQL security
         $allowedTables = $this->registry->getAllowedTables();
         $maxLimit = $scheme ? $this->registry->getMaxLimit($scheme) : config('naturalquery.sql.max_limit');
@@ -1023,6 +1076,17 @@ class QueryOrchestrator
 
         if (!$validation['valid']) {
             Log::warning('[NaturalQuery] SQL validation failed', ['sql' => $sql, 'reason' => $validation['reason']]);
+
+            // A security signal, so it gets its own event rather than being
+            // one flavour of failure. Under normal use it should almost never
+            // fire; a burst from one user is worth looking at.
+            Event::dispatch(new UnsafeSqlRejected(
+                question: (string) ($metadata['original_query'] ?? $queryResult['question'] ?? ''),
+                sql: $sql,
+                reason: (string) $validation['reason'],
+                provider: $this->llmProvider->getName(),
+            ));
+
             return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata, ErrorCode::UNSAFE_SQL);
         }
 
@@ -1157,6 +1221,60 @@ class QueryOrchestrator
     /**
      * Audit log for successful queries.
      */
+    /**
+     * Tell the application how the question ended.
+     *
+     * A clarification is neither: being asked which measure you meant is the
+     * system working, and firing a failure event for it would fill an alerting
+     * channel with successes.
+     *
+     * @param array<string, mixed> $result
+     */
+    protected function announceOutcome(string $question, array $result, bool $cacheHit, float $startTime): void
+    {
+        $status = $result['status'] ?? null;
+        $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+        $metadata = $result['metadata'] ?? [];
+
+        if ($status === 'success') {
+            Event::dispatch(new QuestionAnswered(
+                question: $question,
+                parsedQuery: $result['parsed_query'] ?? [],
+                sql: $result['sql'] ?? $this->lastSql,
+                rowCount: count($result['rows'] ?? []),
+                modeUsed: $metadata['query_mode_used'] ?? null,
+                cacheHit: $cacheHit,
+                durationMs: $durationMs,
+                provider: $this->llmProvider->getName(),
+                usage: $metadata['usage'] ?? [],
+            ));
+
+            return;
+        }
+
+        if ($status === 'error') {
+            Event::dispatch(new QuestionFailed(
+                question: $question,
+                errorCode: $result['error_code'] ?? ErrorCode::INTERNAL,
+                message: (string) ($result['error'] ?? ''),
+                provider: $this->llmProvider->getName(),
+                durationMs: $durationMs,
+            ));
+        }
+    }
+
+    /**
+     * Tokens spent answering the question in flight, if the provider says.
+     *
+     * @return array<string, int>
+     */
+    protected function usageForThisQuestion(): array
+    {
+        return $this->llmProvider instanceof ReportsUsage
+            ? $this->llmProvider->lastUsage()
+            : [];
+    }
+
     protected function auditLog(array $result, bool $cacheHit, float $startTime): void
     {
         $channel = config('naturalquery.privacy.audit_channel');
@@ -1169,6 +1287,9 @@ class QueryOrchestrator
             'cache_hit' => $cacheHit,
             'mode' => $result['metadata']['query_mode_used'] ?? 'unknown',
             'processing_ms' => round((microtime(true) - $startTime) * 1000, 2),
+            // In the audit line as well as the response, so cost is answerable
+            // from the logs without every caller having to store it.
+            'usage' => $result['metadata']['usage'] ?? null,
         ]);
     }
 

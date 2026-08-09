@@ -116,10 +116,21 @@ your server or any model provider.
     "request_id": "…", "processing_time_ms": 812,
     "processing_mode": "gemini", "query_mode": "auto",
     "query_mode_used": "intent",  // intent | sql_generation
-    "cache_hit": false
+    "cache_hit": false,
+
+    // What the question cost, when the provider reports it. Summed across
+    // every call the question took — a fallback, a retry, the steps of a
+    // decomposed question — because those are one question to the user.
+    // Absent on a cache hit, and absent rather than zero when unreported.
+    "usage": { "prompt_tokens": 1200, "completion_tokens": 80,
+               "thinking_tokens": 25, "total_tokens": 1305, "calls": 1 }
   }
 }
 ```
+
+The generated SQL is **not** in the response. A browser has no use for it and
+it describes the shape of your database. Server-side, the `QuestionAnswered`
+event carries it — see [Events and cost](../README.md#events-and-cost).
 
 **Read `parsed_query` before trusting a number.** It states what the question was
 understood to mean — which measure, which breakdown, which filters, which dates.

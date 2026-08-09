@@ -14,9 +14,12 @@ use Illuminate\Support\Facades\Log;
  * - Error sanitization (removes API keys from messages)
  * - Health check caching
  */
-abstract class AbstractProvider
+abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\ReportsUsage
 {
     protected array $config;
+
+    /** Running token counts for this request. @var array<string, int> */
+    protected array $usage = [];
     protected int $maxRetries;
     protected int $timeout;
 
@@ -78,7 +81,10 @@ abstract class AbstractProvider
                 $response = $request->post($url, $payload);
 
                 if ($response->successful()) {
-                    return ['success' => true, 'data' => $response->json()];
+                    $body = $response->json();
+                    $this->recordUsage(is_array($body) ? $body : []);
+
+                    return ['success' => true, 'data' => $body];
                 }
 
                 $status = $response->status();
@@ -383,6 +389,75 @@ abstract class AbstractProvider
         $json = preg_replace('/^\x{FEFF}/u', '', $json);
 
         return trim($json);
+    }
+
+    /**
+     * Add the usage block from one response to this instance's running total.
+     *
+     * Accumulated rather than replaced, because answering one question can
+     * take several calls — intent parsing, a fallback to SQL generation, a
+     * retry, or the steps of a decomposed question. Reporting only the last
+     * call would understate exactly the questions that cost the most.
+     *
+     * Both dialects are read: Gemini's usageMetadata and OpenAI's usage, which
+     * between them cover every provider here and every OpenAI-compatible
+     * server. A provider that returns neither simply reports nothing.
+     *
+     * @param array<string, mixed> $body Decoded response body
+     */
+    protected function recordUsage(array $body): void
+    {
+        $gemini = $body['usageMetadata'] ?? null;
+        $openai = $body['usage'] ?? null;
+
+        $prompt = $gemini['promptTokenCount'] ?? $openai['prompt_tokens'] ?? null;
+        $completion = $gemini['candidatesTokenCount'] ?? $openai['completion_tokens'] ?? null;
+        $total = $gemini['totalTokenCount'] ?? $openai['total_tokens'] ?? null;
+
+        // Gemini bills thinking tokens and reports them separately from the
+        // candidate tokens, so a total built by adding the two visible numbers
+        // is short by exactly the amount hardest to predict.
+        $thinking = $gemini['thoughtsTokenCount'] ?? null;
+
+        if ($prompt === null && $completion === null && $total === null) {
+            return;
+        }
+
+        $this->usage['calls'] = ($this->usage['calls'] ?? 0) + 1;
+
+        foreach ([
+            'prompt_tokens' => $prompt,
+            'completion_tokens' => $completion,
+            'thinking_tokens' => $thinking,
+            'total_tokens' => $total,
+        ] as $key => $value) {
+            if (is_numeric($value)) {
+                $this->usage[$key] = ($this->usage[$key] ?? 0) + (int) $value;
+            }
+        }
+    }
+
+    /**
+     * Token counts for the calls this instance has made.
+     *
+     * @return array<string, int>
+     */
+    public function lastUsage(): array
+    {
+        return $this->usage;
+    }
+
+    /**
+     * Start counting again.
+     *
+     * The provider is a singleton for the life of the request, so without this
+     * a second question in the same process reports the first one's tokens as
+     * well — which turns per-question cost attribution into a running total
+     * that nobody asked for.
+     */
+    public function resetUsage(): void
+    {
+        $this->usage = [];
     }
 
     /**

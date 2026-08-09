@@ -8,9 +8,15 @@ use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 /**
  * NaturalQuery Facade
  *
- * @method static array query(string $naturalLanguageQuery, ?string $schemeHint = null)
+ * The signatures below are what an IDE completes against, so they are kept
+ * exact — a facade docblock that has drifted from the class is worse than none,
+ * because it is believed.
+ *
+ * @method static array query(string $naturalLanguageQuery, ?string $schemeHint = null, array $context = [])
  * @method static array getSchemes()
+ * @method static array getSchemeMetrics(string $schemeKey)
  * @method static array healthCheck()
+ * @method static \Jayanta\NaturalQuery\Schema\SchemaRegistry registry()
  *
  * @see \Jayanta\NaturalQuery\Engine\QueryOrchestrator
  */
