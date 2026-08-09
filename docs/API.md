@@ -159,7 +159,7 @@ your server or any model provider.
 
 The generated SQL is **not** in the response. A browser has no use for it and
 it describes the shape of your database. Server-side, the `QuestionAnswered`
-event carries it — see [Events and cost](../README.md#events-and-cost).
+event carries it — see [Events and cost](#events-and-cost) below.
 
 **Read `parsed_query` before trusting a number.** It states what the question was
 understood to mean — which measure, which breakdown, which filters, which dates.
@@ -374,3 +374,72 @@ a `rate_limited` after `Retry-After` usually will.
 
 **Never render `rows` for a `multi_step` answer alone** — the steps carry the
 working, and a combined figure nobody can trace is worth less than two they can.
+
+---
+
+## Events and cost
+
+An AI feature spends money on every request and can be confidently wrong, so an
+application needs to see what its own feature is doing. Four events give it
+somewhere to stand — listen to none and nothing changes.
+
+```php
+use Jayanta\NaturalQuery\Events\QuestionAnswered;
+
+Event::listen(QuestionAnswered::class, function ($e) {
+    AiUsage::create([
+        'user_id'  => auth()->id(),
+        'question' => $e->question,
+        'sql'      => $e->sql,          // server-side only; never in the HTTP response
+        'rows'     => $e->rowCount,
+        'ms'       => $e->durationMs,
+        'tokens'   => $e->usage['total_tokens'] ?? null,
+        'cached'   => $e->cacheHit,
+    ]);
+});
+```
+
+| Event | When | Use it for |
+|---|---|---|
+| `QuestionAsked` | After the input guard, before any spending | Cost attribution, your own quotas, audit |
+| `QuestionAnswered` | A successful answer | Usage dashboards, slow-query review, "answered badly" queues |
+| `QuestionFailed` | An error — **not** a clarification | Alerting. `errorCode` separates a provider outage from an unanswerable question |
+| `UnsafeSqlRejected` | The validator refused generated SQL | Security. Should be near-silent; a burst from one user is not |
+
+`QuestionAnswered` carries a **row count, never the rows**. A listener that
+wants the data can re-run the SQL — putting result rows on an event walks them
+into log drivers, queue payloads and error trackers, which is the one direction
+this package exists to keep data out of.
+
+### What a question cost
+
+`metadata.usage` reports tokens whenever the provider says, in either dialect
+(Gemini's `usageMetadata`, OpenAI's `usage`):
+
+```jsonc
+"usage": { "prompt_tokens": 1200, "completion_tokens": 80,
+           "thinking_tokens": 25, "total_tokens": 1305, "calls": 1 }
+```
+
+Counts **accumulate across every call one question took** — a fallback, a
+retry, the steps of a decomposed question — because those are one question to
+the user. A cache hit reports nothing, which is the point of the cache, and a
+provider that returns no usage block reports nothing rather than zero: an
+omitted figure is honest, a zero understates a bill.
+
+This matters because `limits.queries_per_day` counts **questions**, which is a
+rough proxy — a question against a two-table schema and one against a
+fourteen-table schema differ by an order of magnitude in prompt tokens. Use the
+event to meter what you are actually spending.
+
+Custom providers opt in by implementing `Contracts\ReportsUsage`; those that
+do not are unaffected.
+
+## Feedback / Training
+
+Users can submit corrections. These are fed into future prompts so the AI learns:
+
+```bash
+curl -X POST /naturalquery/feedback \
+  -d '{"query":"show top customers","scheme":"orders","correction":"Should rank by SUM(quantity * unit_price), not the amount column","feedback_type":"wrong_metric"}'
+```
