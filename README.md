@@ -175,9 +175,29 @@ SELFHOSTED_LLM_MODEL=qwen2.5-coder:14b
 
 For anything else, add your own block under `llm.providers` in
 `config/naturalquery.php` with a `base_url` + `model`, then set
-`NATURALQUERY_LLM_DRIVER=<your-block-name>`. Tip for self-hosted servers that
-reject OpenAI's `response_format` parameter: set `force_json => false` in the
-block. Fully air-gapped deployments (government, healthcare) can pair a
+`NATURALQUERY_LLM_DRIVER=<your-block-name>`. That is the whole procedure —
+here is Mistral, added exactly that way and verified end to end:
+
+```php
+// config/naturalquery.php → llm.providers
+'mistral' => [
+    'api_key'  => env('MISTRAL_API_KEY'),
+    'model'    => env('MISTRAL_MODEL', 'mistral-large-latest'),
+    'base_url' => env('MISTRAL_BASE_URL', 'https://api.mistral.ai/v1'),
+    'force_json' => true,
+],
+```
+
+```env
+NATURALQUERY_LLM_DRIVER=mistral
+MISTRAL_API_KEY=...
+```
+
+`naturalquery:doctor` then confirms the driver, the key and that the model is
+live — and tells you precisely what is missing if the block is wrong.
+
+Tip for self-hosted servers that reject OpenAI's `response_format` parameter:
+set `force_json => false` in the block. Fully air-gapped deployments (government, healthcare) can pair a
 self-hosted model with the privacy wall - nothing, not even schema, leaves
 your network.
 
