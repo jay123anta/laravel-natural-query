@@ -12,10 +12,39 @@ default.
 
 ---
 
-## Authentication and CORS
+## Authorization and CORS
 
-Routes ship on `['web', 'auth', 'throttle:60,1']` — session cookies, correct for
-a Blade app or an SPA served from the same domain.
+Routes ship on `['web', 'throttle:60,1']`, plus an authorization check the
+package **always** applies whatever you put in that list:
+
+| | Who gets in |
+|---|---|
+| A `viewNaturalQuery` gate defined by your app | Whatever the gate says — always, including "no" in local |
+| No gate, `local` or `testing` | Everyone. The package works the moment it is installed |
+| No gate, anywhere else | Signed-in users only |
+
+```php
+// Define this as soon as it is more than you.
+Gate::define('viewNaturalQuery', fn ($user) => $user->isAdmin());
+```
+
+Refusals are **403 with a message naming the gate** — never a redirect. There
+may be nowhere to redirect to: `auth` used to be the default, and on a fresh
+Laravel app with no login route that turned an unauthenticated visit into
+`RouteNotFoundException: Route [login] not defined`, a 500 on the demo page.
+Add `auth` back yourself if your app has auth scaffolding and you want the
+redirect.
+
+`GET /widget.js` is deliberately public — it is a static file with no data and
+no key in it, loaded by every page embedding the widget. The endpoints it calls
+are gated.
+
+**These endpoints spend money on every request.** An ungated one in production
+is an LLM proxy for the internet, and `limits.queries_per_day` is then counted
+per IP.
+
+`web` means session cookies, correct for a Blade app or an SPA served from the
+same domain.
 
 **A front end on a different origin** (a Vite dev server, a mobile client) needs
 token auth and CORS:

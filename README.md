@@ -462,6 +462,36 @@ descriptions and the generated answers are all English. **Multilingual is a
 separate package** with a speech pipeline of its own. This one stays an
 English natural-language-to-SQL assistant.
 
+## Who is allowed to ask
+
+It works the moment you install it, and it is not open in production.
+
+| | Who gets in |
+|---|---|
+| A `viewNaturalQuery` gate you define | Whatever the gate says — always |
+| No gate, `local` or `testing` | Everyone, so you can evaluate the package without building a login first |
+| No gate, anywhere else | Signed-in users only |
+
+```php
+// AppServiceProvider::boot() — define this as soon as it is more than you
+Gate::define('viewNaturalQuery', fn ($user) => $user->isAdmin());
+```
+
+**These endpoints spend money on every request**, so an ungated one in
+production is an LLM proxy for the internet, and `limits.queries_per_day` is
+then counted per IP — easy to get around.
+
+The check is applied by the package regardless of what is in
+`routes.middleware`, because emptying that list is the first thing people do to
+make the widget public, and it should not silently remove authorization too.
+Refusals are **403**, never a redirect.
+
+> `auth` used to be the default middleware. On a fresh Laravel app — which has
+> no login route — that made the first thing a new adopter saw
+> `RouteNotFoundException: Route [login] not defined`, a 500 on the demo page
+> the README sends them to. Add `auth` back if your app has auth scaffolding
+> and you want a redirect instead of a 403.
+
 ## Events and cost
 
 An AI feature spends money on every request and can be confidently wrong, so an

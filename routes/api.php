@@ -27,8 +27,13 @@ Route::get('/', [NaturalQueryController::class, 'index'])->name('index');
 // therefore the schema introspector — just to return a static file, so every
 // page embedding <x-naturalquery::widget /> would break on an unsupported
 // database driver.
+// Public, and it has to be: this is a static JavaScript file loaded by every
+// page that embeds the widget, including pages shown to signed-out visitors.
+// Gating it does not protect anything — the file contains no data and no key —
+// it just stops the widget rendering at all, and the failure looks like a
+// broken package rather than a policy. The endpoints it CALLS are gated.
 Route::get('/widget.js', [WidgetController::class, 'asset'])
-    ->withoutMiddleware(['auth'])
+    ->withoutMiddleware(['auth', \Jayanta\NaturalQuery\Http\Middleware\Authorize::class])
     ->name('widget.asset');
 
 // Interactive demo page using the widget (config-gated; defaults to local env only)

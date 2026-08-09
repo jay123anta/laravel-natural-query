@@ -68,10 +68,24 @@ function mount(options, responder) {
         speaking: false,
     };
 
+    // Faithful to a real Response: status, and BOTH json() and text().
+    // The first version only had json(), so it could not represent a 401 or a
+    // 419 — exactly the framework-level refusals a new adopter hits first, and
+    // exactly the ones the widget was mishandling.
     window.fetch = function (url, init) {
         requests.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
         const payload = responder(url, requests[requests.length - 1].body);
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+        const status = (payload && payload.__status) || 200;
+        const body = (payload && payload.__body !== undefined)
+            ? payload.__body
+            : JSON.stringify(payload);
+
+        return Promise.resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            text: () => Promise.resolve(body),
+            json: () => Promise.resolve(JSON.parse(body)),
+        });
     };
 
     window.eval(fs.readFileSync(WIDGET, 'utf8'));
@@ -493,13 +507,16 @@ async function run() {
         const seen = [];
         dom.window.fetch = function (url) {
             seen.push(String(url));
+            const body = JSON.stringify({
+                status: 'success',
+                state_summary: 'Orders · revenue · region is West',
+                conversation: { context_active: true, can_rewind: true, turn: 2 },
+            });
             return Promise.resolve({
                 ok: true,
-                json: () => Promise.resolve({
-                    status: 'success',
-                    state_summary: 'Orders · revenue · region is West',
-                    conversation: { context_active: true, can_rewind: true, turn: 2 },
-                }),
+                status: 200,
+                text: () => Promise.resolve(body),
+                json: () => Promise.resolve(JSON.parse(body)),
             });
         };
         dom.window.eval(fs.readFileSync(WIDGET, 'utf8'));
@@ -569,6 +586,66 @@ async function run() {
             assert(urls.every((u) => !u.includes('/voice')), 'something was posted to an audio endpoint');
             assert(urls.some((u) => u.endsWith('/text')), 'the question did not go to /text');
             assert(ctx.requests.every((r) => !r.body || !('audio' in r.body)), 'audio was included in a request body');
+        });
+    }
+
+    // ------------------------------------------- what a new install fails with
+    //
+    // Verified against a virgin `laravel new` app: these are the refusals
+    // Laravel raises before the request ever reaches the engine, and every one
+    // of them used to reach the user as "Unexpected response status." — which
+    // describes nothing and suggests nothing. Each has a different fix.
+    {
+        const cases = [
+            { status: 401, body: { message: 'Unauthenticated.' }, expect: 'signed in' },
+            { status: 419, body: { message: 'CSRF token mismatch.' }, expect: 'session expired' },
+            { status: 429, body: { message: 'Too Many Attempts.' }, expect: 'Too many questions' },
+            { status: 500, body: { message: 'Server Error' }, expect: 'naturalquery:doctor' },
+        ];
+
+        for (const c of cases) {
+            await check('HTTP ' + c.status + ' is explained, not shrugged at', async () => {
+                const ctx = mount({}, () => ({ __status: c.status, __body: JSON.stringify(c.body) }));
+                ctx.widget.input.value = 'revenue by region';
+                ctx.widget.submit();
+                await settle();
+
+                const text = ctx.root.textContent;
+                assertContains(text, c.expect, 'HTTP ' + c.status + ' gave no actionable message');
+                assert(!text.includes('Unexpected response status'),
+                    'HTTP ' + c.status + ' still falls through to the useless message');
+            });
+        }
+
+        // A 500 from Laravel is an HTML debug page, so json() throws. Reading
+        // the body as text first is what makes that survivable.
+        await check('an HTML error page does not crash the widget', async () => {
+            const ctx = mount({}, () => ({ __status: 500, __body: '<!DOCTYPE html><h1>Whoops</h1>' }));
+            ctx.widget.input.value = 'revenue by region';
+            ctx.widget.submit();
+            await settle();
+
+            assertContains(ctx.root.textContent, 'naturalquery:doctor', 'an HTML error page was not handled');
+        });
+
+        // The package's own errors already carry a code and a written message;
+        // the HTTP layer must not talk over them.
+        await check('the package\'s own error message is passed through untouched', async () => {
+            const ctx = mount({}, () => ({
+                __status: 502,
+                __body: JSON.stringify({
+                    status: 'error',
+                    error_code: 'provider_error',
+                    error: 'The AI service could not be reached.',
+                    retryable: true,
+                }),
+            }));
+            ctx.widget.input.value = 'revenue by region';
+            ctx.widget.submit();
+            await settle();
+
+            assertContains(ctx.root.textContent, 'The AI service could not be reached.',
+                'a considered error message was replaced by a generic one');
         });
     }
 

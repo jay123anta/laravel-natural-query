@@ -481,10 +481,56 @@
         if (scheme) body.scheme = scheme;
 
         fetch(url, { method: 'POST', headers: this.headers(), body: JSON.stringify(body), credentials: 'same-origin' })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
-            .then(function (res) { self.renderResponse(res.json); })
+            .then(function (r) {
+                return r.text().then(function (raw) {
+                    var json = null;
+                    try { json = JSON.parse(raw); } catch (e) { /* an HTML error page */ }
+                    return { status: r.status, json: json };
+                });
+            })
+            .then(function (res) { self.handleHttp(res.status, res.json); })
             .catch(function () { self.renderError('Could not reach the query service. Please try again.'); })
             .finally(function () { self.sendBtn.disabled = false; });
+    };
+
+    /**
+     * Turn an HTTP status into something the user can act on.
+     *
+     * The status used to be read and thrown away, so every framework-level
+     * refusal — not signed in, expired session, throttled — reached the user as
+     * "Unexpected response status.", which describes nothing and suggests
+     * nothing. These are the three most common first-run failures for someone
+     * who has just installed the package, and each has a different fix.
+     *
+     * The package's own errors always carry a `status` field and are passed
+     * through untouched; this only interprets the ones Laravel raises before
+     * the request ever reaches the engine.
+     */
+    Widget.prototype.handleHttp = function (status, json) {
+        if (json && json.status) return this.renderResponse(json);
+
+        if (status === 401 || status === 403) {
+            return this.renderError('You need to be signed in to ask questions. Sign in and try again.');
+        }
+
+        // Laravel's CSRF failure. Almost always a page left open until the
+        // session expired; occasionally a custom front end not sending the
+        // token at all.
+        if (status === 419) {
+            return this.renderError('Your session expired. Reload the page and try again.');
+        }
+
+        if (status === 429) {
+            return this.renderError('Too many questions just now. Wait a moment and try again.');
+        }
+
+        if (status >= 500) {
+            return this.renderError('The server could not answer that. Check the application log, or run: php artisan naturalquery:doctor');
+        }
+
+        if (json) return this.renderResponse(json);
+
+        this.renderError('Unexpected response from the server (HTTP ' + status + ').');
     };
 
     // -------------------------------------------------------------- rendering

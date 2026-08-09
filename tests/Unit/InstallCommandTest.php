@@ -15,27 +15,62 @@ class InstallCommandTest extends TestCase
 {
     private ?string $sandbox = null;
 
+    /** Files the installer created that were not there before. */
+    private array $created = [];
+
     /**
-     * Run the installer somewhere disposable.
+     * Run the installer, then put everything back.
      *
-     * It creates directories and writes the example schema for real, and the
-     * suite's schema path points at tests/Stubs/schemas — so the first version
-     * of this test dropped an example.php into the fixtures, which then made a
-     * later case count three datasets where it expected two. A test that
-     * changes the inputs of other tests is worse than no test.
+     * This command writes real files, and in Testbench `config_path()` and
+     * `database_path()` point INSIDE vendor/orchestra/testbench-core — a
+     * directory that survives between runs. Two things had already gone wrong
+     * because of that:
+     *
+     *   1. The example schema landed in tests/Stubs/schemas, so a later case
+     *      counted three datasets where it expected two.
+     *   2. A published config/naturalquery.php sat in the skeleton and SHADOWED
+     *      the package config for the entire suite. Every test after it ran
+     *      against a stale snapshot — which is how a changed middleware default
+     *      went unnoticed until a test asserted on it directly.
+     *
+     * The second is the dangerous kind: nothing failed, the suite just stopped
+     * testing the current code. So the installer runs against a temp schema
+     * directory, and anything else it creates is recorded and deleted.
      */
     private function install(): string
     {
         $this->sandbox = sys_get_temp_dir() . '/nq-install-' . getmypid();
         config(['naturalquery.schema.config_path' => $this->sandbox]);
 
-        Artisan::call('naturalquery:install');
+        $publishes = [config_path('naturalquery.php')];
+        foreach (glob(database_path('migrations') . '/*naturalquery*') ?: [] as $existing) {
+            $publishes[] = $existing;
+        }
 
-        return Artisan::output();
+        $before = array_filter($publishes, 'file_exists');
+
+        Artisan::call('naturalquery:install');
+        $output = Artisan::output();
+
+        foreach (array_merge(
+            [config_path('naturalquery.php')],
+            glob(database_path('migrations') . '/*naturalquery*') ?: []
+        ) as $path) {
+            if (file_exists($path) && !in_array($path, $before, true)) {
+                $this->created[] = $path;
+            }
+        }
+
+        return $output;
     }
 
     protected function tearDown(): void
     {
+        foreach ($this->created as $path) {
+            @unlink($path);
+        }
+        $this->created = [];
+
         if ($this->sandbox && is_dir($this->sandbox)) {
             foreach (glob($this->sandbox . '/*') ?: [] as $file) {
                 @unlink($file);

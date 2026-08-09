@@ -152,12 +152,17 @@ class NaturalQueryServiceProvider extends ServiceProvider
 
     protected function registerRoutes(): void
     {
-        $middleware = config('naturalquery.routes.middleware', ['web', 'auth', 'throttle:60,1']);
+        $middleware = config('naturalquery.routes.middleware', ['web', 'throttle:60,1']);
 
-        // Appended rather than left to the config array. An app that customises
-        // routes.middleware — the first thing anyone does to make the widget
-        // public — would otherwise drop the spending ceiling without meaning
-        // to, at exactly the moment it starts to matter.
+        // Both appended rather than left to the config array. An app that
+        // customises routes.middleware — the first thing anyone does to make
+        // the widget public — would otherwise drop the authorisation check and
+        // the spending ceiling without meaning to, at exactly the moment they
+        // start to matter.
+        //
+        // Authorize first: a refused request should not count against the
+        // day's budget.
+        $middleware[] = \Jayanta\NaturalQuery\Http\Middleware\Authorize::class;
         $middleware[] = \Jayanta\NaturalQuery\Http\Middleware\EnforceQueryBudget::class;
 
         Route::prefix(config('naturalquery.routes.prefix', 'naturalquery'))

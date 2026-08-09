@@ -553,10 +553,26 @@ return [
         // Middleware applied to all NaturalQuery routes
         // Includes throttle for rate limiting (60 requests/minute per user).
         //
-        // Keep 'auth' unless you have thought hard about removing it. These
-        // routes spend money on your API key: without authentication the widget
-        // is an LLM proxy anyone can use, and limits.queries_per_day below is
-        // then counted per IP, which is easy to get around.
+        // WHO IS ALLOWED IN is decided separately, by a gate, and the package
+        // ALWAYS applies that check whatever you put in this list:
+        //
+        //   - a 'viewNaturalQuery' gate defined by your app decides, always
+        //   - no gate, local environment  → allowed, so the package works the
+        //                                   moment it is installed
+        //   - no gate, anywhere else      → an authenticated user is required
+        //
+        // Define the gate as soon as this is more than you. These routes spend
+        // money on every request, so an open one in production is an LLM proxy
+        // for the internet, and limits.queries_per_day is then counted per IP,
+        // which is easy to get around:
+        //
+        //     Gate::define('viewNaturalQuery', fn ($user) => $user->isAdmin());
+        //
+        // 'auth' is deliberately NOT in the list below. A fresh Laravel app has
+        // no login route, so 'auth' turned an unauthenticated visit into
+        // "Route [login] not defined" — a 500 on the demo page, before the
+        // adopter had done anything wrong. Add it back if your app has auth
+        // scaffolding and you want the redirect.
         //
         // BUILDING A REACT / VUE FRONT END?
         //
@@ -576,7 +592,7 @@ return [
         // it and the failure looks like a network error rather than a policy
         // one — which is why it is written here rather than left to be
         // discovered.
-        'middleware' => ['web', 'auth', 'throttle:60,1'],
+        'middleware' => ['web', 'throttle:60,1'],
 
         // Route name prefix
         'name_prefix' => 'naturalquery.',

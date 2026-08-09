@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Authorization is now a gate, not `auth` middleware.** Walking the documented
+  install on a virgin Laravel 13 app — require, install, migrate, key, discover —
+  the first thing it does is fail: `/naturalquery/demo`, the page the README
+  sends you to, returns **500 `RouteNotFoundException: Route [login] not
+  defined`**. A fresh Laravel app has no auth scaffolding, so `auth` had nowhere
+  to redirect. The package looked broken while working exactly as configured.
+
+  Following the pattern Telescope and Horizon use for the same problem:
+
+  - a `viewNaturalQuery` gate defined by your app decides, always — including
+    when it says no in local;
+  - no gate, `local` or `testing` → allowed, so the package works on install and
+    an adopter's first feature test does not fail with 403;
+  - no gate, anywhere else → an authenticated user is required, as before.
+
+  Refusals are **403 naming the gate**, never a redirect. The check is appended
+  by the package whatever `routes.middleware` contains, since emptying that list
+  is the first thing people do to make the widget public. `GET /widget.js` stays
+  public — a static file with no data and no key, and gating it only stops the
+  widget rendering.
+
+  **Upgrading:** a published `config/naturalquery.php` keeps `auth` and is
+  unaffected. Remove it to get the gate behaviour, and define the gate if the
+  app is more than you. New installs get `['web', 'throttle:60,1']`.
+
+### Fixed
+- **The widget turned every framework-level refusal into "Unexpected response
+  status."** It read the HTTP status and threw it away. A 401, an expired
+  session (419), a throttle (429) and a 500 all produced the same message,
+  which describes nothing and suggests nothing — and these are precisely the
+  first-run failures. Each now says what happened and what to do, and an HTML
+  error page no longer crashes the parse.
+- **A test was silently disabling the rest of the suite.** `InstallCommandTest`
+  ran the real installer, which publishes `config/naturalquery.php` — and under
+  Testbench `config_path()` points inside `vendor/orchestra/testbench-core`,
+  which survives between runs. That published copy then **shadowed the package
+  config for every test**, so the suite was asserting against a stale snapshot.
+  Nothing failed; it just stopped testing the current code, which is the
+  dangerous kind. The installer now runs against a temp directory and removes
+  anything it creates.
+
 ### Added
 - **Events.** `QuestionAsked`, `QuestionAnswered`, `QuestionFailed` and
   `UnsafeSqlRejected`. The package answered questions and told nobody anything:
