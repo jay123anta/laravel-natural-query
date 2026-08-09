@@ -78,6 +78,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **"Average amount" returned the sum.** 12,100 where the answer was
+  4,033.33 — a plausible number, three times too large, labelled "average".
+  The intent contract names a METRIC and nothing about what to do with it,
+  and SqlBuilder wraps every aggregatable column in SUM(), so AVG/MIN/MAX
+  were inexpressible and silently became sums.
+
+  A single non-sum aggregate now escalates to SQL generation, which can
+  write AVG — unless the schema already defines it as a `computed_metric`,
+  which is exactly where a schema says "average order value means
+  ROUND(AVG(amount), 2)". Those keep answering in intent mode, so the common
+  case costs no extra call and stays deterministic.
+
+  Found by asking questions whose answers could be checked by hand. It
+  affected every provider and every schema discovered without `--ai`, which
+  generates no computed metrics.
 - **A total with a filter came back as a league table.** "How many invoices
   are pending" answered "Rekha Stores: 1 records" — right count, wrong
   question, and the wrong question is the one a reader believes because

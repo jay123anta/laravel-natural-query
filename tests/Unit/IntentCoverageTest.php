@@ -181,4 +181,61 @@ class IntentCoverageTest extends TestCase
 
         $this->assertNull($this->coverage()->exceeds('customers with more than 10 orders'));
     }
+
+    /**
+     * "Average amount" summed.
+     *
+     * The intent contract names a METRIC and says nothing about what to do
+     * with it, and SqlBuilder wraps every aggregatable column in SUM(). On a
+     * schema discovered without --ai — no computed metrics at all — "average
+     * amount" therefore returned 12,100 where the answer was 4,033.33. A
+     * plausible number, three times too large, labelled "average". Found by
+     * asking questions whose answers could be checked by hand.
+     */
+    #[Test]
+    public function an_aggregate_the_contract_cannot_express_escalates()
+    {
+        // No computed metrics here, so nothing provides an average.
+        config(["naturalquery.schema.config_path" => __DIR__ . "/../Stubs/groupby-schemas"]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(IntentCoverage::class);
+
+        foreach (["average revenue", "what is the average revenue", "minimum revenue"] as $query) {
+            $this->assertSame(
+                "non_sum_aggregate",
+                $this->coverage()->exceeds($query),
+                "{} would have been summed"
+            );
+        }
+    }
+
+    /**
+     * But a schema that DEFINES the average answers it exactly, and escalating
+     * would spend a second call to reach the same number while giving up the
+     * determinism intent mode exists for. computed_metrics is precisely where
+     * a schema says "average order value means ROUND(AVG(amount), 2)".
+     */
+    #[Test]
+    public function an_aggregate_the_schema_defines_stays_in_intent_mode()
+    {
+        // The default stub declares avg_amount with the alias "average".
+        $this->assertNull($this->coverage()->exceeds("average order value"));
+        $this->assertNull($this->coverage()->exceeds("what is the average"));
+    }
+
+    /**
+     * Totals and counts are what the contract is FOR. Escalating them would
+     * double the cost of the most common questions there are.
+     */
+    #[Test]
+    public function sums_and_counts_are_never_escalated_as_aggregates()
+    {
+        config(["naturalquery.schema.config_path" => __DIR__ . "/../Stubs/groupby-schemas"]);
+        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(IntentCoverage::class);
+
+        foreach (["total revenue", "how many orders", "sum of revenue", "revenue by region"] as $query) {
+            $this->assertNotSame("non_sum_aggregate", $this->coverage()->exceeds($query), $query);
+        }
+    }
 }

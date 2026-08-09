@@ -30,6 +30,16 @@ namespace Jayanta\NaturalQuery\Engine;
 class IntentCoverage
 {
     /**
+     * Optional so an IntentCoverage built by hand keeps working. Without it,
+     * the non_sum_aggregate rule cannot tell a schema that already provides an
+     * average from one that does not, and escalates either way — the safe
+     * direction, at the cost of one extra call.
+     */
+    public function __construct(protected ?\Jayanta\NaturalQuery\Schema\SchemaRegistry $registry = null)
+    {
+    }
+
+    /**
      * Wording that needs SQL the intent contract cannot express, by the SQL
      * component it implies. Named so the metadata can say WHY it escalated.
      */
@@ -71,9 +81,34 @@ class IntentCoverage
         // More than one aggregate in a single answer. The contract has ONE
         // metric, so "the average, minimum and maximum age" came back as a
         // single number with the other two silently missing.
+        //
+        // Kept ABOVE non_sum_aggregate: exceeds() returns the first match, and
+        // both of these fire on "the average and maximum age". Either would
+        // escalate, but the reported reason should be the more specific one.
         'multi_aggregate' => [
             '/\b(?:average|mean|minimum|maximum|min|max|total|sum|count)\b[^?]{0,40}?,\s*(?:and\s+)?(?:average|mean|minimum|maximum|min|max|total|sum|count)\b/i',
             '/\b(?:average|mean|minimum|maximum|min|max|total|sum|count)\s+and\s+(?:the\s+)?(?:average|mean|minimum|maximum|min|max|total|sum|count)\b/i',
+        ],
+
+        // A single aggregate that is not a sum.
+        //
+        // The intent contract names a METRIC and nothing about what to do with
+        // it, and SqlBuilder wraps every aggregatable column in SUM(). So
+        // "average amount" summed: 12,100 where the answer is 4,033.33. Not a
+        // refusal, not an obviously odd figure — a plausible number, three
+        // times too large, labelled "average". Found by asking questions whose
+        // answers could be checked by hand.
+        //
+        // Escalated rather than guessed at, because SQL generation can write
+        // AVG/MIN/MAX and the contract cannot express them at all.
+        //
+        // Deliberately not matched: "total", "sum" and "how many", which the
+        // contract does handle, and comparisons like "above the average",
+        // which numeric_filter already catches for a different reason.
+        'non_sum_aggregate' => [
+            '/\b(?:average|avg|mean|median)\s+(?:\w+\s+){0,2}?\w+/i',
+            '/\b(?:the\s+)?(?:minimum|maximum)\s+(?:\w+\s+){0,2}?\w+/i',
+            '/\bwhat\s+is\s+the\s+(?:average|mean|median|minimum|maximum)\b/i',
         ],
 
         // A list of columns to show. The contract projects one label and one
@@ -113,6 +148,15 @@ class IntentCoverage
         }
 
         foreach (self::BEYOND_CONTRACT as $component => $patterns) {
+            // A schema that defines the aggregate as a computed metric can
+            // express it perfectly well — computed_metrics is precisely the
+            // place a schema says "average order value means ROUND(AVG(amount),
+            // 2)". Escalating those would spend a second call to reach the same
+            // answer, and lose the determinism intent mode is for.
+            if ($component === 'non_sum_aggregate' && $this->schemaAlreadyProvidesIt($query)) {
+                continue;
+            }
+
             foreach ($patterns as $pattern) {
                 if (preg_match($pattern, $query)) {
                     return $component;
@@ -121,5 +165,41 @@ class IntentCoverage
         }
 
         return null;
+    }
+
+    /**
+     * Does a schema define this aggregate as a metric of its own?
+     *
+     * computed_metrics is how a schema expresses anything SUM cannot — an
+     * average, a rate, a ratio. If the question names one, intent mode answers
+     * it correctly and there is nothing to escalate.
+     *
+     * Matched on the metric's key and its aliases, with underscores read as
+     * spaces, so `avg_amount` with alias "average" covers "what is the average
+     * order value".
+     */
+    protected function schemaAlreadyProvidesIt(string $query): bool
+    {
+        if (!$this->registry) {
+            return false;
+        }
+
+        $haystack = strtolower($query);
+
+        foreach (array_keys($this->registry->all()) as $scheme) {
+            foreach ($this->registry->getComputedMetrics($scheme) as $key => $definition) {
+                $names = array_merge([$key], (array) ($definition['aliases'] ?? []));
+
+                foreach ($names as $name) {
+                    $name = strtolower(str_replace('_', ' ', trim((string) $name)));
+
+                    if ($name !== '' && str_contains($haystack, $name)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }
