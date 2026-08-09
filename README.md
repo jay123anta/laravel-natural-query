@@ -58,6 +58,17 @@ prompts, and every answer is rendered with its numbers so they can be checked.
 But the honest framing is **a fast analyst for datasets you have curated**, not
 an oracle for arbitrary databases.
 
+**Measured, not asserted.** Against a sample of the Spider text-to-SQL
+benchmark — real questions, two unfamiliar databases, no curation of any kind,
+scored by comparing result sets to the gold SQL — it answers **29 of 36 (81%)**.
+On a fourteen-table shop schema it scores 79% out of the box and 86% with three
+sentences of `system_instructions`. Reproduce both with
+`vendor/bin/phpunit --testsuite Benchmark` and your own key.
+
+Read that as: roughly one question in five is wrong on an *uncurated* schema.
+That is why every answer shows the measure, breakdown and filters it used —
+a misreading you can see is a different thing from one you cannot.
+
 It ships knowing nothing about your domain. `naturalquery:discover` reads
 *your* database and writes a config file per table; those files are the only
 thing that makes it understand your data, so any schema works without code
@@ -214,6 +225,22 @@ group). With `--ai` your configured model also fills in the *human* layer that
 otherwise has to be written by hand - dataset name, description, the aliases
 people actually say, business rules as `llm_instructions`, `computed_metrics`
 for rates and averages, and worked `example_queries`.
+
+**That difference is not cosmetic, and averages are the clearest case.** A
+plain-discovered schema has no `computed_metrics`, and intent mode can only
+SUM a measure — so "average amount" is a question it cannot express. It is
+routed to SQL generation instead, which writes the `AVG()` and answers
+correctly, at the cost of one extra API call and the determinism intent mode
+gives you. Declare the ones your users ask for and they are answered directly:
+
+```php
+'computed_metrics' => [
+    'avg_order_value' => [
+        'expression' => 'ROUND(AVG(amount), 2)',
+        'aliases' => ['average order value', 'average'],
+    ],
+],
+```
 
 Useful flags:
 
