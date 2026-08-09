@@ -15,8 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   It exists because unit tests structurally cannot find what it finds. A
   canned response happily answers a request the real API would reject.
-  Gemini, Claude, DeepSeek, Mistral and Groq (llama-3.3-70b) all pass 12/12;
-  llama-3.1-8b-instant scores 11/12, missing an implicit filter.
+
+  Gemini, Claude, DeepSeek, Mistral, Groq (llama-3.3-70b) and Grok 4.5 via
+  OpenRouter all pass 12/12. llama-3.1-8b-instant scores 10/12 repeatably —
+  it misses the implicit filter in "total amount in Guwahati" and answers
+  "how many invoices are there" with 1 instead of 3. Both are wrong numbers
+  that look entirely reasonable, which is the case for using a 70B-class
+  model where a wrong number matters.
+
+  Run it more than once before believing a single result: one Grok run missed
+  a filter and the two after it did not.
 - **Each turn says whether it stood alone.** The widget shows *New topic*,
   *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
   context was carried, with the reason on hover.
@@ -87,6 +95,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **A failed provider call threw away the provider's own explanation.** "API
+  error: HTTP 403" is a number. The same 403 carried "Your newly created team
+  doesn't have any credits or licenses yet", with a link — a five-minute fix
+  once you can read it, and an afternoon of guessing when you cannot. The body
+  is now included: truncated, whitespace-collapsed, and run through the secret
+  redactor, because that text reaches an HTTP response and a provider echoing
+  part of the request must not echo a key with it. Found with a live xAI key on
+  an unfunded account.
 - **A bare narrowing could change the measure and the breakdown.** `merge()`
   let any non-null slot from the new intent overwrite the established one, so
   a model that re-guessed on "only in Guwahati" swapped the question: after
