@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0-rc.1] - 2026-08-10
+## [1.0.0] - 2026-08-10
 
 First release. Nothing to upgrade from.
 
@@ -142,8 +142,7 @@ formats the result.
   every table and column named in your schema files still exists. Prints the
   exact fix per problem, never prints the API key, exits non-zero. `--skip-api`
   uses no quota.
-- `naturalquery:install`, `naturalquery:debug-prompt` and
-  `naturalquery:cache-cleanup`.
+- `naturalquery:install`, `naturalquery:debug` and `naturalquery:cache-cleanup`.
 - The install template is **not** a selectable dataset: the registry ignores an
   unedited `example.php`, so a fresh install cannot answer "total amount" with
   "no such table: schema". `doctor` still reports it from the directory, so the
@@ -242,6 +241,11 @@ formats the result.
   generated SQL against hand-written gold SQL by comparing result sets, the way
   Spider and BIRD do. Run with `NATURALQUERY_BENCHMARK=1`.
 - 528 PHP tests and 57 widget tests.
+- Installed from the **distributed zip** — not a source checkout — into a clean
+  Laravel 13 app. That is a genuinely different path: the zip is what
+  `.gitattributes` `export-ignore` leaves behind. Auto-discovery, all five
+  commands, `install`, both migrations, `discover` against the app's own tables,
+  `doctor` and all fourteen routes work from `vendor/`.
 
 ### Known limits
 
@@ -258,5 +262,5 @@ formats the result.
   label is for. Suitable for an internal tool where figures get sanity-checked;
   not yet for unattended reporting.
 
-[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0-rc.1...HEAD
-[1.0.0-rc.1]: https://github.com/jay123anta/laravel-natural-query/releases/tag/v1.0.0-rc.1
+[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jay123anta/laravel-natural-query/releases/tag/v1.0.0
