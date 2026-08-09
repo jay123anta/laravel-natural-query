@@ -7,477 +7,256 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **A provider conformance battery** — `tests/Conformance`, twelve cases with
-  answers verifiable by hand on three seeded rows: totals, counts, filters,
-  averages, rankings, and a conversation that narrows, drills down and
-  rewinds. Run it per provider; it self-skips without a key.
+## [1.0.0-rc.1] - 2026-08-10
 
-  It exists because unit tests structurally cannot find what it finds. A
-  canned response happily answers a request the real API would reject.
+First release. Nothing to upgrade from.
 
-  Gemini, Claude, DeepSeek, Mistral, Groq (llama-3.3-70b) and Grok 4.5 via
-  OpenRouter all pass 12/12. llama-3.1-8b-instant scores 10/12 repeatably —
-  it misses the implicit filter in "total amount in Guwahati" and answers
-  "how many invoices are there" with 1 instead of 3. Both are wrong numbers
-  that look entirely reasonable, which is the case for using a 70B-class
-  model where a wrong number matters.
-
-  Run it more than once before believing a single result: one Grok run missed
-  a filter and the two after it did not.
-
-  Extended to seventeen cases — calendar periods, a decomposed comparison and
-  the follow-up suggestions were all documented and none were exercised. The
-  multi-step path is the most complex in the package and had never been checked
-  against a real provider at all.
-
-  **CI runs it on every push** for whichever providers have a key set as a
-  repository secret, and skips the rest, so a fork is never failed by a secret
-  it cannot have. That turns "a driver silently broken against a live API" from
-  something an adopter discovers into something the build catches.
-- **Each turn says whether it stood alone.** The widget shows *New topic*,
-  *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
-  context was carried, with the reason on hover.
-
-  Raised by manual testing: two turns on screen and no way to tell whether the
-  second inherited the first. The state summary cannot convey it — "total
-  amount by city" then "breakdown by client" both read `amount · by client`
-  whether the measure was inherited or worked out afresh. Identical text, two
-  different things happening. `conversation.classification` was already in the
-  response; only the widget was silent about it.
-
-- **Events.** `QuestionAsked`, `QuestionAnswered`, `QuestionFailed` and
-  `UnsafeSqlRejected`. The package answered questions and told nobody anything:
-  there was no way to attribute cost to a user, alert on a provider outage, or
-  review the questions being answered badly, short of patching it. Listening to
-  none of them changes nothing.
-
-  `QuestionAnswered` carries the SQL that ran (server-side only — it is
-  deliberately absent from the HTTP response) and a **row count, never the
-  rows**. Result rows on an event walk into log drivers, queue payloads and
-  error trackers, which is the one direction this package exists to keep data
-  out of. A clarification fires neither the answered nor the failed event —
-  being asked which measure you meant is the system working.
-- **Token counts.** `metadata.usage` reports what a question cost when the
-  provider says, reading both dialects (Gemini `usageMetadata`, OpenAI
-  `usage`). Counts accumulate across every call one question took — a fallback,
-  a retry, the steps of a decomposed question — since those are one question to
-  the user. Absent on a cache hit; absent rather than zero when unreported,
-  because a zero understates a bill.
-
-  `limits.queries_per_day` counts questions, which is a rough proxy: a question
-  against a two-table schema and one against a fourteen-table schema differ by
-  an order of magnitude in prompt tokens.
-
-  Custom providers opt in via `Contracts\ReportsUsage`. Deliberately a separate
-  interface — adding to `LlmProviderInterface` would break every custom
-  provider already written.
-
-### Changed
-- **Authorization is now a gate, not `auth` middleware.** Walking the documented
-  install on a virgin Laravel 13 app — require, install, migrate, key, discover —
-  the first thing it does is fail: `/naturalquery/demo`, the page the README
-  sends you to, returns **500 `RouteNotFoundException: Route [login] not
-  defined`**. A fresh Laravel app has no auth scaffolding, so `auth` had nowhere
-  to redirect. The package looked broken while working exactly as configured.
-
-  Following the pattern Telescope and Horizon use for the same problem:
-
-  - a `viewNaturalQuery` gate defined by your app decides, always — including
-    when it says no in local;
-  - no gate, `local` or `testing` → allowed, so the package works on install and
-    an adopter's first feature test does not fail with 403;
-  - no gate, anywhere else → an authenticated user is required, as before.
-
-  Refusals are **403 naming the gate**, never a redirect. The check is appended
-  by the package whatever `routes.middleware` contains, since emptying that list
-  is the first thing people do to make the widget public. `GET /widget.js` stays
-  public — a static file with no data and no key, and gating it only stops the
-  widget rendering.
-
-  **Upgrading:** a published `config/naturalquery.php` keeps `auth` and is
-  unaffected. Remove it to get the gate behaviour, and define the gate if the
-  app is more than you. New installs get `['web', 'throttle:60,1']`.
-
-- `widget.language` is documented as an **English accent** selector (`en-US`,
-  `en-GB`, `en-IN`, `en-AU`), which measurably changes recognition accuracy.
-  Other locales are not supported: the browser will attempt them, but the
-  prompts, schema text and answers are all English.
-
-### Fixed
-- **A generated query never said which dates it covered.** Intent mode derives
-  `period` from `date_from`/`date_to`; SQL generation writes the `WHERE` itself
-  and had nothing to report, so every step of a decomposed question came back
-  with a blank period — while the README promises each one states the range it
-  used. "Last year" meaning a calendar year or a trailing twelve months is
-  invisible in a total, which is the entire reason for showing it. The SQL
-  prompts now ask for the range applied, and it is reported like any other.
-- **A failed provider call threw away the provider's own explanation.** "API
-  error: HTTP 403" is a number. The same 403 carried "Your newly created team
-  doesn't have any credits or licenses yet", with a link — a five-minute fix
-  once you can read it, and an afternoon of guessing when you cannot. The body
-  is now included: truncated, whitespace-collapsed, and run through the secret
-  redactor, because that text reaches an HTTP response and a provider echoing
-  part of the request must not echo a key with it. Found with a live xAI key on
-  an unfunded account.
-- **A bare narrowing could change the measure and the breakdown.** `merge()`
-  let any non-null slot from the new intent overwrite the established one, so
-  a model that re-guessed on "only in Guwahati" swapped the question: after
-  "total amount by city", llama-3.3-70b returned record_count by client and
-  the answer counted invoices per client while the screen said amounts per
-  city. A follow-up that names no measure and no breakdown now keeps the ones
-  already established; one that names either still changes it.
-
-  Frontier models carry state unprompted, which is why this never showed. It
-  is what makes conversations work on small open-weight models — the audience
-  that most needs the guard.
-- **Conversation state never reached SQL generation.** `processWithSqlGeneration`
-  did not take the context at all, so any follow-up that escalated lost every
-  accumulated filter — silently, while the state summary still displayed it.
-  Which follow-ups escalate depends on the provider, so it hid behind
-  whichever one was being tested.
-- **Intent parsing hardcoded `max_tokens: 1024`** on OpenAI-compatible
-  providers, ignoring the configured budget. A reasoning model spends part of
-  that thinking: DeepSeek v4 returned the single character `{`, which parsed
-  as nothing, reported "failed to parse", and dropped to SQL generation —
-  answering "how many invoices are pending" with 3 instead of 1. A truncated
-  reply now says so and names the setting.
-- **The filter instruction only described carrying filters FORWARD**, never
-  extracting one stated in the question. Stronger models inferred it; DeepSeek
-  did not, and returned no filter for "how many invoices are pending". Now
-  explicit in all four prompts — which matters most for the local models this
-  package is meant to serve.
-- `naturalquery:discover` crashed with a raw TypeError when `--table` was
-  passed a string through `Artisan::call`. Array options are cast now.
-- **A filter on the column being grouped by was silently discarded.**
-  "Total amount by city" then "only in Guwahati" returned every city — the
-  narrowing gone without trace, which is the failure this package exists to
-  prevent. All three providers were emitting `filters:[{city:Guwahati}]`
-  correctly; `resolveFilters` skipped any filter whose column matched the
-  group column. `GROUP BY city WHERE city = Guwahati` is well-formed and
-  returns the one row asked for.
-- **A follow-up narrowing is no longer read as a request for detail rows.**
-  A bare `group_value` means "one named record" and returns every column of
-  the matching rows — a fair reading of "revenue for Guwahati" asked cold,
-  and the wrong one for "only in Guwahati" said after "total amount by
-  city". Inside a conversation it is now re-read as a filter on the column
-  already grouped by. One-shot questions keep the detail reading.
-- The conversation-state prompt now names the slot a narrowing belongs in.
-  Left implicit, one provider dropped it entirely and two put it in
-  group_value.
-- **The Claude driver was completely broken, and had been the whole time.**
-  Its first live call returned 400 on every question, for two reasons at
-  once: `temperature` is deprecated on current models, and the assistant
-  prefill trick — a trailing `{` turn used to force JSON — is now refused
-  outright ("the conversation must end with a user message"). Both were sent
-  on every request. Neither is needed: with "respond with JSON only" in the
-  system prompt the model returns clean JSON, and omitting both is valid on
-  every Claude model, so there is no version sniffing.
-
-  `temperature` can still be set explicitly for a model that honours it.
-
-- **The shipped Claude default model was retired.** `claude-sonnet-4-20250514`
-  returns 404 — the exact `gemini-2.0-flash` failure Rule 5 exists to catch.
-  Now `claude-sonnet-5`.
-
-  Unit tests could not have caught either: they assert on the parsed result,
-  and a canned response happily answers a request the real API would refuse.
-  `ClaudeRequestShapeTest` now pins what goes on the wire instead.
-- **"Average amount" returned the sum.** 12,100 where the answer was
-  4,033.33 — a plausible number, three times too large, labelled "average".
-  The intent contract names a METRIC and nothing about what to do with it,
-  and SqlBuilder wraps every aggregatable column in SUM(), so AVG/MIN/MAX
-  were inexpressible and silently became sums.
-
-  A single non-sum aggregate now escalates to SQL generation, which can
-  write AVG — unless the schema already defines it as a `computed_metric`,
-  which is exactly where a schema says "average order value means
-  ROUND(AVG(amount), 2)". Those keep answering in intent mode, so the common
-  case costs no extra call and stays deterministic.
-
-  Found by asking questions whose answers could be checked by hand. It
-  affected every provider and every schema discovered without `--ai`, which
-  generates no computed metrics.
-- **A total with a filter came back as a league table.** "How many invoices
-  are pending" answered "Rekha Stores: 1 records" — right count, wrong
-  question, and the wrong question is the one a reader believes because
-  nothing about it looks broken. SqlBuilder tested "has a filter" before
-  "is a total", so any total carrying a filter became a filtered ranking;
-  buildTotalQuery also took no filters, so the narrowing had nowhere to go.
-  Both fixed: a filter narrows a total rather than reshaping it.
-- **The same narrowing given twice disqualified a total.** Models put the
-  value in `filters` AND in `group_value`. group_value matches against the
-  GROUP column, so the copy asked for a *client* named "pending" — and its
-  mere presence stops a query being an aggregation. The bare copy is dropped;
-  `filters` is kept because it names its column. A group_value that is not a
-  duplicate is untouched.
-- **`$parsed[order]` was read unguarded in three providers.** The
-  null-coalesce protected the validity check and not the branch that used the
-  value, so a model omitting the field passed the check and then read the
-  missing key. Gemini always sends it, which is why it survived: the only
-  provider under live test could never trigger it. Now one shared
-  `normalizeOrder()`.
-- **The install template was a selectable dataset.** `naturalquery:install`
-  writes `example.php`, pointing at the placeholder `schema_name.table_name`,
-  and the registry loaded it — so on a fresh install the model could pick it,
-  and a plain "total amount" then failed with "no such table: schema", a name
-  appearing nowhere the user has ever looked. The registry now ignores an
-  unedited template; `naturalquery:doctor` reports it from the directory so
-  the file does not vanish from view. One predicate, shared, so the two can
-  never disagree.
-- **"breakdown by client" was reported as a refinement when it is a drill-down.**
-  Every drill pattern read `break\s+…`, so the one-word spelling people
-  actually type fell past all of them and landed on the refinement default.
-
-  Not only a label. A drill-down changes the breakdown and leaves everything
-  else standing; a refinement merges whatever the model re-read from the
-  sentence, so a re-guessed measure could overwrite the one already
-  established. Found in a browser: "total amount by city" then "breakdown by
-  client" — both totalling 12,100, so nothing had been narrowed.
-
-  Drill patterns are now two tiers. Ones that point at the last answer in so
-  many words ("break THAT down") win outright. Bare ones ("breakdown by X",
-  "split by X", "group by X") are checked after the standsAlone test, because
-  those words also appear in self-contained questions — "what is the breakdown
-  of revenue by city" names its own measure and is a new question.
-- **The widget turned every framework-level refusal into "Unexpected response
-  status."** It read the HTTP status and threw it away. A 401, an expired
-  session (419), a throttle (429) and a 500 all produced the same message,
-  which describes nothing and suggests nothing — and these are precisely the
-  first-run failures. Each now says what happened and what to do, and an HTML
-  error page no longer crashes the parse.
-- **A test was silently disabling the rest of the suite.** `InstallCommandTest`
-  ran the real installer, which publishes `config/naturalquery.php` — and under
-  Testbench `config_path()` points inside `vendor/orchestra/testbench-core`,
-  which survives between runs. That published copy then **shadowed the package
-  config for every test**, so the suite was asserting against a stale snapshot.
-  Nothing failed; it just stopped testing the current code, which is the
-  dangerous kind. The installer now runs against a temp directory and removes
-  anything it creates.
-
-- `composer.json` was missing `illuminate/view`, `illuminate/validation` and
-  `ext-json`, all of which the package uses directly — Blade components and
-  the demo view, `$request->validate()` in the controller, and JSON handling
-  throughout. They resolve in practice because any Laravel app has them, but a
-  package that declares granular `illuminate/*` dependencies should declare
-  what it uses.
-- The `NaturalQuery` facade's docblock had drifted from the class: `query()`
-  gained a `$context` argument, and `getSchemeMetrics()` / `registry()` were
-  missing. A facade docblock is what an IDE completes against, so a stale one
-  is worse than none.
-
-### Removed
-- **Server-side speech-to-text, and the `POST /voice` endpoint with it.**
-
-  Voice in this package means: the **browser** recognises English speech and
-  posts text to `/text`. Nothing to configure, no audio leaving the user's
-  machine, and it works with every LLM — local or hosted — because the model
-  only ever reads a sentence. That was always the design; `/voice` was carried
-  over from the application this package was extracted from and had grown into
-  a transcription subsystem that did not belong here.
-
-  Inbuilt speech processing is part of the planned multilingual package, which
-  will have a pipeline of its own. This one stays an English-only natural
-  language to SQL assistant, and the smaller surface is the point: it is meant
-  to be the easy way for a developer to add NL→SQL, not a speech platform.
-
-  Gone: `POST /voice`, `Contracts\TranscriberInterface`, the `Transcription`
-  namespace, the `voice` config block, `NATURALQUERY_TRANSCRIBE_*`,
-  `widget.server_voice`, and the widget's MediaRecorder upload.
-  `LlmProviderInterface` no longer declares `parseVoiceQuery()` or
-  `supportsVoice()`, and `health` no longer reports `provider.supports_voice`.
-
-  Error codes `voice_unsupported` and `transcription_failed` are retired.
-
-  **If you were using `/voice`:** use the browser's `SpeechRecognition` and post
-  the transcript to `/text` — see [docs/API.md](docs/API.md#voice--there-is-no-audio-endpoint).
-  Firefox has no speech API, so people type there.
-
-## [1.0.0-rc.2] - 2026-08-08
-
-Everything here rolls into 1.0.0. This release is about the HTTP API: the
-bundled widget is a reference, and adopters build their own front ends in
-React, Vue, Inertia or Blade — so for most of them the response shape *is* the
-package.
-
-Upgrading from rc.1 needs no code changes. Every change below is additive
-except the two error codes noted under Fixed.
+Ask your database a question in English and get an answer, without a single row
+of your data leaving your server. The model is sent your schema structure and
+the question; it returns SQL; your server validates it, runs it locally and
+formats the result.
 
 ### Added
-- **[docs/API.md](docs/API.md)** — the full HTTP reference. Every endpoint and
-  field, the error table with HTTP statuses and which codes are worth retrying,
-  the conversation state shape and how a turn is classified, and the CORS/token
-  setup a front end on another origin needs.
-- **`error_code` on every failure**, with an HTTP status to match: 429 for a
-  rate limit (with `Retry-After`), 502 for a provider fault, 422 for a question
-  that cannot be answered, 400 for one that was refused. Plus `retryable`, so a
-  client need not know which codes are transient. Previously every failure was
-  `status: error` with an English sentence and a status picked by whether a
-  metadata key happened to be set.
-- **`GET /conversation/{session}`** — read the state back. The state lives on
-  the server, so without this a page reload leaves the next follow-up resolving
-  against context the user can no longer see.
-- **`POST /conversation/{session}/rewind`** now returns the same body as the
-  state endpoint, including a fresh `can_rewind`.
-- **`/schemes` returns everything needed for a "what can I ask?" panel** —
-  metrics, dimensions, default dimension, date column and examples per dataset,
-  in one call. `?scheme=` returns one, or 404 naming the ones that exist.
-- **CORS and token auth are a supported setup**, not a discovery: an `api`
-  middleware preset, documentation, and a `naturalquery:doctor` check. Without
-  the CORS entry the browser blocks the response before your code runs, and it
-  looks like a network fault rather than a policy one.
-- **The widget is laid out as a conversation** — header, scrolling thread,
-  composer pinned at the bottom, question right and answer left. A search box
-  above a result reads as one question at a time, and people did not try
-  follow-ups because nothing suggested they could. `height` sets the frame
-  (`auto` grows with the content). Example queries live in the empty thread and
-  clear once it starts.
-- **Undo last step** in the widget, and the session now survives a page reload.
-- `naturalquery:doctor` checks whether PHP has a CA certificate store at all.
 
-### Fixed
-- **An unreachable provider is no longer reported as a question nobody
-  understood.** `success: false` from a provider never means the question was
-  unclear — an unclear question is a *successful* call carrying a
-  clarification. Both sites that confused the two now return `provider_error`
-  with the provider's own message. Found when a lost CA bundle made all 36
-  benchmark questions come back "Could not understand the query. Try mentioning
-  a dataset name."
-- **"Try mentioning a dataset name" is no longer the advice when the dataset
-  was already identified.** That case returns `cannot_answer` and names the
-  dataset back.
-- One validation rule for a question wherever it arrives: `/text` demanded
-  three characters while `/conversation` accepted one, so a follow-up like "no"
-  was answered by one endpoint and rejected by the other.
+**The engine**
 
-### Changed
-- Two error codes moved to more accurate values: a failed provider call reports
-  `provider_error` (502) rather than `not_understood` (422), and an identified
-  dataset that cannot answer reports `cannot_answer`. Clients branching on
-  `error_code` for these two cases should check both.
-
-Tests: 437 PHP, 43 widget. Benchmarks against a live provider: Spider dev
-29/36 (81%), execution accuracy 10/14 (71%).
-
-## [1.0.0] - unreleased
-
-First public release.
-
-### Added
-- Natural language → SQL engine with two strategies: local intent parsing
-  (`intent`) and LLM SQL generation (`sql_generation`), plus an `auto` mode
-  that falls back from the first to the second.
-- Privacy wall: only schema structure and the user's question are ever sent to
-  a provider. Generated SQL runs locally; result rows never leave the server.
-- Four built-in LLM drivers — Gemini, OpenAI, Claude, Ollama — plus a universal
-  OpenAI-compatible driver: any hosted or self-hosted service (DeepSeek, Groq,
-  Mistral, OpenRouter, vLLM, LM Studio, LocalAI, llama.cpp) works by adding an
-  `llm.providers.<name>` block with a `base_url`.
-- `naturalquery:discover [--ai]` — reads your database and writes one plain-PHP
-  schema file per table. Every generated file is verified to parse, and every
-  AI-suggested example query is validated and planned with `EXPLAIN` against
-  the real database so hallucinated columns are dropped before they ship.
-- `naturalquery:doctor` — self-diagnosis for driver/key, provider model
-  liveness, database connection, migrations, and whether every table and column
-  named in your schema files actually exists. Prints the exact fix per problem,
-  never prints the API key, exits non-zero. `--skip-api` uses no quota.
-- Drop-in widget: `<x-naturalquery::widget />`, served at `{prefix}/widget.js`
-  with no publish step. Browser speech-to-text (English, on the device, works
-  with every provider), text-to-speech, bar/table/card rendering, clarification
-  prompts and multi-turn follow-ups.
-- Two-tier query cache (exact + similarity), feedback store, conversation
-  manager, and a `naturalquery:debug-prompt` command.
-- Security: `InputGuard` (prompt injection, SQL-in-text, exfiltration, unicode
-  bypass, resource abuse) before the provider, and SELECT-only `SqlValidator`
-  with a schema-derived table whitelist after it.
-- Optional companion package `jayanta/laravel-ai-guard` is auto-detected and
-  layered on top of `InputGuard`. Enforcement follows ai-guard's own `mode` and
-  `confidence_threshold`, so installing it never silently changes what is
-  refused; override with `privacy.ai_guard.enforce`.
-- Supports **Laravel 12 and 13** on **PHP 8.2–8.5**.
-- CI across PHP 8.2–8.5 × Laravel 12/13, prefer-lowest jobs at both ends of the
-  range, a lint job, and integration jobs that execute the real generated SQL
-  against PostgreSQL 16 and 18, MySQL 8.4 and 9, and MariaDB 11. Those jobs
-  fail if their tests skip rather than run, because a skipped test is not a
-  passing test.
-
-  Laravel 10 and 11 are intentionally not supported. Both are past security
-  support, so every published version carries advisories and Composer refuses
-  to install them under its default `policy.advisories.block`. A version the
-  package manager will not install is not a version worth claiming.
-- **SQLite is supported.** `laravel new` creates a SQLite app, so this is the
-  database most people who try the package already have; installing it used to
-  end in "go and set up MySQL first". Structure comes from `sqlite_master` and
-  the PRAGMA functions, with foreign keys whose target column is omitted
-  resolved against the referenced primary key, composite keys paired by
-  position, and declared types normalised by SQLite's affinity rules — date and
-  boolean checked first, since both have NUMERIC affinity and a DATE column is
-  meant as a date.
-- **Time periods.** `date_from` / `date_to` in the intent, with the column
-  chosen by the schema's `date_column` — a table often has several dates and
-  they answer different questions. Providers are told today's date, since a
-  model cannot otherwise resolve "last month". Dates are pattern-checked and
-  bound; a period that cannot be parsed is refused rather than ignored.
-- **Escalation beyond the intent contract.** In `auto` mode a question whose
-  wording needs SQL the contract cannot express — `HAVING`, a numeric filter, a
-  comparison against an aggregate, an exclusion, `DISTINCT`, a ratio, several
-  aggregates at once, a list of columns, a per-group top-N — goes straight to
-  SQL generation instead of being answered as a narrower question. Costs
-  nothing: both modes are one API call.
+- Two strategies — local intent parsing (`intent`) and LLM SQL generation
+  (`sql_generation`) — plus an `auto` mode that falls back from the first to the
+  second. Both cost one API call.
+- **Privacy wall.** Only schema structure and the user's question are ever sent
+  to a provider. Generated SQL runs locally and result rows never leave the
+  server. Enforced by tests, not by intent.
+- **Escalation beyond the intent contract.** A question whose wording needs SQL
+  the slot contract cannot express — `HAVING`, a numeric filter, a comparison
+  against an aggregate, an exclusion, `DISTINCT`, a ratio, several aggregates at
+  once, a per-group top-N — goes straight to SQL generation rather than being
+  answered as a narrower question.
 - **Counting.** Every dataset has an implicit `record_count` metric, so "how
-  many orders by status" is answered by counting rather than by falling back to
-  whichever measure is default.
-- **Breakdowns and cross-column filters.** `group_by` decides what the rows
-  are; `filter_column` says which column a filter value belongs to, so
-  "quantity by customer for Grocery" filters on the category while grouping by
-  the customer. An unusable breakdown or filter is refused with the list of
-  what is available.
+  many orders by status" is answered by counting rather than by whichever
+  measure happens to be default.
+- **Breakdowns and cross-column filters.** `group_by` decides what the rows are;
+  `filter_column` says which column a filter value belongs to, so "quantity by
+  customer for Grocery" filters on category while grouping by customer. A filter
+  on the column being grouped by narrows it rather than being dropped. An
+  unusable breakdown or filter is refused with the list of what is available.
+- **Non-sum aggregates.** AVG, MIN and MAX escalate to SQL generation — unless
+  the schema defines one as a `computed_metric`, which is where "average order
+  value means `ROUND(AVG(amount), 2)`" belongs. Those stay in intent mode:
+  no extra call, and deterministic.
+- **Time periods.** `date_from` / `date_to`, with the column chosen by the
+  schema's `date_column` — a table often has several dates and they answer
+  different questions. Providers are told today's date, since a model cannot
+  otherwise resolve "last month". Dates are pattern-checked and bound; a period
+  that cannot be parsed is refused rather than ignored. Every answer reports the
+  range it actually covered, including in SQL-generation mode.
+- **Multi-step answers and suggested follow-ups.** A question needing several
+  queries is split, answered per step and combined, with the arithmetic done in
+  PHP on values already fetched. Follow-up suggestions are derived from the
+  schema — no API call, and incapable of proposing a breakdown the validator
+  would refuse.
+- Two-tier query cache (exact + similarity) and a feedback store.
+
+**Conversations**
+
 - **Conversation as structured state.** Each turn is classified
   (`new_query` / `refinement` / `drill_down` / `reference`), merged into a slot
   object in PHP rather than by rewriting the question, and validated against the
-  schema before any SQL is built. Every answer reports the state it was
-  understood as; `POST /conversation/{session}/rewind` restores an earlier turn;
-  refinements are capped; follow-ups never touch the query cache.
-- **Multi-step answers and suggested follow-ups.** A question needing several
-  queries is split, answered per step and combined, with the arithmetic done in
-  PHP on values already fetched. Every answer carries follow-up questions
-  derived from the schema — no API call, and incapable of proposing a breakdown
-  the validator would refuse.
-- **Spending limits.** `limits.queries_per_day` (default 200 per person)
-  alongside the existing rate limit, applied by the package so that customising
-  `routes.middleware` cannot drop it.
-- **Accuracy is measured, not asserted.** An execution-accuracy harness grades
-  generated SQL against hand-written gold SQL by comparing result sets, the way
-  Spider and BIRD do. Run with `NATURALQUERY_BENCHMARK=1`.
-- Pluggable schema introspection: `sqlite`, `pgsql`, `mysql` and `mariadb` are built in,
-  and any other database can be supported by implementing
-  `Contracts\SchemaIntrospectorInterface` and registering it under
-  `sql.introspectors`. The built-in map lives in code, not in the publishable
-  config, so apps that published their config under an earlier version keep
-  working across upgrades — Laravel merges package config only one level deep.
-- `naturalquery:discover --merge` — after a migration, refresh the structural
-  layer of an existing schema file while keeping everything you wrote by hand:
-  descriptions, aliases, `llm_instructions`, `computed_metrics`,
-  `example_queries`, per-column flags, `group_column`, `required_join`,
-  `required_filter`. New columns appear, dropped columns are removed, and the
-  change is reported. `--force` still regenerates from scratch.
+  schema before any SQL is built.
+- A follow-up that names **no** measure and **no** breakdown keeps the ones
+  already established; one that names either still changes it. Frontier models
+  carry that context unprompted — the guard is what makes conversations work on
+  small open-weight models, the audience that most needs them.
+- A bare narrowing inside a conversation ("only in Guwahati" after "total amount
+  by city") is read as a filter on the column already grouped by. Asked cold,
+  the same words still return the detail rows for one named record.
+- `GET /conversation/{session}` reads the state back — it lives on the server,
+  so without it a page reload leaves the next follow-up resolving against
+  context the user can no longer see. `POST /conversation/{session}/rewind`
+  restores an earlier turn. Refinements are capped and follow-ups never touch
+  the query cache.
+- **Each turn says whether it stood alone.** The widget shows *New topic*,
+  *Follow-up*, *Drill-down* or *Same query*, tinted when context was carried.
+  The state summary alone cannot convey it: "total amount by city" then
+  "breakdown by client" both read `amount · by client` whether the measure was
+  inherited or worked out afresh.
 
-### Notes
+**The HTTP API**
 
-- **This is a first release; there is nothing to upgrade from.** The bugs found
-  and fixed before publishing — including a case where a question about one
-  specific record could be answered with the top-ranked row, and PostgreSQL-only
-  `ILIKE` breaking named-record lookups on MySQL — are recorded in the
-  repository history rather than here, because no published version ever
-  carried them.
-- Requires PostgreSQL or MySQL/MariaDB. **SQLite is not supported** — the
-  engine introspects your schema — and Laravel 11+ defaults to it, so
-  `naturalquery:doctor` reports that explicitly rather than letting queries
-  fail mysteriously.
+- **[docs/API.md](docs/API.md)** — every endpoint and field, the error table
+  with HTTP statuses and which codes are worth retrying, the conversation state
+  shape and how a turn is classified, and the CORS/token setup a front end on
+  another origin needs. Pinned by contract tests.
+- **`error_code` on every failure**, with a matching HTTP status: 429 for a rate
+  limit (with `Retry-After`), 502 for a provider fault, 422 for a question that
+  cannot be answered, 400 for one that was refused. Plus `retryable`, so a
+  client need not know which codes are transient. A provider that is unreachable
+  is never reported as a question nobody understood.
+- A failed provider call includes the provider's own explanation — truncated,
+  whitespace-collapsed and run through the secret redactor. "HTTP 403" is a
+  number; the same 403 carrying "your team doesn't have any credits yet" is a
+  five-minute fix.
+- **`/schemes` returns everything a "what can I ask?" panel needs** — metrics,
+  dimensions, default dimension, date column and examples per dataset, in one
+  call. `?scheme=` returns one, or 404 naming the ones that exist.
+- **CORS and token auth are a supported setup**, with an `api` middleware
+  preset and a `doctor` check. Without the CORS entry the browser blocks the
+  response before your code runs, and it looks like a network fault rather than
+  a policy one.
+- **Events** — `QuestionAsked`, `QuestionAnswered`, `QuestionFailed`,
+  `UnsafeSqlRejected` — so an application can attribute cost, alert on a
+  provider outage and audit what is being answered badly. `QuestionAnswered`
+  carries the SQL that ran (server-side only) and a **row count, never the
+  rows**: events walk into log drivers, queue payloads and error trackers, which
+  is the one direction this package exists to keep data out of. A clarification
+  fires neither the answered nor the failed event — being asked which measure
+  you meant is the system working.
+- **Token counts.** `metadata.usage` reports what a question cost when the
+  provider says, reading both dialects (Gemini `usageMetadata`, OpenAI `usage`),
+  accumulated across every call one question took. Absent on a cache hit; absent
+  rather than zero when unreported, because a zero understates a bill. Custom
+  providers opt in via `Contracts\ReportsUsage` — deliberately separate from
+  `LlmProviderInterface`, which would break every custom provider already
+  written.
 
-### Security
+**Providers**
+
+- Four built-in drivers — Gemini, OpenAI, Claude, Ollama — plus a universal
+  OpenAI-compatible driver: DeepSeek, Groq, Mistral, OpenRouter, vLLM,
+  LM Studio, LocalAI and llama.cpp work by adding an `llm.providers.<name>`
+  block with a `base_url`. A model you run yourself is a first-class choice.
+- Provider defaults are verified live, per Rule 5.
+
+**Getting it working**
+
+- `naturalquery:discover [--ai]` reads your database and writes one plain-PHP
+  schema file per table. Every generated file is verified to parse, and every
+  AI-suggested example query is validated and planned with `EXPLAIN` against the
+  real database, so hallucinated columns are dropped before they ship.
+- `naturalquery:discover --merge` refreshes the structural layer after a
+  migration while keeping everything written by hand — descriptions, aliases,
+  `llm_instructions`, `computed_metrics`, `example_queries`, per-column flags,
+  `group_column`, `required_join`, `required_filter`. New columns appear,
+  dropped columns are removed, and the change is reported.
+- `naturalquery:doctor` — self-diagnosis for driver/key, provider model
+  liveness, database connection, migrations, CA certificate store, and whether
+  every table and column named in your schema files still exists. Prints the
+  exact fix per problem, never prints the API key, exits non-zero. `--skip-api`
+  uses no quota.
+- `naturalquery:install`, `naturalquery:debug-prompt` and
+  `naturalquery:cache-cleanup`.
+- The install template is **not** a selectable dataset: the registry ignores an
+  unedited `example.php`, so a fresh install cannot answer "total amount" with
+  "no such table: schema". `doctor` still reports it from the directory, so the
+  file does not vanish from view.
+
+**The widget**
+
+- `<x-naturalquery::widget />` — a complete assistant in one line, served at
+  `{prefix}/widget.js` with no publish step. Laid out as a conversation:
+  header, scrolling thread, composer pinned at the bottom, question right and
+  answer left. A search box above a result reads as one question at a time, and
+  people did not try follow-ups because nothing suggested they could.
+- **Voice is the browser's.** English speech is recognised on the device and
+  posted to `/text` as if typed. Nothing to configure, no audio leaves the
+  machine, and it works with every LLM because the model only ever reads a
+  sentence. Firefox has no speech API, so the microphone is hidden there and
+  people type — which is why text input is never optional.
+- `widget.language` selects an **English accent** (`en-US`, `en-GB`, `en-IN`,
+  `en-AU`), which measurably changes recognition accuracy. Other locales are not
+  supported: the browser will attempt them, but the prompts, schema text and
+  answers are all English. Multilingual is a separate package with a speech
+  pipeline of its own.
+- Bar/table/card rendering, text-to-speech, clarification prompts, undo, a
+  session that survives a page reload, and `height="auto"` to grow with content.
+- Framework-level refusals say what happened: a 401, an expired session (419), a
+  throttle (429) and a 500 each get their own message rather than one
+  "Unexpected response status", and an HTML error page no longer crashes the
+  parse. These are precisely the first-run failures.
+- The widget is a reference implementation. Everything it does goes through the
+  same public REST endpoints your own front end would use.
+
+**Access and limits**
+
+- **Authorization is a gate, not `auth` middleware**, following the pattern
+  Telescope and Horizon use: a `viewNaturalQuery` gate you define decides,
+  always; with no gate, `local` and `testing` are open so the package works the
+  moment you install it; anywhere else needs a signed-in user. Refusals are
+  **403 naming the gate**, never a redirect — a fresh Laravel app has no auth
+  scaffolding, so `auth` had nowhere to redirect and the demo page returned 500
+  while working exactly as configured. The check is appended whatever
+  `routes.middleware` contains, since emptying that list is the first thing
+  people do to make the widget public. `GET /widget.js` stays public.
+- `limits.queries_per_day` (default 200 per person) alongside the rate limit,
+  applied by the package so that customising `routes.middleware` cannot drop it.
+  It counts questions, which is a rough proxy: a two-table schema and a
+  fourteen-table schema differ by an order of magnitude in prompt tokens.
+
+**Security**
+
+- `InputGuard` before the provider — prompt injection, SQL-in-text,
+  exfiltration, unicode bypass, resource abuse — and a SELECT-only
+  `SqlValidator` with a schema-derived table whitelist after it. Every SQL path
+  goes through the validator, including feedback-submitted corrections.
+- The optional companion package `jayanta/laravel-ai-guard` is auto-detected and
+  layered on top of `InputGuard`. Enforcement follows ai-guard's own `mode` and
+  `confidence_threshold`, so installing it never silently changes what is
+  refused; override with `privacy.ai_guard.enforce`.
 - `guzzlehttp/guzzle` is floored at `^7.15.1`. The package makes authenticated
   outbound HTTP on every query, and earlier 7.x releases carry open advisories.
 
-[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/jay123anta/laravel-natural-query/releases/tag/v1.0.0
+**Databases and platform**
+
+- **PostgreSQL, MySQL, MariaDB and SQLite.** SQLite matters because
+  `laravel new` creates a SQLite app, so it is the database most people trying
+  the package already have. Structure comes from `sqlite_master` and the PRAGMA
+  functions, with foreign keys whose target column is omitted resolved against
+  the referenced primary key, composite keys paired by position, and declared
+  types normalised by SQLite's affinity rules — date and boolean checked first,
+  since both have NUMERIC affinity and a DATE column is meant as a date.
+- Pluggable introspection: any other database works by implementing
+  `Contracts\SchemaIntrospectorInterface` and registering it under
+  `sql.introspectors`. The built-in map lives in code, not in the publishable
+  config, so apps that published their config keep working across upgrades —
+  Laravel merges package config only one level deep.
+- **Laravel 12 and 13 on PHP 8.2–8.5.** Laravel 10 and 11 are intentionally not
+  supported: both are past security support, so every published version carries
+  advisories and Composer refuses to install them under its default
+  `policy.advisories.block`. A version the package manager will not install is
+  not a version worth claiming.
+
+**How it is verified**
+
+- CI across PHP 8.2–8.5 × Laravel 12/13, prefer-lowest jobs at both ends, a lint
+  job, and integration jobs that execute the real generated SQL against
+  PostgreSQL 16 and 18, MySQL 8.4 and 9, and MariaDB 11. Those jobs fail if
+  their tests skip rather than run, because a skipped test is not a passing one.
+- **A provider conformance battery** (`tests/Conformance`) — seventeen cases
+  whose answers are arithmetic on three seeded rows: totals, counts, filters,
+  averages, rankings, calendar periods, a decomposed comparison, the follow-up
+  suggestions, and a conversation that narrows, drills down and rewinds. It
+  exists because unit tests structurally cannot find what it finds — a canned
+  response happily answers a request the real API would reject. CI runs it per
+  provider from repository secrets and skips the ones not set, so a fork is
+  never failed by a secret it cannot have.
+- **Accuracy is measured, not asserted.** An execution-accuracy harness grades
+  generated SQL against hand-written gold SQL by comparing result sets, the way
+  Spider and BIRD do. Run with `NATURALQUERY_BENCHMARK=1`.
+- 528 PHP tests and 57 widget tests.
+
+### Known limits
+
+- **Roughly one question in five is wrong on an *uncurated* schema.** Spider dev
+  benchmark: 29/36 (81%). On a described schema it is far better, which is why
+  the schema files matter more than anything else you will do. Show users
+  `parsed_query` so a misreading is visible.
+- **Model size matters more than vendor.** Gemini 2.5 Flash, Claude Sonnet 5,
+  DeepSeek v4 Flash, Mistral Large and Llama 3.3 70B all score 17/17 on the
+  conformance battery. Llama 3.1 8B scores 11/17 — it misses filters, miscounts,
+  and ignores date periods entirely. Use a 70B-class model or better wherever a
+  wrong number matters.
+- **No external adopter has used this yet**, which is what the release candidate
+  label is for. Suitable for an internal tool where figures get sanity-checked;
+  not yet for unattended reporting.
+
+[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/jay123anta/laravel-natural-query/releases/tag/v1.0.0-rc.1
