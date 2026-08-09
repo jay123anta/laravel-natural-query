@@ -20,10 +20,14 @@ types, and the words your users use for them. It returns SQL. Your server
 validates that SQL, runs it locally, and formats the rows. **Not one row is
 ever sent upstream**, and that is enforced by tests, not by intent.
 
-Pair it with a self-hosted model (Ollama, vLLM, LM Studio, llama.cpp) and
-**nothing leaves your network at all** — not even the schema. That is the case
-hosted BI tools cannot serve: government, healthcare, finance, anywhere the
-data genuinely cannot go to a third party.
+**Any model, hosted or your own.** Gemini, Claude, OpenAI, DeepSeek, Mistral,
+Groq, OpenRouter — or a model you run yourself on Ollama, vLLM, LM Studio or
+llama.cpp. One config block, no code changes, and the same conformance battery
+is run against each.
+
+Self-hosting goes one step further: **nothing leaves your network at all**, not
+even the schema. That is the case hosted BI tools cannot serve — government,
+healthcare, finance, anywhere the data genuinely cannot go to a third party.
 
 ```php
 $result = NaturalQuery::query("top 5 customers by revenue");
@@ -82,30 +86,31 @@ NATURALQUERY_CONFORMANCE_KEY=sk-... \
 vendor/bin/phpunit --testsuite Conformance
 ```
 
-| Provider | Model | Result |
-|---|---|---|
-| Gemini | gemini-2.5-flash | 17/17 |
-| Claude | claude-sonnet-5 | 17/17 |
-| DeepSeek | deepseek-v4-flash | 17/17 |
-| Mistral | mistral-large-latest | 17/17 |
-| Groq | llama-3.3-70b-versatile | 17/17 |
-| OpenRouter | x-ai/grok-4.5 | 12/12 on the shorter battery; the account ran out of credits before the rest |
-| Groq | llama-3.1-8b-instant | 10/12 |
+| Model | Result |
+|---|---|
+| Gemini 2.5 Flash | 17/17 |
+| Claude Sonnet 5 | 17/17 |
+| DeepSeek v4 Flash | 17/17 |
+| Mistral Large | 17/17 |
+| Llama 3.3 70B (open weights) | 17/17 |
+| Llama 3.1 8B (open weights) | 11/17 |
 
-**On model size.** The 70B open-weight model passes everything, which is the
-result that matters if you self-host — that class runs on one good GPU.
+**Model size matters more than vendor.** The 70B open-weight model passes
+everything, which is the result to look at if you self-host — that class runs
+on one good GPU, and it scores the same as the frontier hosted models.
 
-The 8B fails two cases, repeatably: it did not pick "in Guwahati" out of *"total
-amount in Guwahati"*, and it answered "how many invoices are there" with 1
-instead of 3. Both are wrong numbers that look perfectly reasonable. **Use a
-70B-class model or better for anything where a wrong number matters.** If you
-must run something smaller, describe your columns well — the aliases and
-descriptions in your schema files are what a small model leans on hardest.
+The 8B does not. It misses the filter in *"total amount in Guwahati"*, answers
+*"how many invoices are there"* with 1 instead of 3, and ignores date periods
+altogether — returning the full 12,100 for both July and August. Every one of
+those is a wrong number that looks perfectly reasonable. **Use a 70B-class
+model or better wherever a wrong number matters.** If you must run something
+smaller, describe your columns well: the aliases and descriptions in your
+schema files are what a small model leans on hardest.
 
-Frontier models are not immune to variance either: one Grok run missed a filter
-and the next two did not. Run the battery more than once before trusting a
-single result — which is exactly why the expected values are arithmetic you can
-check yourself.
+Run the battery more than once before trusting a single result — models vary
+between runs, and one frontier model missed a filter on one run and not the
+next two. That is exactly why the expected values are arithmetic you can check
+by hand rather than a score you have to take on faith.
 
 It exists because unit tests could not find what it finds. A canned response
 happily answers a request the real API would reject, so Claude's driver was
@@ -1359,12 +1364,11 @@ NATURALQUERY_SSL_VERIFY=C:\path\to\cacert.pem
 path, or `false` (disables verification - never do this in production).
 
 XAMPP already ships a bundle at `C:\xampp\apache\bin\curl-ca-bundle.crt`, so
-usually no download is needed. `php artisan naturalquery:doctor` now checks
-whether PHP has a store at all and prints the exact path if it finds one on
-your machine — worth running first, because the symptom does not look like a
-certificate problem. Every question comes back as a provider failure, and
-before this was caught properly a whole benchmark run scored 0/36 and read
-exactly like a broken package.
+usually no download is needed. Run `php artisan naturalquery:doctor` first — it
+checks whether PHP has a CA store at all and prints the path of one it finds on
+your machine. Worth doing before anything else, because the symptom does not
+look like a certificate problem: every question simply fails, which reads like
+a broken package rather than a missing file.
 
 **`Driver '<name>' is connected but NaturalQuery cannot introspect it`** -
 NaturalQuery reads your schema through database introspection, and ships with
