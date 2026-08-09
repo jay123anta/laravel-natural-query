@@ -55,26 +55,6 @@ class RecordingProvider implements LlmProviderInterface
         ];
     }
 
-    public function parseVoiceQuery(string $audioBase64, string $mimeType, array $schemeList): array
-    {
-        $this->calls[] = [
-            'method' => 'parseVoiceQuery',
-            'args' => ['audio' => $audioBase64, 'mimeType' => $mimeType, 'schemeList' => $schemeList],
-        ];
-
-        return [
-            'success' => true,
-            'transcribed_text' => 'top buyers by total',
-            'scheme' => 'privacy_orders',
-            'metric' => 'total',
-            'limit' => 10,
-            'order' => 'desc',
-            'group_value' => null,
-            'confidence' => 0.9,
-            'needs_clarification' => false,
-        ];
-    }
-
     public function healthCheck(): array
     {
         return ['status' => 'ok', 'model' => 'recording-fake'];
@@ -83,18 +63,6 @@ class RecordingProvider implements LlmProviderInterface
     public function getName(): string
     {
         return 'recording';
-    }
-
-    /**
-     * Settable, so a test can stand in for a provider with no audio support —
-     * Claude, Ollama, most self-hosted models. Voice must work for those, and
-     * it cannot be shown to if the only fake in the suite can hear.
-     */
-    public bool $voiceSupported = true;
-
-    public function supportsVoice(): bool
-    {
-        return $this->voiceSupported;
     }
 
     /**

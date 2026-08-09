@@ -359,7 +359,6 @@ Routes are registered at `/naturalquery/*` by default:
 
 ```
 POST /naturalquery/text              → Text query
-POST /naturalquery/voice             → Voice query (needs a transcriber; see Voice)
 POST /naturalquery/conversation      → Multi-turn conversation
 GET  /naturalquery/health            → Health check
 GET  /naturalquery/schemes           → Available schemas
@@ -395,12 +394,10 @@ about the South region?") via the conversation API.
   messaging app. A search box above a result reads as one question at a time,
   and people did not try follow-ups because nothing suggested they could.
 - **Voice works with every LLM provider** - speech-to-text happens in the
-  browser (Chrome/Edge/Safari), so the audio never leaves the user's machine
-  and no configuration is needed. Where the browser has no speech API, the
-  widget records and posts to `/voice`, which needs a transcriber configured -
-  a local Whisper server or a hosted one, independent of your LLM. See
-  [Voice and speech-to-text](#voice-and-speech-to-text). Text input always
-  works.
+  browser (Chrome/Edge/Safari), so no audio leaves the user's machine, nothing
+  needs configuring, and the model only ever reads English text. Firefox has no
+  speech API, so the microphone is hidden there. Text input always works. See
+  [Voice](#voice-the-browser-listens-the-server-reads-text).
 - **No build step, no publishing** - the widget JS is served by the package at
   `/naturalquery/widget.js`. To bundle it yourself instead:
   `php artisan vendor:publish --tag=naturalquery-assets`
@@ -430,60 +427,40 @@ conversation mode).
 A ready-made demo page is available at `/naturalquery/demo` (enabled in the
 `local` environment by default; control with `NATURALQUERY_DEMO_PAGE`).
 
-## Voice and speech-to-text
+## Voice: the browser listens, the server reads text
 
-**Most apps need no configuration.** The widget transcribes speech in the
-browser and posts the text to `/text`. That works with every LLM — Gemini,
-Claude, OpenAI, Ollama, anything self-hosted — costs nothing, adds no latency,
-and the audio never leaves the user's machine.
+**There is nothing to configure, and no audio endpoint.**
 
-The `/voice` endpoint exists for the cases the browser cannot cover: Firefox,
-which has no `SpeechRecognition`, and native or mobile clients with a
-microphone but no speech API. It accepts recorded audio and transcribes it
-server-side.
+The widget uses the browser's `SpeechRecognition` to turn speech into English
+text on the device, then posts that text to `/text` exactly as if it had been
+typed. That is the entire voice design, and it buys three things at once:
 
-**Transcription is chosen separately from your LLM.** Point it at any endpoint
-speaking the OpenAI `/audio/transcriptions` shape:
+- **It works with every LLM** — Gemini, Claude, OpenAI, Ollama, anything
+  self-hosted — because by the time the model is involved it is reading a
+  sentence, not hearing a recording.
+- **No audio ever leaves the user's machine.** Not to your server, not to a
+  model provider. There is no upload path in the package at all.
+- **Nothing to set up and nothing extra to pay for** — no transcription
+  service, no second API key, no added latency.
 
-```env
-# Local — the recording never leaves your network
-NATURALQUERY_TRANSCRIBE_URL=http://127.0.0.1:8080/v1
+Chrome, Edge and Safari support it. Firefox does not, so the widget hides the
+microphone there and people type — which is why text input is never optional.
 
-# Or hosted
-NATURALQUERY_TRANSCRIBE_URL=https://api.groq.com/openai/v1
-NATURALQUERY_TRANSCRIBE_KEY=gsk_...
-NATURALQUERY_TRANSCRIBE_MODEL=whisper-large-v3
+### English only, on purpose
 
-# Worth setting when you know it — short clips get detected as the wrong
-# language, which produces a transcript that is confident and entirely wrong
-NATURALQUERY_TRANSCRIBE_LANGUAGE=en
+`language` chooses which **English accent** the browser listens for and speaks
+back — `en-US`, `en-GB`, `en-IN`, `en-AU`. It matters: `en-IN` recognises
+Indian English far more accurately than `en-US` does.
+
+```blade
+<x-naturalquery::widget language="en-IN" />
 ```
 
-That one protocol covers whisper.cpp server, faster-whisper-server, LocalAI,
-LM Studio, Groq and OpenAI. **Your LLM is irrelevant to it**: an app running
-Ollama gets voice from a local Whisper server exactly as an app running Gemini
-does, and an app on Gemini can use a local server instead if it would rather
-keep the audio in its own network.
-
-`voice.driver` picks the strategy: `auto` (default) uses a configured endpoint
-if there is one, otherwise the LLM's own audio support if it has any — only
-Gemini does — otherwise nothing. `openai_compatible`, `provider` and `none`
-force the choice.
-
-`GET /health` reports what the app can actually do:
-
-```jsonc
-"provider": { "supports_voice": false },   // this LLM has no audio support
-"voice":    { "enabled": true, "transcriber": "openai-compatible" }
-```
-
-Read `voice.enabled`, not `provider.supports_voice` — they disagree for every
-setup pairing a local Whisper server with an LLM that cannot hear, which is
-the common case.
-
-> Earlier versions tied `/voice` to the LLM, so it only worked on Gemini and
-> every other provider was told it "does not support voice". That was a
-> limitation of the code, not of the provider.
+Another locale may appear to work, because the browser will attempt the
+recognition, but nothing downstream is built for it — the prompts, the schema
+descriptions and the generated answers are all English. **Multilingual is a
+separate package** with a speech pipeline of its own. This one stays an
+English natural-language-to-SQL assistant.
 
 ## Building your own front end
 
@@ -1160,9 +1137,10 @@ This is enforced by the test suite, not just by intent. `PrivacyWallTest`
 seeds a database with sentinel values, runs real queries end to end through a
 recording provider, and asserts those values appear nowhere in anything sent
 upstream - across intent mode, SQL-generation mode, self-verification, the
-retry path, multi-turn follow-ups, clarifications, and voice. Every case also
-asserts the query genuinely returned sentinel-bearing rows, so a query that
-quietly failed cannot pass by transmitting nothing.
+retry path, multi-turn follow-ups and clarifications. Every case also asserts
+the query genuinely returned sentinel-bearing rows, so a query that quietly
+failed cannot pass by transmitting nothing. One case asserts the package has no
+way to receive audio at all, since speech never reaches the server.
 
 Run it yourself:
 

@@ -652,65 +652,6 @@ return [
     ],
 
     // ==========================================================================
-    // VOICE / SPEECH-TO-TEXT
-    // ==========================================================================
-    // Most apps need nothing here.
-    //
-    // The widget transcribes speech in the BROWSER and posts the text to
-    // /text. That works with every LLM provider — local or commercial — costs
-    // nothing, and the audio never leaves the user's machine.
-    //
-    // This block is only for the /voice endpoint, which accepts recorded audio
-    // server-side. It exists for browsers without SpeechRecognition (mainly
-    // Firefox) and for native or mobile clients that have audio but no speech
-    // API of their own.
-    'voice' => [
-
-        // Which transcriber handles /voice:
-        //
-        //   'auto'               a configured endpoint below if there is one,
-        //                        otherwise the LLM provider if it accepts audio
-        //                        (Gemini does; Claude and Ollama do not),
-        //                        otherwise nothing
-        //   'openai_compatible'  always the endpoint below
-        //   'provider'           always the LLM provider's own audio support
-        //   'none'               disable /voice entirely
-        'driver' => env('NATURALQUERY_VOICE_DRIVER', 'auto'),
-
-        'transcribers' => [
-
-            // Speech to text over the OpenAI /audio/transcriptions shape.
-            //
-            // Deliberately the only endpoint driver, because everything speaks
-            // this one protocol. Point base_url at whatever you run:
-            //
-            //   http://127.0.0.1:8080/v1        whisper.cpp server
-            //   http://127.0.0.1:8000/v1        faster-whisper-server
-            //   http://127.0.0.1:8080/v1        LocalAI
-            //   http://127.0.0.1:1234/v1        LM Studio
-            //   https://api.groq.com/openai/v1  Groq (whisper-large-v3)
-            //   https://api.openai.com/v1       OpenAI (whisper-1)
-            //
-            // A local server keeps the recording inside your network, which is
-            // the strongest reason to run one. api_key is optional and most
-            // local servers ignore it.
-            'openai_compatible' => [
-                'base_url' => env('NATURALQUERY_TRANSCRIBE_URL'),
-                'model' => env('NATURALQUERY_TRANSCRIBE_MODEL', 'whisper-1'),
-                'api_key' => env('NATURALQUERY_TRANSCRIBE_KEY'),
-
-                // BCP-47 or ISO-639-1 hint, e.g. 'en', 'hi', 'as'. Worth
-                // setting when you know it: short clips are often detected as
-                // the wrong language, which produces a transcript that is
-                // confident and completely wrong.
-                'language' => env('NATURALQUERY_TRANSCRIBE_LANGUAGE'),
-
-                'timeout' => 60,
-            ],
-        ],
-    ],
-
-    // ==========================================================================
     // DROP-IN FRONTEND WIDGET
     // ==========================================================================
     // The package ships an embeddable text + voice widget. Add it to any Blade
@@ -719,10 +660,12 @@ return [
     //     <x-naturalquery::widget />
     //
     // The widget JS is served at {prefix}/widget.js (no publishing required).
-    // Voice input uses the browser's speech recognition, which works with
-    // EVERY LLM provider; when the browser has none it falls back to recording
-    // audio and sending it to /voice, which needs the 'voice' block above.
-    // Text input always works.
+    //
+    // Speech is recognised IN THE BROWSER and posted as text, which is the
+    // whole voice design: nothing to configure, no audio leaves the device,
+    // and it works with every LLM — local or hosted — because by the time the
+    // model is involved it is only reading a sentence. Browsers without
+    // speech recognition (Firefox) hide the microphone; typing always works.
     'widget' => [
         // Widget header title
         'title' => env('NATURALQUERY_WIDGET_TITLE', 'Ask your data'),
@@ -730,19 +673,24 @@ return [
         // Input placeholder text
         'placeholder' => 'Type a question or use the microphone…',
 
-        // BCP-47 locale for speech recognition + text-to-speech
-        // (e.g. en-US, en-GB, en-IN, hi-IN, de-DE).
+        // Which ENGLISH accent the browser listens for and speaks back:
+        // en-US, en-GB, en-IN, en-AU, en-CA. It changes recognition accuracy
+        // noticeably — en-IN hears Indian English far better than en-US does.
         //
-        // null follows the page's <html lang> and then the browser, which is
-        // right for most apps. Set it only when your users speak a language
-        // your markup does not declare.
+        // null follows the page's <html lang>, then the browser, which is
+        // right for most apps.
+        //
+        // THIS PACKAGE IS ENGLISH-ONLY BY DESIGN. Another locale may appear to
+        // work, since the browser will attempt the recognition, but nothing
+        // downstream is built for it: the prompts, the schema descriptions and
+        // the generated answer text are all English. Multilingual is a
+        // separate package with its own speech pipeline, not a setting here.
         'language' => env('NATURALQUERY_WIDGET_LANGUAGE'),
 
-        // Show the microphone button when the browser supports voice input
+        // Show the microphone button where the browser supports speech
+        // recognition (Chrome, Edge, Safari). Firefox has none, so the mic is
+        // hidden there and typing is the path.
         'voice' => env('NATURALQUERY_WIDGET_VOICE', true),
-
-        // Allow MediaRecorder → /voice fallback when browser STT is unavailable
-        'server_voice' => true,
 
         // Offer text-to-speech readout of answers
         'tts' => env('NATURALQUERY_WIDGET_TTS', true),

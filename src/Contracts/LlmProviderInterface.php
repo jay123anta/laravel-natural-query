@@ -56,20 +56,6 @@ interface LlmProviderInterface
     public function parseIntent(string $text, array $schemeList): array;
 
     /**
-     * Parse voice audio into structured intent.
-     *
-     * Not all providers support this. Providers that don't support audio
-     * should throw UnsupportedFeatureException.
-     *
-     * @param string $audioBase64 Base64-encoded audio data
-     * @param string $mimeType Audio MIME type (e.g., 'audio/webm', 'audio/wav')
-     * @param array $schemeList Available schemes
-     * @return array Same format as parseIntent(), plus transcribed_text
-     * @throws \Jayanta\NaturalQuery\Exceptions\UnsupportedFeatureException
-     */
-    public function parseVoiceQuery(string $audioBase64, string $mimeType, array $schemeList): array;
-
-    /**
      * Check if the provider is available and configured correctly.
      *
      * @return array {status: 'ok'|'error', message?: string, model?: string}
@@ -82,11 +68,4 @@ interface LlmProviderInterface
      * @return string e.g., 'gemini', 'openai', 'claude', 'ollama', 'null'
      */
     public function getName(): string;
-
-    /**
-     * Whether this provider supports voice/audio input.
-     *
-     * @return bool
-     */
-    public function supportsVoice(): bool;
 }

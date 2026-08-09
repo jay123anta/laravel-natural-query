@@ -54,27 +54,32 @@ and it looks like a network error rather than a policy one.
 Identical response, plus `state`, `state_summary` and `conversation`. Follow-ups
 resolve against the stored state and are never served from the query cache.
 
-### `POST /voice` — audio question
+### Voice — there is no audio endpoint
 
-```json
-{ "audio": "<base64>", "mime_type": "audio/webm" }
+Speech is recognised **in the browser** and posted to `/text` as ordinary text.
+That is the whole design, and it is why voice needs no configuration and works
+with every LLM, local or hosted: by the time the model is involved it is
+reading a sentence.
+
+```js
+const sr = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+sr.lang = 'en-IN';                     // an English accent; see below
+sr.onresult = (e) => ask(e.results[0][0].transcript);   // POST /text
+sr.start();
 ```
 
-Returns the normal answer plus `transcribed_text`, so a wrong answer to a
-misheard question is recognisable as exactly that.
+Chrome, Edge and Safari have `SpeechRecognition`; Firefox does not, so hide the
+microphone there and let people type. Feature-detect — do not sniff the agent.
 
-Requires a transcriber — a local Whisper server or a hosted one — configured
-under `voice` in `config/naturalquery.php`. This is **independent of your LLM**:
-an app on Ollama or Claude gets voice the same way an app on Gemini does.
-Unconfigured returns `voice_unsupported` with instructions rather than blaming
-the provider.
+**This package is English-only by design.** `sr.lang` selects an English accent
+(`en-US`, `en-GB`, `en-IN`, `en-AU`) and that genuinely improves recognition.
+Another language may appear to work because the browser will attempt it, but
+nothing downstream is built for it — the prompts, the schema descriptions and
+the answer text are all English. Multilingual is a separate package with its
+own speech pipeline.
 
-Check `voice.enabled` from `GET /health` before offering a microphone
-fallback — not `provider.supports_voice`, which answers a different question
-and is `false` for most working setups.
-
-Browser speech-to-text into `/text` needs no configuration, works with every
-provider, and keeps the audio on the device. Prefer it where available.
+The package accepts no audio at all: nothing to upload, no recording reaching
+your server or any model provider.
 
 ---
 
@@ -191,13 +196,11 @@ and gets reworded.
 | `error_code` | HTTP | Retryable | Meaning |
 |---|---|---|---|
 | `blocked` | 400 | no | Input guard refused it before any provider saw it |
-| `voice_unsupported` | 400 | no | This provider has no audio support |
 | `not_understood` | 422 | no | Could not be read as a question about your data |
 | `cannot_answer` | 422 | no | Understood, but the schema has no such measure or breakdown |
 | `unsafe_sql` | 422 | no | Generated SQL failed validation. Never executed |
 | `rate_limited` | 429 | **yes** | Provider is throttling. `Retry-After` header is set |
 | `provider_error` | 502 | **yes** | Provider failed or returned something unusable |
-| `transcription_failed` | 502 | **yes** | Audio could not be transcribed |
 | `database_error` | 500 | no | The database rejected or failed the query |
 | `internal_error` | 500 | no | Anything unclassified |
 
@@ -307,7 +310,7 @@ that exist.
 
 | Route | Purpose |
 |---|---|
-| `GET /health` | Provider and database reachability, plus `voice.enabled`. **503** when unhealthy — probe this |
+| `GET /health` | Provider and database reachability. **503** when unhealthy — probe this |
 | `GET /cache-stats` | Cache size and hit counts |
 | `POST /clear-cache` | `{ scheme?, older_than_days?, min_hits? }` |
 | `POST /feedback` | `{ query, scheme, correction?, corrected_sql?, feedback_type? }` — fed into later prompts |

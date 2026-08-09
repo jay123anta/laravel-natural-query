@@ -120,43 +120,6 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
         return $this->normalizeIntent($parsed, $schemeList);
     }
 
-    public function parseVoiceQuery(string $audioBase64, string $mimeType, array $schemeList): array
-    {
-        $schemeInfo = $this->buildSchemeInfo($schemeList);
-        $prompt = $this->buildVoicePrompt($schemeInfo);
-
-        $endpoint = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
-        $payload = [
-            'contents' => [[
-                'parts' => [
-                    [
-                        'inline_data' => [
-                            'mime_type' => $mimeType,
-                            'data' => $audioBase64,
-                        ],
-                    ],
-                    ['text' => $prompt],
-                ],
-            ]],
-            'generationConfig' => $this->generationConfig(1024, false),
-        ];
-
-        $response = $this->callWithRetry($endpoint, $payload);
-
-        if (!$response['success']) {
-            return $this->errorResponse($response['error'], $response['status'] ?? null);
-        }
-
-        $text = $response['data']['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        $parsed = $this->parseJsonResponse($text);
-
-        if (!$parsed) {
-            return $this->errorResponse('Failed to parse voice response');
-        }
-
-        return $this->normalizeIntent($parsed, $schemeList);
-    }
-
     public function healthCheck(): array
     {
         if (empty($this->apiKey)) {
@@ -202,11 +165,6 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
     public function getName(): string
     {
         return 'gemini';
-    }
-
-    public function supportsVoice(): bool
-    {
-        return true;
     }
 
     /**
@@ -270,69 +228,6 @@ RETURN FORMAT (JSON only, no markdown):
     "needs_clarification": false,
     "clarification_type": null
 }
-
-RESPOND WITH JSON ONLY:
-PROMPT;
-    }
-
-    /**
-     * Build the voice/audio prompt.
-     */
-    protected function buildVoicePrompt(string $schemeInfo): string
-    {
-        $today = $this->today();
-
-        return <<<PROMPT
-Listen to the audio query about datasets. Extract the user's intent and return ONLY valid JSON.
-
-AVAILABLE DATASETS WITH THEIR METRICS:
-{$schemeInfo}
-
-TASK: Extract from the audio:
-1. scheme: One of the available dataset keys
-2. metric: What measurement the user wants. When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — use record_count.
-3. query_type: "aggregation" when the user wants ONE number for the whole
-   dataset — "total revenue", "how many orders are there", "what is the average
-   order value" — with no breakdown and no named record. "ranking" when they
-   want a list, which is the usual case. "group_detail" when they named one
-   record. Getting this wrong turns "what is the total revenue" into a list of
-   every individual row.
-4. limit: Number of results requested (default 10)
-5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
-6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-7c. filters: the COMPLETE list of column filters in force after applying the instruction, as [{"column":"region","value":"East"}]. Repeat the ones that still apply — a filter you leave out is switched off. Use this whenever more than one filter applies, or when correcting one of several.
-7b. filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
-7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
-8. date_from / date_to: If the user named a period — "last month", "in 2025",
-   "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
-   form, using TODAY'S DATE below. Both null when no period is mentioned.
-   Never guess a period the user did not ask for.
-9. confidence: Your confidence 0.0 to 1.0
-
-TODAY'S DATE: {$today}
-
-RETURN FORMAT (JSON only, no markdown):
-{
-    "transcribed_text": "what you heard",
-    "scheme": "dataset_key or null",
-    "metric": "metric_name or null",
-    "limit": 10,
-    "order": "desc",
-    "query_type": "ranking",
-    "group_value": null,
-    "filter_column": null,
-    "filters": [],
-    "group_by": null,
-    "date_from": null,
-    "date_to": null,
-    "confidence": 0.85,
-    "needs_clarification": false,
-    "clarification_type": null
-}
-
-If scheme is unclear, set needs_clarification=true and clarification_type="scheme".
-If metric is unclear, set needs_clarification=true and clarification_type="metric".
 
 RESPOND WITH JSON ONLY:
 PROMPT;

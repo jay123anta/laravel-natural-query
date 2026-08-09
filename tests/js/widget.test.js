@@ -537,6 +537,41 @@ async function run() {
         });
     }
 
+    // ------------------------------------------------------ voice is browser-only
+    //
+    // The package's design is that the BROWSER hears and the server only ever
+    // receives English text. There used to be a MediaRecorder fallback that
+    // uploaded audio for the server to transcribe; that is inbuilt speech
+    // processing and belongs to the separate multilingual package. These stop
+    // it creeping back.
+    {
+        await check('no microphone is offered when the browser cannot listen', () => {
+            const { root, widget } = mount({}, () => answer());
+            // jsdom has no SpeechRecognition, which is the Firefox situation.
+            assert(widget.micBtn.classList.contains('nq-hidden'),
+                'a microphone was offered in a browser with no speech recognition');
+            assert(root.querySelector('.nq-input'), 'typing must still work');
+        });
+
+        await check('the widget has no way to record or upload audio', () => {
+            const { widget } = mount({}, () => answer());
+            assert(typeof widget.submitVoice === 'undefined', 'an audio upload path came back');
+            assert(typeof widget.startRecording === 'undefined', 'a recorder came back');
+        });
+
+        await check('a question is only ever sent as text', async () => {
+            const ctx = mount({ conversation: false }, () => answer());
+            ctx.widget.input.value = 'revenue by region';
+            ctx.widget.submit();
+            await settle();
+
+            const urls = ctx.requests.map((r) => String(r.url));
+            assert(urls.every((u) => !u.includes('/voice')), 'something was posted to an audio endpoint');
+            assert(urls.some((u) => u.endsWith('/text')), 'the question did not go to /text');
+            assert(ctx.requests.every((r) => !r.body || !('audio' in r.body)), 'audio was included in a request body');
+        });
+    }
+
     await settle();
 
     console.log('\n  ' + passed + ' passed, ' + failed + ' failed\n');

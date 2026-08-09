@@ -101,7 +101,6 @@ class DoctorCommand extends Command
         }
 
         $this->checkSslSetting();
-        $this->checkVoiceSetup();
     }
 
     /**
@@ -138,47 +137,6 @@ class DoctorCommand extends Command
             || (bool) preg_match('/^172\.(1[6-9]|2\d|3[01])\./', $host)
             // A bare hostname with no dot is a container or service name.
             || !str_contains($host, '.');
-    }
-
-    /**
-     * How this app handles speech, if at all.
-     *
-     * Says nothing when nothing is configured, because that is the normal and
-     * recommended setup — the widget transcribes in the browser, which costs
-     * nothing and keeps the audio on the device. Only a configuration that is
-     * present but wrong is worth a line, and a driver forced to one the app
-     * has not set up is silent failure waiting for the first person to press
-     * the microphone.
-     */
-    protected function checkVoiceSetup(): void
-    {
-        $driver = (string) config('naturalquery.voice.driver', 'auto');
-
-        if ($driver === 'none') {
-            return;
-        }
-
-        $transcriber = app(\Jayanta\NaturalQuery\Contracts\TranscriberInterface::class);
-
-        if ($transcriber->isConfigured()) {
-            $this->pass('Speech-to-text for /voice: ' . $transcriber->getName());
-            return;
-        }
-
-        if ($driver !== 'auto') {
-            $this->problem(
-                "voice.driver is '{$driver}' but that transcriber is not configured",
-                $driver === 'provider'
-                    ? "The '" . config('naturalquery.llm.driver', 'gemini') . "' provider does not accept audio. "
-                        . 'Set voice.driver to auto and point voice.transcribers.openai_compatible.base_url at a '
-                        . 'Whisper-compatible endpoint, or set it to none.'
-                    : 'Set voice.transcribers.openai_compatible.base_url — a local whisper.cpp or '
-                        . 'faster-whisper server, or a hosted one — or set voice.driver to none.'
-            );
-        }
-
-        // 'auto' with nothing configured is deliberate silence: /voice is off,
-        // browser speech still works, and nothing is broken.
     }
 
     /**
@@ -340,7 +298,6 @@ class DoctorCommand extends Command
 
         if (($health['status'] ?? null) === 'ok') {
             $this->pass('Provider reachable — ' . ($health['model'] ?? 'model') . ' is live');
-            $this->pass('Voice input: ' . ($provider->supportsVoice() ? 'supported server-side' : 'browser only (provider has no audio API)'));
             return;
         }
 
@@ -745,7 +702,7 @@ class DoctorCommand extends Command
         }
 
         $prefix = trim((string) config('naturalquery.routes.prefix', 'naturalquery'), '/');
-        $this->pass("Routes registered under /{$prefix} (widget.js, text, voice, health)");
+        $this->pass("Routes registered under /{$prefix} (widget.js, text, conversation, health)");
 
         $middleware = (array) config('naturalquery.routes.middleware', []);
         $hasAuth = (bool) array_filter($middleware, fn($m) => is_string($m) && str_starts_with($m, 'auth'));

@@ -37,9 +37,6 @@ Route::get('/demo', [WidgetController::class, 'demo'])->name('demo');
 // Main query endpoint (text input)
 Route::post('/text', [NaturalQueryController::class, 'textQuery'])->name('text');
 
-// Voice query endpoint (audio input)
-Route::post('/voice', [NaturalQueryController::class, 'voiceQuery'])->name('voice');
-
 // Health check
 Route::get('/health', [NaturalQueryController::class, 'health'])->name('health');
 

@@ -10,15 +10,20 @@
  *
  * Or simply use the Blade component: <x-naturalquery::widget />
  *
- * Voice strategy:
- *   1. Browser SpeechRecognition (Chrome/Edge/Safari) — free, needs no setup,
- *      works with EVERY LLM provider because transcription happens on the
- *      device and only text is sent → /text endpoint.
- *   2. Fallback: MediaRecorder → base64 audio → /voice endpoint, which
- *      transcribes server-side. That needs a transcriber configured — a local
- *      Whisper server or a hosted one — and is independent of which LLM is in
- *      use, so it is available on local models as much as commercial ones.
- *   3. Neither available → mic button hidden; text input always works.
+ * Voice strategy — the whole of it:
+ *
+ *   Browser SpeechRecognition (Chrome/Edge/Safari) turns speech into English
+ *   text on the device, and that text is posted to /text like anything typed.
+ *
+ * That is deliberately all there is. No audio is ever uploaded, so it needs no
+ * configuration, costs nothing, and works with EVERY LLM — local or hosted —
+ * because by the time the model is involved it is reading a sentence. A
+ * browser without speech recognition (Firefox) simply hides the microphone;
+ * typing always works.
+ *
+ * Server-side transcription is out of scope by design. It belongs with
+ * multilingual support in a separate package, which will have a speech
+ * pipeline of its own. This one is English, browser-heard, text-in.
  */
 (function (global) {
     'use strict';
@@ -28,10 +33,13 @@
         csrfToken: null,          // auto-read from <meta name="csrf-token"> when null
         title: 'Ask your data',
         placeholder: 'Type a question or use the microphone…',
-        // BCP-47 locale for speech recognition + TTS. Null follows the page's
-        // <html lang>, then the browser. A hardcoded locale here was a leftover
-        // from the project this package came out of, and it is not a safe
-        // default for anyone else's users.
+        // Which ENGLISH accent to listen for and speak back: en-US, en-GB,
+        // en-IN, en-AU, en-CA. It changes recognition accuracy noticeably.
+        // Null follows the page's <html lang>, then the browser.
+        //
+        // This package is English-only by design; another locale may seem to
+        // work because the browser will try, but the prompts, schema text and
+        // answers are all English.
         language: null,
         // How numbers are grouped: 'international' (1,234,567), 'indian'
         // (12,34,567), or any BCP-47 locale. Must match
@@ -41,7 +49,6 @@
         // and 15,474,683 in the totals.
         numberFormat: 'international',
         voice: true,              // show mic when supported
-        serverVoice: true,        // allow MediaRecorder → /voice fallback
         tts: true,                // read answers aloud (toggleable by user)
         autoSpeak: false,         // speak automatically after each answer
         conversation: true,       // use /conversation endpoint (follow-up support)
@@ -213,7 +220,6 @@
         this.canRewind = false;
         this.listening = false;
         this.recognition = null;
-        this.mediaRecorder = null;
         this.speaking = false;
         this.csrf = this.opts.csrfToken
             || (document.querySelector('meta[name="csrf-token"]') || {}).content
@@ -413,60 +419,29 @@
                 if (self.input.value.trim()) self.submit();
             };
             this.recognition.onerror = function () { self.setListening(false); };
-            this.voiceMode = 'browser';
             this.micBtn.classList.remove('nq-hidden');
-            return;
         }
 
-        if (this.opts.serverVoice && global.MediaRecorder && navigator.mediaDevices) {
-            this.voiceMode = 'server';
-            this.micBtn.classList.remove('nq-hidden');
-        }
+        // No else. A browser without SpeechRecognition simply has no
+        // microphone button, and typing works as it always did.
+        //
+        // There used to be a MediaRecorder fallback that uploaded audio to a
+        // /voice endpoint for the server to transcribe. That is inbuilt speech
+        // processing, which belongs to the multilingual package, not to this
+        // one — this package's design is that the BROWSER hears and the server
+        // only ever receives a sentence of English text.
     };
 
     Widget.prototype.toggleVoice = function () {
         if (this.listening) return this.stopVoice();
-        if (this.voiceMode === 'browser') {
-            try { this.recognition.start(); this.setListening(true); } catch (e) { /* already started */ }
-        } else if (this.voiceMode === 'server') {
-            this.startRecording();
-        }
+        try { this.recognition.start(); this.setListening(true); } catch (e) { /* already started */ }
     };
 
     Widget.prototype.stopVoice = function () {
-        if (this.voiceMode === 'browser' && this.recognition) {
+        if (this.recognition) {
             try { this.recognition.stop(); } catch (e) {}
-        } else if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-            this.mediaRecorder.stop();
         }
         this.setListening(false);
-    };
-
-    Widget.prototype.startRecording = function () {
-        var self = this;
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-            var chunks = [];
-            self.mediaRecorder = new MediaRecorder(stream);
-            self.mediaRecorder.ondataavailable = function (e) { chunks.push(e.data); };
-            self.mediaRecorder.onstop = function () {
-                stream.getTracks().forEach(function (t) { t.stop(); });
-                var blob = new Blob(chunks, { type: self.mediaRecorder.mimeType || 'audio/webm' });
-                var reader = new FileReader();
-                reader.onloadend = function () {
-                    var base64 = String(reader.result).split(',')[1];
-                    self.submitVoice(base64, blob.type);
-                };
-                reader.readAsDataURL(blob);
-            };
-            self.mediaRecorder.start();
-            self.setListening(true);
-            self.interim.textContent = 'Recording… click the mic again to stop.';
-            setTimeout(function () {
-                if (self.mediaRecorder && self.mediaRecorder.state === 'recording') self.mediaRecorder.stop();
-            }, 15000); // hard cap 15s
-        }).catch(function () {
-            self.renderError('Microphone access was denied.');
-        });
     };
 
     Widget.prototype.setListening = function (on) {
@@ -510,23 +485,6 @@
             .then(function (res) { self.renderResponse(res.json); })
             .catch(function () { self.renderError('Could not reach the query service. Please try again.'); })
             .finally(function () { self.sendBtn.disabled = false; });
-    };
-
-    Widget.prototype.submitVoice = function (audioBase64, mimeType) {
-        var self = this, o = this.opts;
-        // The words are not known until the server transcribes them, so the
-        // turn opens without a question and the answer fills it in.
-        this.beginTurn(null);
-        this.renderLoading('Transcribing audio…');
-        fetch(o.baseUrl + '/voice', {
-            method: 'POST',
-            headers: this.headers(),
-            body: JSON.stringify({ audio: audioBase64, mime_type: mimeType, scheme: o.scheme || undefined }),
-            credentials: 'same-origin'
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (json) { self.renderResponse(json); })
-            .catch(function () { self.renderError('Voice processing failed. Please type your question instead.'); });
     };
 
     // -------------------------------------------------------------- rendering

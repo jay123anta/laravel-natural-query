@@ -3,7 +3,6 @@
 namespace Jayanta\NaturalQuery\LlmProviders;
 
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
-use Jayanta\NaturalQuery\Exceptions\UnsupportedFeatureException;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -103,11 +102,6 @@ PROMPT;
         return $this->normalizeIntent($parsed, $schemeList);
     }
 
-    public function parseVoiceQuery(string $audioBase64, string $mimeType, array $schemeList): array
-    {
-        throw UnsupportedFeatureException::voiceNotSupported('ollama');
-    }
-
     public function healthCheck(): array
     {
         if (static::$healthCache !== null && static::$healthCacheTime !== null) {
@@ -135,11 +129,6 @@ PROMPT;
     public function getName(): string
     {
         return 'ollama';
-    }
-
-    public function supportsVoice(): bool
-    {
-        return false;
     }
 
     protected function normalizeIntent(array $parsed, array $schemeList): array

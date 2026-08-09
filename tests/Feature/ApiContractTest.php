@@ -246,12 +246,15 @@ class ApiContractTest extends TestCase
             ->assertJsonValidationErrors('text');
     }
 
+    /**
+     * Speech is the browser's job, so there is no audio endpoint to contract.
+     * Pinned because it was one, and re-adding it would be a scope change
+     * rather than a feature.
+     */
     #[Test]
-    public function voice_requires_audio()
+    public function there_is_no_audio_endpoint()
     {
-        $this->postJson('/naturalquery/voice', [])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('audio');
+        $this->postJson('/naturalquery/voice', ['audio' => 'x'])->assertStatus(404);
     }
 
     /**

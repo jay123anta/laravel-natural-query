@@ -21,7 +21,6 @@
         // the totals the server formats group their digits the same way.
         'numberFormat' => config('naturalquery.response.number_format', 'international'),
         'voice'       => $voice ?? config('naturalquery.widget.voice', true),
-        'serverVoice' => config('naturalquery.widget.server_voice', true),
         'tts'         => $tts ?? config('naturalquery.widget.tts', true),
         'autoSpeak'   => config('naturalquery.widget.auto_speak', false),
         'conversation'=> $conversation ?? config('naturalquery.widget.conversation', true),

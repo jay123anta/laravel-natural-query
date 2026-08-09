@@ -5,8 +5,6 @@ namespace Jayanta\NaturalQuery\Engine;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
 use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
-use Jayanta\NaturalQuery\Contracts\TranscriberInterface;
-use Jayanta\NaturalQuery\Transcription\NullTranscriber;
 use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\DB;
@@ -58,9 +56,6 @@ class QueryOrchestrator
     protected ?NextStepSuggester $suggester;
     protected ?IntentCoverage $coverage;
 
-    /** Speech to text, chosen independently of the LLM provider. */
-    protected TranscriberInterface $transcriber;
-
     /**
      * True while the steps of a decomposed question are being answered.
      *
@@ -83,8 +78,7 @@ class QueryOrchestrator
         ?QueryPlanner $planner = null,
         ?StepSynthesizer $synthesizer = null,
         ?NextStepSuggester $suggester = null,
-        ?IntentCoverage $coverage = null,
-        ?TranscriberInterface $transcriber = null
+        ?IntentCoverage $coverage = null
     ) {
         $this->llmProvider = $llmProvider;
         $this->cache = $cache;
@@ -103,12 +97,6 @@ class QueryOrchestrator
         $this->synthesizer = $synthesizer;
         $this->suggester = $suggester;
         $this->coverage = $coverage;
-
-        // Same reasoning, plus: "no transcriber" is an ordinary configuration
-        // rather than a broken one, since the widget transcribes in the
-        // browser by default. NullTranscriber says so in words the user can
-        // act on instead of leaving a null to blow up at request time.
-        $this->transcriber = $transcriber ?? new NullTranscriber();
     }
 
     /**
@@ -948,7 +936,7 @@ class QueryOrchestrator
     {
         return in_array(
             $result['error_code'] ?? null,
-            [ErrorCode::PROVIDER_ERROR, ErrorCode::RATE_LIMITED, ErrorCode::TRANSCRIPTION_FAILED],
+            [ErrorCode::PROVIDER_ERROR, ErrorCode::RATE_LIMITED],
             true
         );
     }
@@ -1185,72 +1173,6 @@ class QueryOrchestrator
     }
 
     // =========================================================================
-    // VOICE QUERIES
-    // =========================================================================
-
-    /**
-     * Answer a spoken question: transcribe, then treat it as any other question.
-     *
-     * This used to call the LLM provider's own audio support, which only
-     * Gemini has — so voice was a feature most adopters did not get, and they
-     * were told their provider "does not support voice" rather than that
-     * nothing had been built for them. Transcription is now its own capability
-     * (see TranscriberInterface), so a local Whisper server serves an app
-     * running Ollama exactly as well as Gemini serves one running Gemini.
-     *
-     * The transcript goes through query() like typed text, which is what
-     * happened before too — the provider's parsed intent was discarded and the
-     * query re-run from the transcript. Keeping it that way means one code
-     * path decides what a question means. Two would eventually disagree, and
-     * the spoken one would be the one nobody had tested.
-     */
-    public function voiceQuery(string $audioBase64, string $mimeType = 'audio/webm', ?string $schemeHint = null): array
-    {
-        if (!$this->transcriber->isConfigured()) {
-            return $this->formatter->formatError(
-                $this->transcriber->transcribe('', $mimeType)['error'] ?? 'Server-side voice is not configured.',
-                [],
-                ErrorCode::VOICE_UNSUPPORTED
-            );
-        }
-
-        try {
-            $result = $this->transcriber->transcribe($audioBase64, $mimeType);
-        } catch (\Throwable $e) {
-            Log::error('[NaturalQuery] Voice query error', ['error' => $e->getMessage()]);
-
-            return $this->formatter->formatError(
-                'Voice processing failed: ' . $e->getMessage(),
-                [],
-                ErrorCode::PROVIDER_ERROR
-            );
-        }
-
-        if (!($result['success'] ?? false)) {
-            // A rate limit is a rate limit whichever service imposed it, and a
-            // client that can back off should be told to.
-            $code = ($result['status'] ?? null) === 429
-                ? ErrorCode::RATE_LIMITED
-                : ErrorCode::TRANSCRIPTION_FAILED;
-
-            return $this->formatter->formatError(
-                $result['error'] ?? 'Could not transcribe the audio. Please try again or type the question.',
-                ['transcriber' => $this->transcriber->getName()],
-                $code
-            );
-        }
-
-        $answer = $this->query($result['text'], $schemeHint);
-
-        // What was heard, so a wrong answer to a misheard question is
-        // recognisable as exactly that. Without it the user is left arguing
-        // with the data when the fault was in the microphone.
-        $answer['transcribed_text'] = $result['text'];
-
-        return $answer;
-    }
-
-    // =========================================================================
     // PUBLIC API
     // =========================================================================
 
@@ -1287,18 +1209,6 @@ class QueryOrchestrator
                 'name' => $this->llmProvider->getName(),
                 'status' => $providerHealth['status'],
                 'model' => $providerHealth['model'] ?? null,
-                // Kept, but it is no longer the question a client should ask:
-                // voice works through a transcriber chosen separately, so a
-                // provider that cannot hear is not an app that cannot listen.
-                'supports_voice' => $this->llmProvider->supportsVoice(),
-            ],
-            // Whether THIS APP can accept audio at /voice. A front end deciding
-            // whether to offer a microphone fallback needs this, not the line
-            // above — they disagree for every setup that pairs a local Whisper
-            // server with a provider that has no audio support of its own.
-            'voice' => [
-                'enabled' => $this->transcriber->isConfigured(),
-                'transcriber' => $this->transcriber->getName(),
             ],
             'cache' => [
                 'enabled' => ($cacheStats['enabled'] ?? false),

@@ -86,8 +86,7 @@ class NaturalQueryController extends Controller
             'package' => 'laravel-natural-query',
             'health' => $this->orchestrator->healthCheck(),
             'endpoints' => [
-                'POST /text' => 'Natural language query',
-                'POST /voice' => 'Voice query',
+                'POST /text' => 'Natural language query (speech is transcribed in the browser)',
                 'POST /conversation' => 'Multi-turn conversation',
                 'GET /health' => 'Health check',
                 'GET /schemes' => 'Available schemas',
@@ -119,37 +118,6 @@ class NaturalQueryController extends Controller
             'request_id' => $requestId,
             'processing_time_ms' => round((microtime(true) - $startTime) * 1000, 2),
             'original_query' => $data['text'],
-        ]);
-
-        return $this->respond($result);
-    }
-
-    /**
-     * Process a voice query (audio input).
-     */
-    public function voiceQuery(Request $request)
-    {
-        $data = $request->validate([
-            // Base64 encoded audio. Bounded: ~10 MB of audio ≈ 14M base64
-            // chars — without a cap, an oversized payload ties up memory and
-            // gets forwarded to the LLM provider at your expense.
-            'audio' => 'required|string|max:14000000',
-            'mime_type' => 'nullable|string|max:50',
-            'scheme' => 'nullable|string|max:100',
-        ]);
-
-        $requestId = (string) Str::uuid();
-        $startTime = microtime(true);
-
-        $result = $this->orchestrator->voiceQuery(
-            $data['audio'],
-            $data['mime_type'] ?? 'audio/webm',
-            $data['scheme'] ?? null
-        );
-
-        $result['metadata'] = array_merge($result['metadata'] ?? [], [
-            'request_id' => $requestId,
-            'processing_time_ms' => round((microtime(true) - $startTime) * 1000, 2),
         ]);
 
         return $this->respond($result);

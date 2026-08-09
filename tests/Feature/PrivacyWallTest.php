@@ -216,16 +216,33 @@ class PrivacyWallTest extends TestCase
         $this->assertNothingLeaked();
     }
 
+    /**
+     * A spoken question is a text question by the time the package sees it.
+     *
+     * The browser does the listening and posts words, so there is no separate
+     * audio path to police — which is itself a privacy property worth stating:
+     * no recording of anyone's voice ever reaches this server, let alone a
+     * model provider. The package used to accept uploaded audio; that is gone,
+     * and this replaces the test that covered it.
+     */
     #[Test]
-    public function a_voice_query_sends_no_row_data()
+    public function the_package_has_no_way_to_receive_audio()
     {
-        config()->set('naturalquery.query_mode', 'intent');
+        $this->assertFalse(
+            method_exists(\Jayanta\NaturalQuery\Engine\QueryOrchestrator::class, 'voiceQuery'),
+            'an audio entry point came back'
+        );
 
-        $result = $this->orchestrator()->voiceQuery(base64_encode('fake-audio-bytes'), 'audio/webm');
+        $this->assertFalse(
+            method_exists(\Jayanta\NaturalQuery\Contracts\LlmProviderInterface::class, 'parseVoiceQuery'),
+            'the provider contract can be handed audio again'
+        );
 
-        $this->assertReturnedSentinelBearingRows($result);
-        $this->assertNothingLeaked();
-        $this->assertContains('parseVoiceQuery', $this->provider->methodsCalled());
+        $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())
+            ->map(fn ($r) => $r->uri())
+            ->filter(fn ($uri) => str_contains($uri, 'voice'));
+
+        $this->assertCount(0, $routes, 'an audio endpoint is registered: ' . $routes->implode(', '));
     }
 
     #[Test]

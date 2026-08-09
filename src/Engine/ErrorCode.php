@@ -31,12 +31,6 @@ final class ErrorCode
     /** The provider failed or returned something unusable. */
     public const PROVIDER_ERROR = 'provider_error';
 
-    /** Audio could not be transcribed. */
-    public const TRANSCRIPTION_FAILED = 'transcription_failed';
-
-    /** This provider has no audio support at all. */
-    public const VOICE_UNSUPPORTED = 'voice_unsupported';
-
     /** Generated SQL failed validation. Never executed. */
     public const UNSAFE_SQL = 'unsafe_sql';
 
@@ -56,13 +50,11 @@ final class ErrorCode
      */
     public const HTTP_STATUS = [
         self::BLOCKED => 400,
-        self::VOICE_UNSUPPORTED => 400,
         self::NOT_UNDERSTOOD => 422,
         self::CANNOT_ANSWER => 422,
         self::UNSAFE_SQL => 422,
         self::RATE_LIMITED => 429,
         self::PROVIDER_ERROR => 502,
-        self::TRANSCRIPTION_FAILED => 502,
         self::DATABASE_ERROR => 500,
         self::INTERNAL => 500,
     ];
@@ -71,7 +63,6 @@ final class ErrorCode
     public const RETRYABLE = [
         self::RATE_LIMITED,
         self::PROVIDER_ERROR,
-        self::TRANSCRIPTION_FAILED,
     ];
 
     public static function httpStatus(?string $code): int
