@@ -81,13 +81,38 @@ class QueryState
      * that mentions a region says nothing about the metric, and inheriting the
      * metric is the entire point.
      */
-    public function merge(array $intent, int $seq): self
+    public function merge(array $intent, int $seq, ?string $question = null): self
     {
         $merged = $this->slots;
+
+        // What the instruction is actually allowed to change.
+        //
+        // "Only in Guwahati" narrows. It does not choose a new measure and it
+        // does not choose a new breakdown, so an intent that came back with
+        // different ones has re-guessed rather than answered — and merging
+        // those silently swaps the question. A weaker model on Groq did exactly
+        // that: after "total amount by city", the narrowing turn returned
+        // record_count by client, and the answer counted invoices per client
+        // while the user was looking at amounts per city.
+        //
+        // Stronger models carry state without being told. Guarding it locally
+        // is what makes the feature work on the small open-weight models this
+        // package is meant to run on, where that inference is exactly what is
+        // missing.
+        $namesMeasure = $question === null || $this->namesAMeasure($question);
+        $namesBreakdown = $question === null || $this->namesABreakdown($question);
 
         foreach (self::SLOTS as $slot) {
             if ($slot === 'filters') {
                 continue; // accumulated below, never overwritten wholesale
+            }
+
+            if ($slot === 'metric' && !$namesMeasure && ($this->slots['metric'] ?? null)) {
+                continue;
+            }
+
+            if ($slot === 'group_by' && !$namesBreakdown && ($this->slots['group_by'] ?? null)) {
+                continue;
             }
 
             $value = $intent[$slot] ?? null;
@@ -107,6 +132,29 @@ class QueryState
         $merged['filters'] = $this->accumulateFilters($intent);
 
         return new self($merged, $seq, $this->refinements + 1);
+    }
+
+    /**
+     * Does the instruction pick a measure of its own?
+     *
+     * Anything naming a quantity or an aggregate is choosing one; "only in
+     * West" is not. Deliberately generous — a false positive merely allows a
+     * change the model asked for, while a false negative pins the wrong
+     * measure in place.
+     */
+    protected function namesAMeasure(string $question): bool
+    {
+        return (bool) preg_match(
+            '/\b(?:how\s+many|how\s+much|number\s+of|count|total|sum|average|avg|mean|median|'
+            . 'minimum|maximum|min|max|revenue|amount|value|quantity|price|cost|spend|sales)\b/i',
+            $question
+        );
+    }
+
+    /** "by X", "per X", "for each X", "breakdown", "split", "grouped". */
+    protected function namesABreakdown(string $question): bool
+    {
+        return (bool) preg_match('/\b(?:by|per|each|breakdown|split|grouped|group)\b/i', $question);
     }
 
     /**

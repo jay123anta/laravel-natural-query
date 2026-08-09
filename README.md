@@ -87,6 +87,16 @@ vendor/bin/phpunit --testsuite Conformance
 | Claude | claude-sonnet-5 | 12/12 |
 | DeepSeek | deepseek-v4-flash | 12/12 |
 | Mistral | mistral-large-latest | 12/12 |
+| Groq | llama-3.3-70b-versatile | 12/12 |
+| Groq | llama-3.1-8b-instant | 11/12 |
+
+**On model size.** The 70B open-weight model passes everything, which is the
+result that matters if you self-host — that class runs on one good GPU. The 8B
+missed one case: it did not pick "in Guwahati" out of *"total amount in
+Guwahati"* and answered for every city. Nothing else differed. **Use a
+70B-class model or better for anything where a wrong number matters**, and if
+you must run something smaller, describe your columns well — the aliases and
+descriptions in your schema files are what a small model leans on hardest.
 
 It exists because unit tests could not find what it finds. A canned response
 happily answers a request the real API would reject, so Claude's driver was

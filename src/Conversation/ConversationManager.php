@@ -79,7 +79,7 @@ class ConversationManager
             $carried->isEmpty() ? [] : ['state' => $carried->toIntent(), 'summary' => $carried->summary($this->registry)]
         );
 
-        $next = $this->advance($carried, $result, $classification, $seq);
+        $next = $this->advance($carried, $result, $classification, $seq, $query);
 
         // Nothing is asked of the database until every slot is a real one.
         $checked = $this->validator->validate($next);
@@ -170,7 +170,7 @@ class ConversationManager
     }
 
     /** Build the state this turn should carry forward. */
-    protected function advance(QueryState $carried, array $result, string $classification, int $seq): QueryState
+    protected function advance(QueryState $carried, array $result, string $classification, int $seq, string $question = ''): QueryState
     {
         $parsed = $result['parsed_query'] ?? [];
 
@@ -180,7 +180,7 @@ class ConversationManager
             // A reference asks about what is already on screen and changes
             // nothing about the query itself.
             TurnClassifier::REFERENCE => new QueryState($carried->toIntent(), $seq, $carried->refinements),
-            default => $carried->merge($parsed, $seq),
+            default => $carried->merge($parsed, $seq, $question),
         };
     }
 

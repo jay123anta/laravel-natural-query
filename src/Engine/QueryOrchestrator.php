@@ -350,7 +350,7 @@ class QueryOrchestrator
         // what is displayed cannot disagree.
         if (!empty($context['state'])) {
             $intent = \Jayanta\NaturalQuery\Conversation\QueryState::fromArray(['slots' => $context['state']])
-                ->merge($intent, 0)
+                ->merge($intent, 0, $query)
                 ->toIntent() + $intent;
 
             $intent = $this->narrowingRatherThanDetail($intent);

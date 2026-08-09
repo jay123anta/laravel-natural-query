@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   It exists because unit tests structurally cannot find what it finds. A
   canned response happily answers a request the real API would reject.
-  Gemini, Claude, DeepSeek and Mistral now all pass 12/12.
+  Gemini, Claude, DeepSeek, Mistral and Groq (llama-3.3-70b) all pass 12/12;
+  llama-3.1-8b-instant scores 11/12, missing an implicit filter.
 - **Each turn says whether it stood alone.** The widget shows *New topic*,
   *Follow-up*, *Drill-down* or *Same query* beside the state, tinted when
   context was carried, with the reason on hover.
@@ -86,6 +87,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts, schema text and answers are all English.
 
 ### Fixed
+- **A bare narrowing could change the measure and the breakdown.** `merge()`
+  let any non-null slot from the new intent overwrite the established one, so
+  a model that re-guessed on "only in Guwahati" swapped the question: after
+  "total amount by city", llama-3.3-70b returned record_count by client and
+  the answer counted invoices per client while the screen said amounts per
+  city. A follow-up that names no measure and no breakdown now keeps the ones
+  already established; one that names either still changes it.
+
+  Frontier models carry state unprompted, which is why this never showed. It
+  is what makes conversations work on small open-weight models — the audience
+  that most needs the guard.
 - **Conversation state never reached SQL generation.** `processWithSqlGeneration`
   did not take the context at all, so any follow-up that escalated lost every
   accumulated filter — silently, while the state summary still displayed it.
