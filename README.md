@@ -1,7 +1,7 @@
 # Laravel NaturalQuery
 
-**Let people ask your database questions in English — without your data ever
-leaving your server.**
+**Let people ask your database questions in English — by voice or by typing —
+without your data ever leaving your server.**
 
 [![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -99,6 +99,7 @@ $result = NaturalQuery::query('total revenue by region last month');
 {
   "status": "success",
   "answer": "Revenue by region: West 2,028,763; East 1,878,404",
+  "speech_text": "Revenue by region. West, 2 million…",   // phrased to be read aloud
   "rows": [ { "region": "West", "revenue": "2028763.00" } ],
   "parsed_query": {
     "metric": "revenue", "group_by": "region",
@@ -117,6 +118,43 @@ Or over HTTP, which is what the widget uses:
 POST /naturalquery/text          {"text": "top 5 customers by revenue"}
 POST /naturalquery/conversation  {"session_id": "abc", "text": "only in West"}
 ```
+
+## Voice
+
+**The browser listens. Your server only ever receives text.**
+
+```blade
+<x-naturalquery::widget />   {{-- the microphone is already there --}}
+```
+
+There is nothing to configure and no audio endpoint. The widget uses the
+browser's `SpeechRecognition` to turn speech into English text on the device,
+then posts that text exactly as if it had been typed. Three things follow from
+that one decision:
+
+- **It works with every model** — Gemini, Claude, Ollama, anything — because by
+  the time the model is involved it is reading a sentence, not hearing a
+  recording.
+- **No audio leaves the device.** Not to your server, not to a provider. There
+  is no upload path in the package at all.
+- **Nothing extra to set up or pay for** — no transcription service, no second
+  API key, no added latency.
+
+Answers carry a `speech_text` field phrased for reading aloud, and the widget
+speaks it. Chrome, Edge and Safari support recognition; Firefox does not, so
+the microphone is hidden there and people type — which is why text input is
+never optional.
+
+`language` picks which English **accent** to listen for — `en-IN` recognises
+Indian English far more accurately than `en-US` does:
+
+```blade
+<x-naturalquery::widget language="en-IN" />
+```
+
+English only, on purpose. Multilingual belongs to a separate package with a
+speech pipeline of its own; this one stays an English natural-language-to-SQL
+assistant. → [docs/WIDGET.md](docs/WIDGET.md)
 
 ## Who is allowed to ask
 
