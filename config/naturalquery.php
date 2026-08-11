@@ -145,6 +145,30 @@ return [
                 'base_url' => env('OLLAMA_URL', 'http://localhost:11434'),
                 'model' => env('OLLAMA_MODEL', 'llama3'),
                 'timeout' => env('NATURALQUERY_TIMEOUT', 60),
+
+                // How much context the model may READ, in tokens.
+                //
+                // Ollama does not reject a prompt that exceeds this. It drops
+                // the beginning and answers from the rest — and the beginning
+                // is the schema, so you get a confident answer built on table
+                // definitions the model never saw. Nothing in the response
+                // says this happened.
+                //
+                // Ollama's own default is 4096, and 2048 in older builds. Once
+                // the schema block is included, a multi-table app can exceed
+                // that on an ordinary question — so leaving it to the server
+                // means silent truncation on a normal install.
+                //
+                // Raising it costs memory for the KV cache, and the model has
+                // to support the size you ask for. NaturalQuery refuses to
+                // send a prompt that will not fit rather than let it be
+                // truncated, so if you see that error, this is the setting it
+                // is talking about.
+                //
+                // Values below 1024 are treated as unset — an empty
+                // OLLAMA_NUM_CTX would otherwise read as 0 and refuse
+                // everything.
+                'num_ctx' => (int) env('OLLAMA_NUM_CTX', 8192),
             ],
         ],
     ],

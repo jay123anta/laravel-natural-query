@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Ollama was reading a truncated schema and not saying so.** The driver set
+  `num_predict` — how many tokens to write — and never `num_ctx`, how many it
+  may read. So every install ran on Ollama's server default, 4096 in current
+  builds and 2048 in older ones, and neither is a number this package chose.
+
+  Ollama does not reject a prompt that exceeds it. It discards the beginning
+  and answers from the rest. The beginning is the schema block, so the model
+  answered from table definitions it had only partly seen, and nothing in the
+  response showed it had happened. On a multi-table app this is reachable with
+  an ordinary question.
+
+  `num_ctx` is now sent explicitly and configurable as
+  `llm.providers.ollama.num_ctx` or `OLLAMA_NUM_CTX`, defaulting to 8192. A
+  prompt that will not fit is **refused rather than sent**, with an error
+  naming the setting, the size needed and the size available.
+
+  The fit estimate uses three bytes per token rather than the usual four. A
+  schema prompt is mostly identifiers and punctuation, which tokenize worse
+  than prose, and the count is in bytes — so a multibyte description costs
+  about one token per three-byte character. Both push the same way, and
+  under-estimating is what sends a prompt to be truncated.
+
+  Values below 1024 are treated as unset. `OLLAMA_NUM_CTX=` with nothing after
+  it arrives as `''`, casts to `0`, and would otherwise refuse every question
+  with an error naming the setting the user had just edited.
+
 ## [1.0.0] - 2026-08-10
 
 First release. Nothing to upgrade from.

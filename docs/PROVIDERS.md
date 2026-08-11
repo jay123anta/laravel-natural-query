@@ -20,7 +20,23 @@ here assumes a hosted API.
 NATURALQUERY_LLM_DRIVER=ollama
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=llama3
+OLLAMA_NUM_CTX=8192
 ```
+
+**`OLLAMA_NUM_CTX` matters more than it looks.** It is how many tokens the
+model may read, and Ollama's own default — 4096, or 2048 on older builds — is
+easily exceeded once your schema block is in the prompt.
+
+Ollama does not reject an oversized prompt. It drops the beginning and answers
+from the rest, and the beginning is your schema. The reply looks completely
+normal; it was just written by a model that never saw half your tables.
+
+NaturalQuery therefore refuses to send a prompt that will not fit, and the
+error names this setting. If you hit it, either raise the value (it costs
+memory, and the model has to support the size), switch to a model with a
+larger context, or describe fewer tables. Values under 1024 are treated as
+unset, so an empty `OLLAMA_NUM_CTX=` falls back to 8192 rather than refusing
+everything.
 
 ```env
 # Or a hosted API

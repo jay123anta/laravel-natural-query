@@ -13,18 +13,100 @@ use Illuminate\Support\Facades\Http;
  */
 class OllamaProvider extends AbstractProvider implements LlmProviderInterface
 {
+    /**
+     * Bytes per token, for deciding whether a prompt fits.
+     *
+     * Three, not the usual four, and the difference is the safety margin. Two
+     * reasons, both pointing the same way:
+     *
+     * English prose runs about four characters per token, but a schema prompt
+     * is mostly short identifiers, types and punctuation, which tokenize worse
+     * — nearer three and a half. Assuming four would leave no headroom on
+     * exactly the content this prompt is made of.
+     *
+     * And this counts BYTES, not characters. A Devanagari or CJK character in
+     * a schema description is three bytes and still costs roughly one token,
+     * so bytes/4 would under-count it by about a third. At bytes/3 that case
+     * lands near one token per character, which is about right.
+     *
+     * Erring low here means sending a prompt that gets silently truncated,
+     * which is the bug this guard exists to stop. Erring high means refusing a
+     * prompt that would have fitted, and saying exactly which setting to
+     * raise. The second is the one to prefer.
+     */
+    private const BYTES_PER_TOKEN = 3;
+
+    /**
+     * Context size when the config does not say.
+     *
+     * Ollama's own default is 4096 in current builds and 2048 in older ones.
+     * Both are too small for an ordinary multi-table Laravel app once the
+     * schema block is included, so leaving it to the server means silent
+     * truncation on a normal install. 8192 covers a realistic schema with room
+     * for the answer and is still modest for the KV cache.
+     */
+    private const DEFAULT_NUM_CTX = 8192;
+
+    /**
+     * Smallest context worth attempting. Below this nothing useful fits, and a
+     * value this low is a misconfiguration rather than a choice.
+     */
+    private const MIN_NUM_CTX = 1024;
+
     protected string $baseUrl;
     protected string $model;
+    protected int $numCtx;
 
     public function __construct(array $config = [])
     {
         parent::__construct($config);
         $this->baseUrl = rtrim($config['base_url'] ?? 'http://localhost:11434', '/');
         $this->model = $config['model'] ?? 'llama3';
+        // ?? alone is not enough. `OLLAMA_NUM_CTX=` with nothing after it is a
+        // present-but-empty env value, Laravel hands back '', and (int) '' is
+        // 0 — which would refuse every question ever asked, with an error
+        // naming the setting the user had just edited. Anything unusable falls
+        // back to the default rather than bricking the driver.
+        $configured = (int) ($config['num_ctx'] ?? 0);
+        $this->numCtx = $configured >= self::MIN_NUM_CTX ? $configured : self::DEFAULT_NUM_CTX;
+    }
+
+    /**
+     * Why a prompt cannot be sent, or null if it can.
+     *
+     * Ollama does not reject an oversized prompt. It drops the beginning and
+     * answers from the remainder — and the beginning is where the schema is.
+     * The result is a confident answer built on table definitions the model
+     * never saw, which is the failure this package exists to prevent, arriving
+     * with nothing on the wire to show it happened.
+     *
+     * So the check happens here, before the call, and refuses.
+     */
+    private function willNotFit(string $prompt, int $numPredict): ?string
+    {
+        $needed = (int) ceil(strlen($prompt) / self::BYTES_PER_TOKEN) + $numPredict;
+
+        if ($needed <= $this->numCtx) {
+            return null;
+        }
+
+        return sprintf(
+            'This question needs about %s tokens of context but num_ctx is %d, so Ollama '
+            . 'would silently discard the start of the prompt — the schema — and answer from '
+            . 'what was left. Raise num_ctx (llm.providers.ollama.num_ctx, or '
+            . 'OLLAMA_NUM_CTX) if the machine has the memory, use a model with a larger '
+            . 'context, or describe fewer tables in config/naturalquery-schemas.',
+            number_format($needed),
+            $this->numCtx
+        );
     }
 
     public function generateSql(string $prompt): array
     {
+        if ($tooBig = $this->willNotFit($prompt, 512)) {
+            return ['success' => false, 'error' => $tooBig];
+        }
+
         $payload = [
             'model' => $this->model,
             'prompt' => $prompt,
@@ -33,6 +115,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
             'options' => [
                 'temperature' => 0.1,
                 'num_predict' => 512,
+                'num_ctx' => $this->numCtx,
             ],
         ];
 
@@ -75,6 +158,10 @@ date_from / date_to = YYYY-MM-DD dates if the user named a period ("last month",
 Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
+        if ($tooBig = $this->willNotFit($prompt, 256)) {
+            return $this->errorResponse($tooBig);
+        }
+
         $payload = [
             'model' => $this->model,
             'prompt' => $prompt,
@@ -83,6 +170,7 @@ PROMPT;
             'options' => [
                 'temperature' => 0.1,
                 'num_predict' => 256,
+                'num_ctx' => $this->numCtx,
             ],
         ];
 

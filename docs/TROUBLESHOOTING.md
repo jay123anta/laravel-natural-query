@@ -82,6 +82,33 @@ are never retried, since they fail identically every time. On queue workers
 or CLI, where blocking is cheap, raising `total_budget_ms` is reasonable; on
 FPM a large budget risks tying up every worker during a provider outage.
 
+### "This question needs about N tokens of context but num_ctx is M" (Ollama)
+
+Your schema no longer fits in the context window the model is allowed to read.
+
+The package refuses to send the prompt rather than let Ollama truncate it,
+because Ollama does not reject an oversized prompt — it silently discards the
+start and answers from what is left. The start is your schema, so you would get
+a normal-looking answer written by a model that never saw some of your tables.
+Refusing is the loud version of a failure that is otherwise invisible.
+
+Three ways out, cheapest first:
+
+```env
+OLLAMA_NUM_CTX=16384
+```
+
+Raising it costs memory for the KV cache, and the model must support the size —
+a 4k model will not honour 16k however you configure it.
+
+Or use a model with a larger context. Or describe fewer tables: every file in
+`config/naturalquery-schemas` goes into the prompt, so deleting the ones nobody
+queries makes it smaller and the answers better, since the model has fewer
+wrong columns to pick from.
+
+An empty `OLLAMA_NUM_CTX=` is treated as unset rather than zero, so it will not
+refuse everything.
+
 ## Check your setup before anything else
 
 ```bash
