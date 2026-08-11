@@ -91,6 +91,25 @@ One rename, and a fix for a silent Ollama failure.
   `scheme` — served to 2.0.0 it would read as a null dataset, and Tier 2 rows
   have no expiry, so those questions would have stayed broken indefinitely.
 
+### Verified
+
+- **The renamed intent contract was re-tested against live models, not canned
+  responses.** This is the check the unit suite structurally cannot perform: the
+  fixtures and the parser were renamed by the same command, so they agree with
+  each other and would keep agreeing even if every real model returned the old
+  field name. The failure being looked for was a model answering with `scheme`,
+  which turns every question into a clarification.
+
+  Seventeen cases, arithmetic on three seeded rows: Gemini 2.5 Flash, Claude
+  Sonnet 5, DeepSeek v4 Flash, Mistral Large and Llama 3.3 70B all **17/17**.
+  Llama 3.1 8B **12/17**, up from 11/17 — within run-to-run variance rather
+  than an improvement to claim.
+
+  All five 8B failures are the documented weakness: one dropped filter and four
+  date periods, where it returns the whole table instead of the month asked
+  for. Conversation state — narrowing, drill-down, rewind, new-topic — passes
+  even there, because it is resolved in PHP rather than left to the model.
+
 ### Fixed
 - **Ollama was reading a truncated schema and not saying so.** The driver set
   `num_predict` — how many tokens to write — and never `num_ctx`, how many it

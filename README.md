@@ -208,17 +208,26 @@ narrows, drills down and rewinds:
 | DeepSeek v4 Flash | 17/17 |
 | Mistral Large | 17/17 |
 | Llama 3.3 70B (open weights) | 17/17 |
-| Llama 3.1 8B (open weights) | 11/17 |
+| Llama 3.1 8B (open weights) | 12/17 |
 
 **Model size matters more than vendor.** The 70B open-weight model scores the
-same as the frontier hosted ones, and runs on a single good GPU. The 8B misses
-filters, miscounts, and ignores date periods entirely — **use a 70B-class model
-or better wherever a wrong number matters.**
+same as the four frontier hosted ones, and runs on a single good GPU. The 8B
+drops filters and ignores date periods — asked for July it returns the whole
+table, confidently — so **use a 70B-class model or better wherever a wrong
+number matters.**
+
+Conversation state is the exception worth noting: narrowing, drill-down and
+rewind pass even on the 8B, because they are resolved in PHP rather than left
+to the model.
 
 ```bash
 NATURALQUERY_CONFORMANCE=1 NATURALQUERY_LLM_DRIVER=claude \
 NATURALQUERY_CONFORMANCE_KEY=sk-... vendor/bin/phpunit --testsuite Conformance
 ```
+
+Run any battery more than once before believing it. On a free tier the first
+pass often measures the rate limit rather than the model — add
+`NATURALQUERY_CONFORMANCE_DELAY=15` to space the calls out.
 
 ---
 
