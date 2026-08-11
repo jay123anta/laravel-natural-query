@@ -66,7 +66,7 @@ class UnfamiliarSchemaTest extends TestCase
         $this->provider = new RecordingProvider();
         $this->provider->intentResponse = [
             'success' => true,
-            'scheme' => 'warehouse_stock',
+            'dataset' => 'warehouse_stock',
             'metric' => 'units_held',
             'limit' => 5,
             'order' => 'desc',

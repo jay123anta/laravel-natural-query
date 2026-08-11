@@ -31,7 +31,7 @@ class RecordingProvider implements LlmProviderInterface
             'success' => true,
             'data' => [
                 'sql' => 'SELECT buyer, total FROM nq_privacy_orders ORDER BY total DESC LIMIT 10',
-                'scheme' => 'privacy_orders',
+                'dataset' => 'privacy_orders',
                 'metric' => 'total',
                 'query_type' => 'ranking',
                 'explanation' => 'Orders ranked by total',
@@ -39,13 +39,13 @@ class RecordingProvider implements LlmProviderInterface
         ];
     }
 
-    public function parseIntent(string $text, array $schemeList): array
+    public function parseIntent(string $text, array $datasetList): array
     {
-        $this->calls[] = ['method' => 'parseIntent', 'args' => ['text' => $text, 'schemeList' => $schemeList]];
+        $this->calls[] = ['method' => 'parseIntent', 'args' => ['text' => $text, 'datasetList' => $datasetList]];
 
         return $this->resolve($this->intentResponse, $text) ?? [
             'success' => true,
-            'scheme' => 'privacy_orders',
+            'dataset' => 'privacy_orders',
             'metric' => 'total',
             'limit' => 10,
             'order' => 'desc',

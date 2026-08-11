@@ -33,7 +33,7 @@ class DrillDownFilterTest extends TestCase
     private function build(array $intent): array
     {
         return $this->app->make(SqlBuilder::class)->buildQuery($intent + [
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
         ]);
     }
@@ -94,7 +94,7 @@ class DrillDownFilterTest extends TestCase
         $this->app->forgetInstance(SqlBuilder::class);
 
         $result = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'group_value' => 'West',
@@ -139,7 +139,7 @@ class DrillDownFilterTest extends TestCase
     public function the_drill_down_suggestion_names_the_column_it_filters_on()
     {
         $suggestions = $this->app->make(NextStepSuggester::class)->suggest([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_column' => 'region',
             'query_type' => 'ranking',

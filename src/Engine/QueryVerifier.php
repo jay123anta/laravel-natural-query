@@ -38,13 +38,13 @@ class QueryVerifier
      *
      * @return array {passed: bool, confidence: float, issues: ?string, fixed_sql: ?string, attempt: int}
      */
-    public function verify(string $question, string $sql, ?string $schemeKey): array
+    public function verify(string $question, string $sql, ?string $datasetKey): array
     {
         $threshold = config('naturalquery.verification.confidence_threshold', 0.7);
         $maxFixes = config('naturalquery.verification.max_fix_attempts', 1);
 
         // First verification
-        $result = $this->runVerification($question, $sql, $schemeKey);
+        $result = $this->runVerification($question, $sql, $datasetKey);
 
         // If passed with sufficient confidence, return immediately
         if ($result['passed'] && $result['confidence'] >= $threshold) {
@@ -57,7 +57,7 @@ class QueryVerifier
 
             // Optionally re-verify the fix
             if (config('naturalquery.verification.reverify_fixes', false)) {
-                $recheck = $this->runVerification($question, $fixedSql, $schemeKey);
+                $recheck = $this->runVerification($question, $fixedSql, $datasetKey);
                 $recheck['attempt'] = 2;
 
                 if ($recheck['passed'] && $recheck['confidence'] >= $threshold) {
@@ -90,10 +90,10 @@ class QueryVerifier
     /**
      * Run a single verification call.
      */
-    protected function runVerification(string $question, string $sql, ?string $schemeKey): array
+    protected function runVerification(string $question, string $sql, ?string $datasetKey): array
     {
         try {
-            $prompt = $this->buildVerificationPrompt($question, $sql, $schemeKey);
+            $prompt = $this->buildVerificationPrompt($question, $sql, $datasetKey);
             $response = $this->llm->generateSql($prompt);
 
             if (!$response['success']) {
@@ -126,9 +126,9 @@ class QueryVerifier
     /**
      * Build the compact verification prompt (~150 tokens input).
      */
-    protected function buildVerificationPrompt(string $question, string $sql, ?string $schemeKey): string
+    protected function buildVerificationPrompt(string $question, string $sql, ?string $datasetKey): string
     {
-        $compactSchema = $this->buildCompactSchema($schemeKey);
+        $compactSchema = $this->buildCompactSchema($datasetKey);
 
         return <<<PROMPT
 Verify this SQL answers the user's question correctly.
@@ -156,13 +156,13 @@ PROMPT;
      * Build compact schema — one line per table with column names only.
      * Example: "orders(id, customer, revenue, status) JOIN customers(id, name)"
      */
-    protected function buildCompactSchema(?string $schemeKey): string
+    protected function buildCompactSchema(?string $datasetKey): string
     {
-        if (!$schemeKey || !$this->registry->has($schemeKey)) {
+        if (!$datasetKey || !$this->registry->has($datasetKey)) {
             return 'schema not available';
         }
 
-        $schema = $this->registry->get($schemeKey);
+        $schema = $this->registry->get($datasetKey);
         $parts = [];
 
         // Primary table columns

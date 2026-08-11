@@ -455,7 +455,7 @@ class DoctorCommandTest extends TestCase
 
         try {
             $registry = $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
-            $keys = array_column($registry->getAvailableSchemes(), 'key');
+            $keys = array_column($registry->getAvailableDatasets(), 'key');
 
             $this->assertNotContains('example', $keys, 'the model can still pick the template');
             $this->assertContains('test_orders', $keys, 'a real schema was dropped too');
@@ -553,14 +553,14 @@ class DoctorCommandTest extends TestCase
     }
 
     #[Test]
-    public function it_flags_a_default_scheme_that_matches_no_schema()
+    public function it_flags_a_default_dataset_that_matches_no_schema()
     {
         $this->createStubTables();
-        config(['naturalquery.default_scheme' => 'typo_scheme']);
+        config(['naturalquery.default_dataset' => 'typo_dataset']);
 
         $this->artisan('naturalquery:doctor --skip-api')
             ->assertExitCode(1)
-            ->expectsOutputToContain("default_scheme 'typo_scheme'");
+            ->expectsOutputToContain("default_dataset 'typo_dataset'");
     }
 
     #[Test]

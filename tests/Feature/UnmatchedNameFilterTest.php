@@ -71,7 +71,7 @@ class UnmatchedNameFilterTest extends TestCase
     {
         return [
             'success' => true,
-            'scheme' => 'privacy_orders',
+            'dataset' => 'privacy_orders',
             'metric' => 'total',
             'limit' => 5,
             'order' => 'desc',

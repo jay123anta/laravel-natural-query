@@ -91,10 +91,10 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
         return ['success' => true, 'data' => $parsed];
     }
 
-    public function parseIntent(string $text, array $schemeList): array
+    public function parseIntent(string $text, array $datasetList): array
     {
-        $schemeInfo = $this->buildSchemeInfo($schemeList);
-        $prompt = $this->buildIntentPrompt($text, $schemeInfo);
+        $datasetInfo = $this->buildDatasetInfo($datasetList);
+        $prompt = $this->buildIntentPrompt($text, $datasetInfo);
 
         $endpoint = "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}";
         $payload = [
@@ -117,7 +117,7 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
             return $this->errorResponse('Failed to parse intent response');
         }
 
-        return $this->normalizeIntent($parsed, $schemeList);
+        return $this->normalizeIntent($parsed, $datasetList);
     }
 
     public function healthCheck(): array
@@ -170,7 +170,7 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
     /**
      * Build the intent parsing prompt for text input.
      */
-    protected function buildIntentPrompt(string $queryText, string $schemeInfo): string
+    protected function buildIntentPrompt(string $queryText, string $datasetInfo): string
     {
         $today = $this->today();
 
@@ -178,10 +178,10 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
 Parse this natural language query about datasets: "{$queryText}"
 
 AVAILABLE DATASETS WITH THEIR METRICS:
-{$schemeInfo}
+{$datasetInfo}
 
 TASK: Extract:
-1. scheme: One of the available dataset keys
+1. dataset: One of the available dataset keys
 2. metric: What measurement the user wants (use exact metric names). When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status", "ticket volume by month" — the measurement is a count of records, so use record_count. Only pick a money or quantity metric when the user actually names one.
 3. query_type: "aggregation" when the user wants ONE number for the whole
    dataset — "total revenue", "how many orders are there", "what is the average
@@ -206,14 +206,14 @@ TODAY'S DATE: {$today}
 
 IMPORTANT RULES:
 - Match the user's query to the correct dataset key
-- If dataset is unclear, set needs_clarification=true and clarification_type="scheme"
+- If dataset is unclear, set needs_clarification=true and clarification_type="dataset"
 - If metric is unclear for identified dataset, set needs_clarification=true and clarification_type="metric"
 Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
 - If the user asks to break results down by something that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous". Never silently fall back to the default breakdown.
 
 RETURN FORMAT (JSON only, no markdown):
 {
-    "scheme": "dataset_key or null",
+    "dataset": "dataset_key or null",
     "metric": "metric_name or null",
     "limit": 10,
     "order": "desc",
@@ -236,15 +236,15 @@ PROMPT;
     /**
      * Normalize and validate parsed intent.
      */
-    protected function normalizeIntent(array $parsed, array $schemeList): array
+    protected function normalizeIntent(array $parsed, array $datasetList): array
     {
-        $scheme = $parsed['scheme'] ?? null;
+        $dataset = $parsed['dataset'] ?? null;
 
-        // Validate scheme exists
-        if ($scheme) {
-            $validSchemes = array_column($schemeList, 'key');
-            if (!in_array($scheme, $validSchemes)) {
-                $scheme = $this->findSchemeByAlias($scheme, $schemeList);
+        // Validate dataset exists
+        if ($dataset) {
+            $validDatasets = array_column($datasetList, 'key');
+            if (!in_array($dataset, $validDatasets)) {
+                $dataset = $this->findDatasetByAlias($dataset, $datasetList);
             }
         }
 
@@ -259,7 +259,7 @@ PROMPT;
         return [
             'success' => true,
             'transcribed_text' => $parsed['transcribed_text'] ?? null,
-            'scheme' => $scheme,
+            'dataset' => $dataset,
             'metric' => $parsed['metric'] ?? null,
             'limit' => $limit,
             'order' => $order,
@@ -277,19 +277,19 @@ PROMPT;
     }
 
     /**
-     * Find scheme by alias match.
+     * Find dataset by alias match.
      */
-    protected function findSchemeByAlias(string $input, array $schemeList): ?string
+    protected function findDatasetByAlias(string $input, array $datasetList): ?string
     {
         $input = strtolower(trim($input));
 
-        foreach ($schemeList as $scheme) {
-            if (strtolower($scheme['key']) === $input) {
-                return $scheme['key'];
+        foreach ($datasetList as $dataset) {
+            if (strtolower($dataset['key']) === $input) {
+                return $dataset['key'];
             }
-            foreach ($scheme['aliases'] ?? [] as $alias) {
+            foreach ($dataset['aliases'] ?? [] as $alias) {
                 if (strtolower($alias) === $input) {
-                    return $scheme['key'];
+                    return $dataset['key'];
                 }
             }
         }

@@ -93,18 +93,18 @@ class OpenAiProvider extends AbstractProvider implements LlmProviderInterface
         return ['success' => true, 'data' => $parsed];
     }
 
-    public function parseIntent(string $text, array $schemeList): array
+    public function parseIntent(string $text, array $datasetList): array
     {
-        $schemeInfo = $this->buildSchemeInfo($schemeList);
+        $datasetInfo = $this->buildDatasetInfo($datasetList);
         $today = $this->today();
 
         $prompt = <<<PROMPT
 Parse this natural language query about datasets: "{$text}"
 
 AVAILABLE DATASETS:
-{$schemeInfo}
+{$datasetInfo}
 
-Extract: scheme (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), group_by (or null), confidence (0.0-1.0).
+Extract: dataset (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), group_by (or null), confidence (0.0-1.0).
 
 When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — the metric is record_count. Only pick a money or quantity metric when the user names one.
 
@@ -119,11 +119,11 @@ group_by is the column to break results down by when the user asks for one — "
 Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
 date_from / date_to: if the user named a period — "last month", "in 2025", "since April" — resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
 
-If unclear, set needs_clarification=true with clarification_type="scheme" or "metric".
+If unclear, set needs_clarification=true with clarification_type="dataset" or "metric".
 Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
 If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"dataset":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         $payload = [
@@ -179,7 +179,7 @@ PROMPT;
             return $this->errorResponse('Failed to parse intent response');
         }
 
-        return $this->normalizeIntent($parsed, $schemeList);
+        return $this->normalizeIntent($parsed, $datasetList);
     }
 
     public function healthCheck(): array
@@ -230,13 +230,13 @@ PROMPT;
         return $this->providerName;
     }
 
-    protected function normalizeIntent(array $parsed, array $schemeList): array
+    protected function normalizeIntent(array $parsed, array $datasetList): array
     {
-        $scheme = $parsed['scheme'] ?? null;
-        if ($scheme) {
-            $validKeys = array_column($schemeList, 'key');
-            if (!in_array($scheme, $validKeys)) {
-                $scheme = null;
+        $dataset = $parsed['dataset'] ?? null;
+        if ($dataset) {
+            $validKeys = array_column($datasetList, 'key');
+            if (!in_array($dataset, $validKeys)) {
+                $dataset = null;
             }
         }
 
@@ -244,7 +244,7 @@ PROMPT;
 
         return [
             'success' => true,
-            'scheme' => $scheme,
+            'dataset' => $dataset,
             'metric' => $parsed['metric'] ?? null,
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             // Coalesced ONCE. The old line guarded the in_array check with

@@ -171,7 +171,7 @@ class SqliteEndToEndTest extends TestCase
         // "revenue by region in July 2026" — Ada's August order (700) must be
         // excluded, so West is 300 and not 1000.
         $built = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => $key,
+            'dataset' => $key,
             'metric' => 'revenue',
             'group_by' => 'region',
             'date_from' => '2026-07-01',

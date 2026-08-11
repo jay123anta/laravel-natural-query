@@ -25,7 +25,7 @@ class NullQueryCache implements QueryCacheInterface
         return ['enabled' => false, 'total_entries' => 0, 'total_hits' => 0];
     }
 
-    public function clear(?string $scheme = null, int $olderThanDays = 0, int $minHits = 0): int
+    public function clear(?string $dataset = null, int $olderThanDays = 0, int $minHits = 0): int
     {
         return 0;
     }

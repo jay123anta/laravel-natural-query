@@ -27,7 +27,7 @@ class GroupByDimensionTest extends TestCase
     private function build(array $intent): array
     {
         return $this->app->make(SqlBuilder::class)->buildQuery($intent + [
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
         ]);
     }
@@ -117,7 +117,7 @@ class GroupByDimensionTest extends TestCase
     public function the_dataset_list_tells_the_model_which_dimensions_exist()
     {
         // Intent mode cannot ask for a breakdown it was never told about.
-        $list = $this->app->make(SchemaRegistry::class)->getSchemeListForLlm();
+        $list = $this->app->make(SchemaRegistry::class)->getDatasetListForLlm();
         $orders = collect($list)->firstWhere('key', 'gb_sales');
 
         $this->assertContains('region', $orders['dimensions']);

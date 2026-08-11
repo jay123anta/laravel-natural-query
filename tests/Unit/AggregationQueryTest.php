@@ -29,7 +29,7 @@ class AggregationQueryTest extends TestCase
     private function build(array $intent): array
     {
         return $this->app->make(SqlBuilder::class)->buildQuery($intent + [
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
         ]);
     }
@@ -111,7 +111,7 @@ class AggregationQueryTest extends TestCase
         // It used to build SQL of its own that applied no period and returned
         // none of the metadata the formatter reads.
         $result = $this->app->make(SqlBuilder::class)->buildAggregationQuery([
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
             'date_from' => '2026-07-01',
         ]);

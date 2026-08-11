@@ -62,7 +62,7 @@
         maxBarRows: 12,           // rows rendered as bars before table-only
         themeColor: '#2563eb',
         footerNote: 'AI-generated · please verify important figures',
-        scheme: null              // fixed scheme hint (single-dataset apps)
+        dataset: null              // fixed dataset hint (single-dataset apps)
     };
 
     // ---------------------------------------------------------------- helpers
@@ -487,7 +487,7 @@
         return hd;
     };
 
-    Widget.prototype.submit = function (schemeOverride) {
+    Widget.prototype.submit = function (datasetOverride) {
         var text = this.input.value.trim();
         if (!text) return;
         var self = this, o = this.opts;
@@ -502,12 +502,12 @@
         this.renderLoading();
         this.sendBtn.disabled = true;
 
-        var useConversation = o.conversation && !schemeOverride;
+        var useConversation = o.conversation && !datasetOverride;
         var url = o.baseUrl + (useConversation ? '/conversation' : '/text');
         var body = { text: text };
         if (useConversation) body.session_id = this.sessionId;
-        var scheme = schemeOverride || o.scheme;
-        if (scheme) body.scheme = scheme;
+        var dataset = datasetOverride || o.dataset;
+        if (dataset) body.dataset = dataset;
 
         fetch(url, { method: 'POST', headers: this.headers(), body: JSON.stringify(body), credentials: 'same-origin' })
             .then(function (r) {
@@ -969,9 +969,9 @@
         var optsWrap = h('div', 'nq-options');
 
         (data.alternatives || []).forEach(function (alt) {
-            var b = h('button', 'nq-btn nq-btn-ghost', alt.scheme_name || alt.scheme_key);
+            var b = h('button', 'nq-btn nq-btn-ghost', alt.dataset_name || alt.dataset_key);
             b.type = 'button';
-            b.addEventListener('click', function () { self.submit(alt.scheme_key); });
+            b.addEventListener('click', function () { self.submit(alt.dataset_key); });
             optsWrap.appendChild(b);
         });
         (data.available_metrics || []).forEach(function (m) {

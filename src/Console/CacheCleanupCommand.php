@@ -16,7 +16,7 @@ class CacheCleanupCommand extends Command
     protected $signature = 'naturalquery:cache-cleanup
                             {--days=30 : Remove entries not hit in this many days}
                             {--min-hits=2 : Only remove entries with fewer than this many hits}
-                            {--scheme= : Only clean entries for a specific scheme}
+                            {--dataset= : Only clean entries for a specific dataset}
                             {--all : Remove ALL cache entries (use with caution)}';
 
     protected $description = 'Clean up stale NaturalQuery cache entries';
@@ -36,16 +36,16 @@ class CacheCleanupCommand extends Command
 
         $days = (int) $this->option('days');
         $minHits = (int) $this->option('min-hits');
-        $scheme = $this->option('scheme');
+        $dataset = $this->option('dataset');
 
         $this->info('Cleaning NaturalQuery cache...');
         $this->line("  Older than: {$days} days");
         $this->line("  Min hits: {$minHits}");
-        if ($scheme) {
-            $this->line("  Scheme: {$scheme}");
+        if ($dataset) {
+            $this->line("  Dataset: {$dataset}");
         }
 
-        $deleted = $cache->clear($scheme, $days, $minHits);
+        $deleted = $cache->clear($dataset, $days, $minHits);
 
         $this->info("Cleaned up {$deleted} stale cache entries.");
 

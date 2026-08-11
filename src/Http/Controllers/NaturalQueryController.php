@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
  * - Text query processing
  * - Voice query processing
  * - Health check
- * - Scheme listing
+ * - Dataset listing
  * - Cache management
  */
 class NaturalQueryController extends Controller
@@ -89,7 +89,7 @@ class NaturalQueryController extends Controller
                 'POST /text' => 'Natural language query (speech is transcribed in the browser)',
                 'POST /conversation' => 'Multi-turn conversation',
                 'GET /health' => 'Health check',
-                'GET /schemes' => 'Available schemas',
+                'GET /datasets' => 'Available datasets',
                 'POST /feedback' => 'Submit correction',
             ],
         ]);
@@ -102,7 +102,7 @@ class NaturalQueryController extends Controller
     {
         $data = $request->validate([
             'text' => $this->questionRules(),
-            'scheme' => 'nullable|string|max:100',
+            'dataset' => 'nullable|string|max:100',
             'disable_tts' => 'boolean',
         ]);
 
@@ -111,7 +111,7 @@ class NaturalQueryController extends Controller
 
         $result = $this->orchestrator->query(
             $data['text'],
-            $data['scheme'] ?? null
+            $data['dataset'] ?? null
         );
 
         $result['metadata'] = array_merge($result['metadata'] ?? [], [
@@ -147,21 +147,21 @@ class NaturalQueryController extends Controller
      * One call, everything: measures, breakdowns, the date a period applies to,
      * and the example questions from the schema files.
      */
-    public function schemes(Request $request)
+    public function datasets(Request $request)
     {
         $registry = $this->orchestrator->registry();
-        $only = $request->query('scheme');
+        $only = $request->query('dataset');
         $datasets = [];
 
-        foreach ($registry->getAvailableSchemes() as $scheme) {
-            if ($only && $scheme['key'] !== $only) {
+        foreach ($registry->getAvailableDatasets() as $dataset) {
+            if ($only && $dataset['key'] !== $only) {
                 continue;
             }
 
-            $key = $scheme['key'];
+            $key = $dataset['key'];
 
-            $datasets[] = $scheme + [
-                'metrics' => $registry->getSchemeMetrics($key),
+            $datasets[] = $dataset + [
+                'metrics' => $registry->getDatasetMetrics($key),
                 // What the rows can be broken down by. Without this a client
                 // cannot offer "by region" without guessing at column names.
                 'dimensions' => $registry->getGroupableColumns($key),
@@ -180,7 +180,7 @@ class NaturalQueryController extends Controller
                     'status' => 'error',
                     'error_code' => ErrorCode::CANNOT_ANSWER,
                     'error' => "No dataset named '{$only}'.",
-                    'available' => array_column($registry->getAvailableSchemes(), 'key'),
+                    'available' => array_column($registry->getAvailableDatasets(), 'key'),
                 ], 404);
             }
 
@@ -188,7 +188,7 @@ class NaturalQueryController extends Controller
         }
 
         return response()->json([
-            'schemes' => $datasets,
+            'datasets' => $datasets,
             'total' => count($datasets),
         ]);
     }
@@ -211,13 +211,13 @@ class NaturalQueryController extends Controller
     public function clearCache(Request $request)
     {
         $data = $request->validate([
-            'scheme' => 'nullable|string|max:100',
+            'dataset' => 'nullable|string|max:100',
             'older_than_days' => 'nullable|integer|min:0',
             'min_hits' => 'nullable|integer|min:0',
         ]);
 
         $deleted = $this->orchestrator->clearCache(
-            $data['scheme'] ?? null,
+            $data['dataset'] ?? null,
             $data['older_than_days'] ?? 0,
             $data['min_hits'] ?? 0
         );
@@ -237,13 +237,13 @@ class NaturalQueryController extends Controller
         $data = $request->validate([
             'text' => $this->questionRules(),
             'session_id' => 'required|string|max:100',
-            'scheme' => 'nullable|string|max:100',
+            'dataset' => 'nullable|string|max:100',
         ]);
 
         $result = $this->conversation->query(
             $data['session_id'],
             $data['text'],
-            $data['scheme'] ?? null
+            $data['dataset'] ?? null
         );
 
         return $this->respond($result);
@@ -289,7 +289,7 @@ class NaturalQueryController extends Controller
     {
         $data = $request->validate([
             'query' => 'required|string|max:1000',
-            'scheme' => 'required|string|max:100',
+            'dataset' => 'required|string|max:100',
             'generated_sql' => 'nullable|string',
             'correction' => 'nullable|string|max:2000',
             'corrected_sql' => 'nullable|string',
@@ -324,13 +324,13 @@ class NaturalQueryController extends Controller
         if ($data['is_positive'] ?? false) {
             $success = $this->feedback->recordPositive(
                 $data['query'],
-                $data['scheme'],
+                $data['dataset'],
                 $data['generated_sql'] ?? ''
             );
         } else {
             $success = $this->feedback->recordCorrection(
                 $data['query'],
-                $data['scheme'],
+                $data['dataset'],
                 $data['generated_sql'] ?? '',
                 $correction,
                 $correctedSql,

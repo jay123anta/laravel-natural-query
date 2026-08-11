@@ -51,7 +51,7 @@ class ConversationStateEndpointTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'customer_name',
             'confidence' => 0.9,

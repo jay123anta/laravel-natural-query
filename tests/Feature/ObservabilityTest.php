@@ -61,7 +61,7 @@ class ObservabilityTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = array_merge([
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'confidence' => 0.9,
@@ -289,13 +289,13 @@ class UsageReportingProvider extends RecordingProvider implements \Jayanta\Natur
     /** @var array<string, int> */
     private array $usage = [];
 
-    public function parseIntent(string $text, array $schemeList): array
+    public function parseIntent(string $text, array $datasetList): array
     {
         $this->recordUsagePublic($this->body);
 
         return [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'confidence' => 0.9,

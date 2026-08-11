@@ -148,13 +148,13 @@ class TurnClassifier
     protected function standsAlone(string $query, QueryState $state): bool
     {
         $q = strtolower($query);
-        $scheme = $state->get('scheme');
+        $dataset = $state->get('dataset');
 
-        if (!$scheme || !$this->registry->has($scheme)) {
+        if (!$dataset || !$this->registry->has($dataset)) {
             return str_word_count($q) > 6;
         }
 
-        foreach ($this->registry->getSchemeMetrics($scheme) as $metric) {
+        foreach ($this->registry->getDatasetMetrics($dataset) as $metric) {
             if ($this->mentions($q, (string) $metric['key'])) {
                 return true;
             }

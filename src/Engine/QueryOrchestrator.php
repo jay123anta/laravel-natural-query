@@ -112,10 +112,10 @@ class QueryOrchestrator
      * Process a natural language query end-to-end.
      *
      * @param string $naturalLanguageQuery The user's question
-     * @param string|null $schemeHint Optional scheme key hint
+     * @param string|null $datasetHint Optional dataset key hint
      * @return array Complete response with data, or clarification/error
      */
-    public function query(string $naturalLanguageQuery, ?string $schemeHint = null, array $context = []): array
+    public function query(string $naturalLanguageQuery, ?string $datasetHint = null, array $context = []): array
     {
         $startTime = microtime(true);
         $queryMode = config('naturalquery.query_mode', 'auto');
@@ -158,18 +158,18 @@ class QueryOrchestrator
             if (!$this->inStepExecution) {
                 Event::dispatch(new QuestionAsked(
                     $naturalLanguageQuery,
-                    $schemeHint,
+                    $datasetHint,
                     $queryMode,
                     $context['session_id'] ?? null
                 ));
             }
 
-            // Apply default scheme if configured and no hint provided
-            if (!$schemeHint) {
-                $defaultScheme = config('naturalquery.default_scheme');
-                if ($defaultScheme && $this->registry->has($defaultScheme)) {
-                    $schemeHint = $defaultScheme;
-                    $metadata['default_scheme_applied'] = true;
+            // Apply default dataset if configured and no hint provided
+            if (!$datasetHint) {
+                $defaultDataset = config('naturalquery.default_dataset');
+                if ($defaultDataset && $this->registry->has($defaultDataset)) {
+                    $datasetHint = $defaultDataset;
+                    $metadata['default_dataset_applied'] = true;
                 }
             }
 
@@ -183,7 +183,7 @@ class QueryOrchestrator
                 $plan = $this->planner->plan($naturalLanguageQuery);
 
                 if ($plan['success']) {
-                    return $this->runSteps($naturalLanguageQuery, $plan, $schemeHint, $metadata, $startTime);
+                    return $this->runSteps($naturalLanguageQuery, $plan, $datasetHint, $metadata, $startTime);
                 }
             }
 
@@ -198,9 +198,9 @@ class QueryOrchestrator
 
             // Route to appropriate mode
             if ($queryMode === 'sql_generation') {
-                $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
+                $result = $this->processWithSqlGeneration($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
             } elseif ($queryMode === 'intent') {
-                $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
+                $result = $this->processWithIntent($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
             } else {
                 // AUTO mode: intent first — unless the question plainly needs
                 // SQL the intent contract cannot express.
@@ -218,9 +218,9 @@ class QueryOrchestrator
                     ]);
                     $metadata['query_mode'] = 'auto→sql_generation';
                     $metadata['escalated_for'] = $beyond;
-                    $result = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
+                    $result = $this->processWithSqlGeneration($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
                 } else {
-                    $result = $this->processWithIntent($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
+                    $result = $this->processWithIntent($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
 
                     // Fall back when intent mode could not answer — whether it
                     // failed outright, or asked a question it should not have
@@ -235,7 +235,7 @@ class QueryOrchestrator
                             'after' => $result['status'] ?? '?',
                         ]);
                         $metadata['query_mode'] = 'auto→sql_generation';
-                        $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $schemeHint, $cachedResult, $metadata, $context);
+                        $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
 
                         // Keep the clarification if generation did no better —
                         // a usable question beats a bare failure.
@@ -256,7 +256,7 @@ class QueryOrchestrator
             ) {
                 // The failure so far is passed in, so the retry can decline to
                 // overwrite a provider fault with a claim about the question.
-                $result = $this->retryWithRefinedPrompt($naturalLanguageQuery, $schemeHint, $metadata, $result);
+                $result = $this->retryWithRefinedPrompt($naturalLanguageQuery, $datasetHint, $metadata, $result);
             }
 
             // Remove internal flags
@@ -300,9 +300,9 @@ class QueryOrchestrator
     /**
      * Process query using intent parsing → local SQL builder.
      *
-     * Flow: AI extracts (scheme, metric, order, limit, district) → SqlBuilder constructs SQL
+     * Flow: AI extracts (dataset, metric, order, limit, district) → SqlBuilder constructs SQL
      */
-    protected function processWithIntent(string $query, ?string $schemeHint, ?array $cached, array &$metadata, array $context = []): array
+    protected function processWithIntent(string $query, ?string $datasetHint, ?array $cached, array &$metadata, array $context = []): array
     {
         $metadata['query_mode_used'] = 'intent';
 
@@ -316,9 +316,9 @@ class QueryOrchestrator
         if ($cached && !$inConversation) {
             $intent = $this->normalizeIntent($cached['intent']);
         } else {
-            $schemeList = $this->registry->getSchemeListForLlm();
+            $datasetList = $this->registry->getDatasetListForLlm();
             $intent = $this->normalizeIntent(
-                $this->llmProvider->parseIntent($this->withState($query, $context), $schemeList)
+                $this->llmProvider->parseIntent($this->withState($query, $context), $datasetList)
             );
 
             if (!$inConversation && ($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
@@ -330,10 +330,10 @@ class QueryOrchestrator
         // intent can carry the same invented breakdown.
         $intent = $this->dropUnaskedBreakdown($intent, $query);
 
-        // Apply scheme hint
-        if ($schemeHint && empty($intent['scheme'])) {
-            if ($this->registry->has($schemeHint)) {
-                $intent['scheme'] = $schemeHint;
+        // Apply dataset hint
+        if ($datasetHint && empty($intent['dataset'])) {
+            if ($this->registry->has($datasetHint)) {
+                $intent['dataset'] = $datasetHint;
             }
         }
 
@@ -385,30 +385,30 @@ class QueryOrchestrator
         }
 
         // Handle clarification
-        $availableSchemes = $this->registry->getAvailableSchemes();
+        $availableDatasets = $this->registry->getAvailableDatasets();
         $hasGroupValue = !empty($intent['group_value']);
 
         // With exactly one dataset there is nothing to choose between, so a
         // model that says "which dataset?" is really saying "I could not tell
         // what you meant" — about the metric, usually.
-        if (empty($intent['scheme']) && count($availableSchemes) === 1) {
-            $intent['scheme'] = $availableSchemes[0]['key'];
+        if (empty($intent['dataset']) && count($availableDatasets) === 1) {
+            $intent['dataset'] = $availableDatasets[0]['key'];
         }
 
-        $hasScheme = !empty($intent['scheme']);
+        $hasDataset = !empty($intent['dataset']);
 
         // Asking which dataset is only meaningful when the dataset is genuinely
         // unresolved AND there is more than one to pick from. Asking it once
-        // the scheme is known produced a card whose only button re-sent the
+        // the dataset is known produced a card whose only button re-sent the
         // same question and redrew the same card — indistinguishable, from the
         // outside, from the widget being broken.
-        if (!$hasScheme && count($availableSchemes) > 1) {
-            return $this->formatter->formatClarification($intent, $availableSchemes);
+        if (!$hasDataset && count($availableDatasets) > 1) {
+            return $this->formatter->formatClarification($intent, $availableDatasets);
         }
 
-        if ($hasScheme && $hasGroupValue && empty($intent['metric'])) {
+        if ($hasDataset && $hasGroupValue && empty($intent['metric'])) {
             // District detail — SqlBuilder handles this
-        } elseif (($intent['needs_clarification'] ?? false) || !$hasScheme) {
+        } elseif (($intent['needs_clarification'] ?? false) || !$hasDataset) {
             // Why the model asked, before it is rewritten below. The prompt
             // tells it to answer 'ambiguous' when the requested breakdown is
             // not available on the dataset it chose — which, across related
@@ -423,8 +423,8 @@ class QueryOrchestrator
 
             $clarification = $this->formatter->formatClarification(
                 $intent,
-                $availableSchemes,
-                $hasScheme ? $this->registry->getSchemeMetrics($intent['scheme']) : []
+                $availableDatasets,
+                $hasDataset ? $this->registry->getDatasetMetrics($intent['dataset']) : []
             );
 
             // Asking the user to choose a metric they already named is a dead
@@ -460,7 +460,7 @@ class QueryOrchestrator
         }
 
         // Validate and execute
-        $response = $this->validateAndExecute($queryResult, $intent['scheme'], $metadata);
+        $response = $this->validateAndExecute($queryResult, $intent['dataset'], $metadata);
 
         return $this->retryWithoutUnmatchedNameFilter($response, $intent, $metadata);
     }
@@ -479,7 +479,7 @@ class QueryOrchestrator
     protected function runSteps(
         string $originalQuery,
         array $plan,
-        ?string $schemeHint,
+        ?string $datasetHint,
         array $metadata,
         float $startTime
     ): array {
@@ -489,7 +489,7 @@ class QueryOrchestrator
 
         try {
             foreach ($plan['steps'] as $i => $question) {
-                $result = $this->query($question, $schemeHint);
+                $result = $this->query($question, $datasetHint);
                 $succeeded = ($result['status'] ?? '') === 'success';
 
                 $steps[] = [
@@ -530,7 +530,7 @@ class QueryOrchestrator
             'rows' => empty($successful) ? [] : end($successful)['rows'],
             'visualization' => 'steps',
             'parsed_query' => [
-                'scheme' => $schemeHint,
+                'dataset' => $datasetHint,
                 'multi_step' => true,
                 'step_count' => count($steps),
             ],
@@ -844,7 +844,7 @@ class QueryOrchestrator
             return $response;
         }
 
-        $fallback = $this->validateAndExecute($rebuilt, $unfiltered['scheme'] ?? null, $metadata);
+        $fallback = $this->validateAndExecute($rebuilt, $unfiltered['dataset'] ?? null, $metadata);
 
         // Only prefer the fallback if it actually found something.
         if (($fallback['status'] ?? '') !== 'success' || ($fallback['type'] ?? null) === 'no_data') {
@@ -853,7 +853,7 @@ class QueryOrchestrator
 
         Log::info('[NaturalQuery] Name filter matched nothing; answered without it', [
             'unmatched_filter' => $filter,
-            'scheme' => $unfiltered['scheme'] ?? null,
+            'dataset' => $unfiltered['dataset'] ?? null,
         ]);
 
         $fallback['answer'] = "No match for \"{$filter}\", so this covers everything. "
@@ -876,7 +876,7 @@ class QueryOrchestrator
      * Flow: AI receives full schema → generates SQL → validate → execute
      * The AI sees every table, column, type, description, alias, and JOIN.
      */
-    protected function processWithSqlGeneration(string $query, ?string $schemeHint, ?array $cached, array &$metadata, array $context = []): array
+    protected function processWithSqlGeneration(string $query, ?string $datasetHint, ?array $cached, array &$metadata, array $context = []): array
     {
         $metadata['query_mode_used'] = 'sql_generation';
 
@@ -899,24 +899,24 @@ class QueryOrchestrator
         // Check if we have a cached SQL result
         if ($cached && isset($cached['intent']['_sql_result'])) {
             $sqlResult = $cached['intent']['_sql_result'];
-            return $this->validateAndExecute($sqlResult, $sqlResult['scheme'] ?? null, $metadata);
+            return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
         }
 
-        // Step 1: Identify the scheme (priority: hint → routing → keywords → LLM intent)
-        $scheme = $schemeHint;
-        if (!$scheme || !$this->registry->has($scheme)) {
+        // Step 1: Identify the dataset (priority: hint → routing → keywords → LLM intent)
+        $dataset = $datasetHint;
+        if (!$dataset || !$this->registry->has($dataset)) {
             // Try keyword/routing detection first (fast, no API call)
-            $scheme = $this->detectSchemeFromKeywords($query);
+            $dataset = $this->detectDatasetFromKeywords($query);
         }
 
-        if (!$scheme || !$this->registry->has($scheme)) {
+        if (!$dataset || !$this->registry->has($dataset)) {
             // Fall back to LLM intent parsing (slower, requires API call)
-            $schemeList = $this->registry->getSchemeListForLlm();
-            $intent = $this->llmProvider->parseIntent($query, $schemeList);
-            $scheme = $intent['scheme'] ?? null;
+            $datasetList = $this->registry->getDatasetListForLlm();
+            $intent = $this->llmProvider->parseIntent($query, $datasetList);
+            $dataset = $intent['dataset'] ?? null;
 
-            if (!$scheme) {
-                $scheme = $this->registry->findByAlias($query);
+            if (!$dataset) {
+                $dataset = $this->registry->findByAlias($query);
             }
         }
 
@@ -935,13 +935,13 @@ class QueryOrchestrator
         // that can answer. Fall back to the focused prompt when there is one
         // dataset, or when nothing is related and a join is impossible anyway.
         // $stated, not $query: the SQL must reflect the conversation, not just
-        // the last sentence of it. Scheme detection above deliberately still
+        // the last sentence of it. Dataset detection above deliberately still
         // uses the bare question — the state block would match every dataset
         // name it mentions.
-        if ($scheme && $this->registry->has($scheme) && !$this->registry->hasLinkedSchemas()) {
-            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $stated);
+        if ($dataset && $this->registry->has($dataset) && !$this->registry->hasLinkedSchemas()) {
+            $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $stated);
         } else {
-            $prompt = $this->promptBuilder->buildMultiSchemePrompt($stated);
+            $prompt = $this->promptBuilder->buildMultiDatasetPrompt($stated);
         }
 
         // Ask AI to generate SQL
@@ -956,7 +956,7 @@ class QueryOrchestrator
         // AI returned an error / needs clarification
         if (isset($data['error'])) {
             $intent = [
-                'scheme' => null,
+                'dataset' => null,
                 'metric' => null,
                 'group_value' => null,
                 'confidence' => 0,
@@ -964,29 +964,29 @@ class QueryOrchestrator
                 'clarification_type' => $data['clarification_type'] ?? 'ambiguous',
             ];
 
-            return $this->formatter->formatClarification($intent, $this->registry->getAvailableSchemes());
+            return $this->formatter->formatClarification($intent, $this->registry->getAvailableDatasets());
         }
 
         // AI generated SQL
         $sql = $data['sql'] ?? null;
-        $scheme = $data['scheme'] ?? $schemeHint;
+        $dataset = $data['dataset'] ?? $datasetHint;
 
         if (!$sql) {
             return $this->formatter->formatError('AI did not generate a SQL query', $metadata, ErrorCode::PROVIDER_ERROR);
         }
 
         // Replace computed metric names if AI used them as column names
-        if ($scheme && $this->registry->has($scheme)) {
-            $sql = $this->replaceComputedMetrics($sql, $scheme);
+        if ($dataset && $this->registry->has($dataset)) {
+            $sql = $this->replaceComputedMetrics($sql, $dataset);
         }
 
         // Build query result
-        $schemaData = $scheme ? $this->registry->get($scheme) : null;
+        $schemaData = $dataset ? $this->registry->get($dataset) : null;
         $queryResult = [
             'success' => true,
             'sql' => $sql,
-            'scheme' => $scheme,
-            'scheme_name' => $schemaData['name'] ?? $scheme,
+            'dataset' => $dataset,
+            'dataset_name' => $schemaData['name'] ?? $dataset,
             'metric' => $data['metric'] ?? null,
             'metric_description' => $data['explanation'] ?? ($data['metric'] ?? 'data'),
             'metric_unit' => '',
@@ -1003,12 +1003,12 @@ class QueryOrchestrator
             // states the range it used. The model knows; it just was not
             // being asked.
             'time_filter' => $data['period'] ?? null,
-            'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
+            'group_column' => $dataset ? $this->registry->getGroupColumn($dataset) : 'name',
         ];
 
         // Resolve metric unit/type from schema if possible
-        if ($scheme && $queryResult['metric']) {
-            $metricData = $this->resolveMetricData($scheme, $queryResult['metric']);
+        if ($dataset && $queryResult['metric']) {
+            $metricData = $this->resolveMetricData($dataset, $queryResult['metric']);
             if ($metricData) {
                 $queryResult['metric_description'] = $metricData['description'] ?? $queryResult['metric_description'];
                 $queryResult['metric_unit'] = $metricData['unit'] ?? '';
@@ -1018,7 +1018,7 @@ class QueryOrchestrator
 
         // Self-verification: AI checks its own SQL before execution
         if ($this->shouldVerify($metadata)) {
-            $verification = $this->verifier->verify($query, $queryResult['sql'], $scheme);
+            $verification = $this->verifier->verify($query, $queryResult['sql'], $dataset);
 
             $metadata['verification'] = [
                 'confidence' => $verification['confidence'],
@@ -1038,7 +1038,7 @@ class QueryOrchestrator
 
         // Cache the VERIFIED SQL result for future identical queries
         $this->cache->store($query, [
-            'scheme' => $scheme,
+            'dataset' => $dataset,
             'metric' => $queryResult['metric'],
             'group_value' => $queryResult['group_value'],
             'limit' => $queryResult['limit'],
@@ -1048,7 +1048,7 @@ class QueryOrchestrator
         ]);
 
         // Validate and execute
-        return $this->validateAndExecute($queryResult, $scheme, $metadata);
+        return $this->validateAndExecute($queryResult, $dataset, $metadata);
     }
 
     // =========================================================================
@@ -1059,9 +1059,9 @@ class QueryOrchestrator
      * Retry a failed query with a refined prompt.
      *
      * Strategy:
-     * 1. Try to detect scheme from query keywords/aliases
-     * 2. If found, retry with single-scheme SQL prompt (much more accurate)
-     * 3. If still no scheme, retry with explicit instruction to generate SQL
+     * 1. Try to detect dataset from query keywords/aliases
+     * 2. If found, retry with single-dataset SQL prompt (much more accurate)
+     * 3. If still no dataset, retry with explicit instruction to generate SQL
      */
     /**
      * Say what actually went wrong with a provider call.
@@ -1093,22 +1093,22 @@ class QueryOrchestrator
         );
     }
 
-    protected function retryWithRefinedPrompt(string $query, ?string $schemeHint, array $metadata, array $previous = []): array
+    protected function retryWithRefinedPrompt(string $query, ?string $datasetHint, array $metadata, array $previous = []): array
     {
         $metadata['_retried'] = true;
         $metadata['retry'] = true;
         Log::info('[NaturalQuery] Retrying with refined prompt', ['query' => $query]);
 
-        // Strategy 1: Try keyword-based scheme detection from all aliases
-        $scheme = $schemeHint;
-        if (!$scheme) {
-            $scheme = $this->detectSchemeFromKeywords($query);
+        // Strategy 1: Try keyword-based dataset detection from all aliases
+        $dataset = $datasetHint;
+        if (!$dataset) {
+            $dataset = $this->detectDatasetFromKeywords($query);
         }
 
-        if ($scheme && $this->registry->has($scheme)) {
-            Log::info('[NaturalQuery] Retry: detected scheme from keywords', ['scheme' => $scheme]);
-            // Use single-scheme SQL prompt — much more reliable
-            $prompt = $this->promptBuilder->buildSqlPrompt($scheme, $query);
+        if ($dataset && $this->registry->has($dataset)) {
+            Log::info('[NaturalQuery] Retry: detected dataset from keywords', ['dataset' => $dataset]);
+            // Use single-dataset SQL prompt — much more reliable
+            $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $query);
             $response = $this->llmProvider->generateSql($prompt);
 
             // The retry is the last thing that runs before the "could not
@@ -1122,7 +1122,7 @@ class QueryOrchestrator
                 // The dataset was identified and the provider answered without
                 // SQL. Telling the user to name a dataset would send them off
                 // supplying the one thing that was never missing.
-                $name = $this->registry->get($scheme)['name'] ?? $scheme;
+                $name = $this->registry->get($dataset)['name'] ?? $dataset;
 
                 return $this->formatter->formatError(
                     "That could not be answered from {$name}. Try naming the measure you want, or rephrasing the breakdown.",
@@ -1132,13 +1132,13 @@ class QueryOrchestrator
             }
 
             $data = $response['data'];
-            $schemaData = $this->registry->get($scheme);
+            $schemaData = $this->registry->get($dataset);
 
             $queryResult = [
                 'success' => true,
                 'sql' => $data['sql'],
-                'scheme' => $scheme,
-                'scheme_name' => $schemaData['name'] ?? $scheme,
+                'dataset' => $dataset,
+                'dataset_name' => $schemaData['name'] ?? $dataset,
                 'metric' => $data['metric'] ?? null,
                 'metric_description' => $data['explanation'] ?? '',
                 'metric_unit' => '',
@@ -1155,10 +1155,10 @@ class QueryOrchestrator
             // states the range it used. The model knows; it just was not
             // being asked.
             'time_filter' => $data['period'] ?? null,
-                'group_column' => $scheme ? $this->registry->getGroupColumn($scheme) : 'name',
+                'group_column' => $dataset ? $this->registry->getGroupColumn($dataset) : 'name',
             ];
 
-            $result = $this->validateAndExecute($queryResult, $scheme, $metadata);
+            $result = $this->validateAndExecute($queryResult, $dataset, $metadata);
             $result['_retried'] = true;
 
             return $result;
@@ -1171,7 +1171,7 @@ class QueryOrchestrator
         // on failures that had nothing to do with the wording: an expired key,
         // no route to the host, a provider returning nonsense. Phase 9 fixed
         // the two places that mislabelled such failures, and they still ended
-        // up overwritten here whenever no scheme could be guessed from the
+        // up overwritten here whenever no dataset could be guessed from the
         // words — which is exactly what happens when the provider never
         // answered and there is no intent to guess from.
         //
@@ -1182,11 +1182,11 @@ class QueryOrchestrator
             return array_merge($previous, ['_retried' => true]);
         }
 
-        $schemes = array_map(fn($s) => $s['name'] . ' (' . $s['key'] . ')', $this->registry->getAvailableSchemes());
-        $schemeList = implode(', ', array_slice($schemes, 0, 10));
+        $datasets = array_map(fn($s) => $s['name'] . ' (' . $s['key'] . ')', $this->registry->getAvailableDatasets());
+        $datasetList = implode(', ', array_slice($datasets, 0, 10));
 
         return $this->formatter->formatError(
-            "Could not understand the query. Try mentioning a dataset name. Available: {$schemeList}",
+            "Could not understand the query. Try mentioning a dataset name. Available: {$datasetList}",
             $metadata,
             ErrorCode::NOT_UNDERSTOOD
         );
@@ -1207,14 +1207,14 @@ class QueryOrchestrator
     }
 
     /**
-     * Detect scheme from query keywords.
+     * Detect dataset from query keywords.
      *
      * Priority:
      * 1. User-defined query_routing rules (most specific, highest priority)
      * 2. Schema aliases (from schema config files)
      * 3. Column aliases (last resort)
      */
-    protected function detectSchemeFromKeywords(string $query): ?string
+    protected function detectDatasetFromKeywords(string $query): ?string
     {
         $queryLower = strtolower($query);
 
@@ -1224,11 +1224,11 @@ class QueryOrchestrator
             // Sort by key length DESC — longer phrases matched first
             uksort($routing, fn($a, $b) => strlen($b) - strlen($a));
 
-            foreach ($routing as $keyword => $schemeKey) {
+            foreach ($routing as $keyword => $datasetKey) {
                 if (str_contains($queryLower, strtolower($keyword))) {
-                    if ($this->registry->has($schemeKey)) {
-                        Log::debug('[NaturalQuery] Route matched', ['keyword' => $keyword, 'scheme' => $schemeKey]);
-                        return $schemeKey;
+                    if ($this->registry->has($datasetKey)) {
+                        Log::debug('[NaturalQuery] Route matched', ['keyword' => $keyword, 'dataset' => $datasetKey]);
+                        return $datasetKey;
                     }
                 }
             }
@@ -1272,7 +1272,7 @@ class QueryOrchestrator
     /**
      * Validate SQL, execute it, and format the response.
      */
-    protected function validateAndExecute(array $queryResult, ?string $scheme, array $metadata): array
+    protected function validateAndExecute(array $queryResult, ?string $dataset, array $metadata): array
     {
         $sql = $queryResult['sql'];
 
@@ -1284,7 +1284,7 @@ class QueryOrchestrator
 
         // Validate SQL security
         $allowedTables = $this->registry->getAllowedTables();
-        $maxLimit = $scheme ? $this->registry->getMaxLimit($scheme) : config('naturalquery.sql.max_limit');
+        $maxLimit = $dataset ? $this->registry->getMaxLimit($dataset) : config('naturalquery.sql.max_limit');
         $requireLimit = $maxLimit !== null;
 
         $validation = $this->validator->validate($sql, $allowedTables, [
@@ -1309,7 +1309,7 @@ class QueryOrchestrator
         }
 
         // Execute SQL (with parameterized bindings when available)
-        $connection = $scheme ? $this->registry->getConnection($scheme) : config('naturalquery.sql.database_connection');
+        $connection = $dataset ? $this->registry->getConnection($dataset) : config('naturalquery.sql.database_connection');
         $bindings = $queryResult['bindings'] ?? [];
 
         try {
@@ -1331,7 +1331,7 @@ class QueryOrchestrator
         // Format response
         $response = $this->formatter->format($queryResult, $rows);
         $response['metadata'] = array_merge($metadata, [
-            'scheme_name' => $queryResult['scheme_name'] ?? null,
+            'dataset_name' => $queryResult['dataset_name'] ?? null,
             'metric_unit' => $queryResult['metric_unit'] ?? null,
         ]);
 
@@ -1351,9 +1351,9 @@ class QueryOrchestrator
      * Replace computed metric names with their SQL expressions.
      * Safety net if AI uses a computed metric name as a column name.
      */
-    protected function replaceComputedMetrics(string $sql, string $scheme): string
+    protected function replaceComputedMetrics(string $sql, string $dataset): string
     {
-        $computed = $this->registry->getComputedMetrics($scheme);
+        $computed = $this->registry->getComputedMetrics($dataset);
         if (empty($computed)) {
             return $sql;
         }
@@ -1386,20 +1386,20 @@ class QueryOrchestrator
     /**
      * Resolve metric metadata from schema config.
      */
-    protected function resolveMetricData(string $scheme, string $metric): ?array
+    protected function resolveMetricData(string $dataset, string $metric): ?array
     {
-        $metrics = $this->registry->getMetrics($scheme);
+        $metrics = $this->registry->getMetrics($dataset);
         if (isset($metrics[$metric])) {
             return $metrics[$metric];
         }
 
-        $computed = $this->registry->getComputedMetrics($scheme);
+        $computed = $this->registry->getComputedMetrics($dataset);
         if (isset($computed[$metric])) {
             return $computed[$metric];
         }
 
         // Try alias resolution
-        $resolved = $this->registry->resolveMetric($scheme, $metric);
+        $resolved = $this->registry->resolveMetric($dataset, $metric);
         if ($resolved) {
             return $metrics[$resolved] ?? $computed[$resolved] ?? null;
         }
@@ -1498,7 +1498,7 @@ class QueryOrchestrator
         $channel = config('naturalquery.privacy.audit_channel');
         $logger = $channel ? Log::channel($channel) : Log::getFacadeRoot();
         $logger->info('[NaturalQuery] Query executed', [
-            'scheme' => $result['parsed_query']['scheme'] ?? null,
+            'dataset' => $result['parsed_query']['dataset'] ?? null,
             'query_type' => $result['parsed_query']['query_type'] ?? null,
             'metric' => $result['parsed_query']['metric'] ?? null,
             'rows' => count($result['rows'] ?? []),
@@ -1515,15 +1515,15 @@ class QueryOrchestrator
     // PUBLIC API
     // =========================================================================
 
-    public function getSchemes(): array
+    public function getDatasets(): array
     {
-        return $this->registry->getAvailableSchemes();
+        return $this->registry->getAvailableDatasets();
     }
 
     /**
      * The schema registry this orchestrator resolves against.
      *
-     * Exposed so callers describing what can be asked — the /schemes endpoint,
+     * Exposed so callers describing what can be asked — the /datasets endpoint,
      * a custom front end — read the same registry the engine answers from,
      * rather than a copy that can disagree with it.
      */
@@ -1532,9 +1532,9 @@ class QueryOrchestrator
         return $this->registry;
     }
 
-    public function getSchemeMetrics(string $schemeKey): array
+    public function getDatasetMetrics(string $datasetKey): array
     {
-        return $this->registry->getSchemeMetrics($schemeKey);
+        return $this->registry->getDatasetMetrics($datasetKey);
     }
 
     public function healthCheck(): array
@@ -1577,8 +1577,8 @@ class QueryOrchestrator
         return $this->cache->getStatistics();
     }
 
-    public function clearCache(?string $scheme = null, int $olderThanDays = 0, int $minHits = 0): int
+    public function clearCache(?string $dataset = null, int $olderThanDays = 0, int $minHits = 0): int
     {
-        return $this->cache->clear($scheme, $olderThanDays, $minHits);
+        return $this->cache->clear($dataset, $olderThanDays, $minHits);
     }
 }

@@ -630,23 +630,23 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * know that "by region" is a breakdown this dataset supports, and the
      * request is silently answered with the default grouping instead.
      */
-    protected function buildSchemeInfo(array $schemeList): string
+    protected function buildDatasetInfo(array $datasetList): string
     {
         $lines = [];
 
-        foreach ($schemeList as $scheme) {
-            $aliases = implode(', ', array_slice($scheme['aliases'] ?? [], 0, 3));
-            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
-            $dimensions = implode(', ', $scheme['dimensions'] ?? []);
+        foreach ($datasetList as $dataset) {
+            $aliases = implode(', ', array_slice($dataset['aliases'] ?? [], 0, 3));
+            $metrics = implode(', ', array_keys($dataset['metrics'] ?? []));
+            $dimensions = implode(', ', $dataset['dimensions'] ?? []);
 
-            $line = "- {$scheme['key']} ({$scheme['name']}): aliases=[{$aliases}], metrics=[{$metrics}]";
+            $line = "- {$dataset['key']} ({$dataset['name']}): aliases=[{$aliases}], metrics=[{$metrics}]";
 
             if ($dimensions !== '') {
                 $line .= ", group_by=[{$dimensions}]";
             }
 
-            if (!empty($scheme['default_dimension'])) {
-                $line .= ", default group_by={$scheme['default_dimension']}";
+            if (!empty($dataset['default_dimension'])) {
+                $line .= ", default group_by={$dataset['default_dimension']}";
             }
 
             $lines[] = $line;
@@ -660,7 +660,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
         $response = [
             'success' => false,
             'error' => $this->sanitizeError($message),
-            'scheme' => null,
+            'dataset' => null,
             'metric' => null,
             'limit' => 10,
             'order' => 'desc',

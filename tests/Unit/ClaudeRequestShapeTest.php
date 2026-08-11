@@ -30,7 +30,7 @@ class ClaudeRequestShapeTest extends TestCase
     private function capture(callable $call): array
     {
         Http::fake(['*' => Http::response([
-            'content' => [['type' => 'text', 'text' => '{"scheme":"orders","metric":"revenue","confidence":0.9}']],
+            'content' => [['type' => 'text', 'text' => '{"dataset":"orders","metric":"revenue","confidence":0.9}']],
         ], 200)]);
 
         $call(new ClaudeProvider(['api_key' => 'k', 'model' => 'claude-sonnet-5']));
@@ -99,13 +99,13 @@ class ClaudeRequestShapeTest extends TestCase
     public function the_response_is_parsed_as_sent_not_reassembled()
     {
         Http::fake(['*' => Http::response([
-            'content' => [['type' => 'text', 'text' => '{"scheme":"orders","metric":"revenue","confidence":0.9}']],
+            'content' => [['type' => 'text', 'text' => '{"dataset":"orders","metric":"revenue","confidence":0.9}']],
         ], 200)]);
 
         $intent = (new ClaudeProvider(['api_key' => 'k']))
             ->parseIntent('total revenue', [['key' => 'orders', 'name' => 'Orders']]);
 
         $this->assertTrue($intent['success']);
-        $this->assertSame('orders', $intent['scheme']);
+        $this->assertSame('orders', $intent['dataset']);
     }
 }

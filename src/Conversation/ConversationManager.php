@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Log;
  * inherit context from previous queries.
  *
  * Example, using whatever datasets the application actually registers:
- *   Turn 1: "top customers by revenue in orders"  → scheme=orders, metric=revenue
- *   Turn 2: "now filter by North"                 → keeps scheme and metric, adds the filter
- *   Turn 3: "compare with South"                  → keeps scheme and metric, compares the two
+ *   Turn 1: "top customers by revenue in orders"  → dataset=orders, metric=revenue
+ *   Turn 2: "now filter by North"                 → keeps dataset and metric, adds the filter
+ *   Turn 3: "compare with South"                  → keeps dataset and metric, compares the two
  *   Turn 4: "what about inventory"                → switches dataset, keeps metric where it applies
  *
  * Nothing here knows any domain vocabulary: dataset names and aliases come
@@ -31,7 +31,15 @@ class ConversationManager
     protected TurnClassifier $classifier;
     protected StateValidator $validator;
     protected int $contextTtl;
-    protected string $cachePrefix = 'nq_conv:';
+    /**
+     * Versioned because the stored state is a slot object, and 2.0.0 renamed
+     * the `scheme` slot to `dataset`. Without the suffix, a conversation in
+     * flight when the deploy lands is read back with a slot the validator no
+     * longer knows, and the next follow-up answers "which dataset?" instead of
+     * narrowing. Changing the prefix abandons those states, which is the right
+     * outcome: a new topic works immediately.
+     */
+    protected string $cachePrefix = 'nq_conv:v2:';
 
     public function __construct(
         QueryOrchestrator $orchestrator,
@@ -51,10 +59,10 @@ class ConversationManager
      *
      * @param string $sessionId Unique session identifier (e.g., user ID, session token)
      * @param string $query The user's natural language query
-     * @param string|null $schemeHint Optional explicit scheme
+     * @param string|null $datasetHint Optional explicit dataset
      * @return array Response with conversation metadata
      */
-    public function query(string $sessionId, string $query, ?string $schemeHint = null): array
+    public function query(string $sessionId, string $query, ?string $datasetHint = null): array
     {
         $state = $this->getState($sessionId);
         $classification = $this->classifier->classify($query, $state);
@@ -75,7 +83,7 @@ class ConversationManager
         $carried = $classification === TurnClassifier::NEW_QUERY ? new QueryState() : $state;
         $result = $this->orchestrator->query(
             $query,
-            $schemeHint ?? $carried->get('scheme'),
+            $datasetHint ?? $carried->get('dataset'),
             $carried->isEmpty() ? [] : ['state' => $carried->toIntent(), 'summary' => $carried->summary($this->registry)]
         );
 
@@ -192,7 +200,7 @@ class ConversationManager
             'message' => $this->validator->question($failure),
             'alternatives' => [],
             'available_metrics' => ($failure['slot'] ?? '') === 'metric'
-                ? $this->registry->getSchemeMetrics((string) $state->get('scheme'))
+                ? $this->registry->getDatasetMetrics((string) $state->get('dataset'))
                 : [],
             'state' => $state->toIntent(),
             'state_summary' => $state->summary($this->registry),

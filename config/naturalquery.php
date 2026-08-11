@@ -178,7 +178,7 @@ return [
     // ==========================================================================
     // How the AI processes natural language queries.
     //
-    // 'intent'          - AI extracts intent (scheme, metric, order) → local SQL builder
+    // 'intent'          - AI extracts intent (dataset, metric, order) → local SQL builder
     //                     constructs the query. Safer, but limited to predefined metrics.
     //
     // 'sql_generation'  - AI receives full table structure and generates SQL directly.
@@ -191,15 +191,15 @@ return [
     'query_mode' => env('NATURALQUERY_QUERY_MODE', 'auto'),
 
     // ==========================================================================
-    // DEFAULT SCHEME
+    // DEFAULT DATASET
     // ==========================================================================
     // If your project has only ONE dataset (or a primary one), set it here.
-    // This eliminates scheme detection errors — the AI always knows which tables to use.
+    // This eliminates dataset detection errors — the AI always knows which tables to use.
     //
     // Examples:
-    //   'sales'          → all queries go to the 'sales' schema
-    //   null             → AI must detect scheme from query text (multi-scheme projects)
-    'default_scheme' => env('NATURALQUERY_DEFAULT_SCHEME', null),
+    //   'sales'          → all queries go to the 'sales' dataset
+    //   null             → AI must detect dataset from query text (multi-dataset projects)
+    'default_dataset' => env('NATURALQUERY_DEFAULT_DATASET', null),
 
     // ==========================================================================
     // PROJECT-LEVEL AI INSTRUCTIONS
@@ -241,12 +241,12 @@ return [
     ],
 
     // ==========================================================================
-    // GLOBAL EXAMPLE QUERIES (Multi-Schema)
+    // GLOBAL EXAMPLE QUERIES (Multi-Dataset)
     // ==========================================================================
-    // Example queries that span MULTIPLE schemas or help the AI understand
-    // cross-schema concepts. These are included in multi-scheme prompts.
+    // Example queries that span MULTIPLE datasets or help the AI understand
+    // cross-dataset concepts. These are included in multi-dataset prompts.
     //
-    // Per-schema examples go in the schema config files.
+    // Per-dataset examples go in that dataset's schema file.
     // Global examples go here — for routing/disambiguation.
     'global_examples' => [
         // ['natural' => 'Compare support load and revenue', 'note' => 'Use support_tickets for load, orders for revenue'],

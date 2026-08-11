@@ -45,8 +45,8 @@ Route::post('/text', [NaturalQueryController::class, 'textQuery'])->name('text')
 // Health check
 Route::get('/health', [NaturalQueryController::class, 'health'])->name('health');
 
-// Available schemes
-Route::get('/schemes', [NaturalQueryController::class, 'schemes'])->name('schemes');
+// Available datasets
+Route::get('/datasets', [NaturalQueryController::class, 'datasets'])->name('datasets');
 
 // Cache management
 Route::get('/cache-stats', [NaturalQueryController::class, 'cacheStats'])->name('cache.stats');

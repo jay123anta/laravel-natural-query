@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\Test;
  * That was impossible: the endpoint returned a key and a name, metrics were
  * behind a second call, and dimensions were not exposed at all.
  */
-class SchemesEndpointTest extends TestCase
+class DatasetsEndpointTest extends TestCase
 {
     protected function getEnvironmentSetUp($app): void
     {
@@ -28,12 +28,12 @@ class SchemesEndpointTest extends TestCase
     #[Test]
     public function one_call_returns_everything_needed_to_build_a_question_panel()
     {
-        $response = $this->getJson('/naturalquery/schemes');
+        $response = $this->getJson('/naturalquery/datasets');
 
         $response->assertStatus(200);
         $response->assertJsonPath('total', 1);
 
-        $dataset = $response->json('schemes.0');
+        $dataset = $response->json('datasets.0');
 
         foreach (['key', 'name', 'description', 'aliases', 'metrics', 'dimensions',
                   'default_dimension', 'date_column', 'examples'] as $field) {
@@ -44,7 +44,7 @@ class SchemesEndpointTest extends TestCase
     #[Test]
     public function it_lists_the_breakdowns_a_client_may_offer()
     {
-        $dimensions = $this->getJson('/naturalquery/schemes')->json('schemes.0.dimensions');
+        $dimensions = $this->getJson('/naturalquery/datasets')->json('datasets.0.dimensions');
 
         $this->assertContains('region', $dimensions);
         // A measure is not something to group by, and offering it would produce
@@ -57,14 +57,14 @@ class SchemesEndpointTest extends TestCase
     {
         // A table often has several. A client showing a date picker needs to
         // know which one "last month" will narrow on.
-        $this->getJson('/naturalquery/schemes')
-            ->assertJsonPath('schemes.0.date_column', 'order_date');
+        $this->getJson('/naturalquery/datasets')
+            ->assertJsonPath('datasets.0.date_column', 'order_date');
     }
 
     #[Test]
     public function measures_come_with_the_descriptions_written_for_humans()
     {
-        $metrics = $this->getJson('/naturalquery/schemes')->json('schemes.0.metrics');
+        $metrics = $this->getJson('/naturalquery/datasets')->json('datasets.0.metrics');
         $keys = array_column($metrics, 'key');
 
         $this->assertContains('revenue', $keys);
@@ -75,7 +75,7 @@ class SchemesEndpointTest extends TestCase
     #[Test]
     public function a_single_dataset_can_be_asked_for_directly()
     {
-        $this->getJson('/naturalquery/schemes?scheme=tf_sales')
+        $this->getJson('/naturalquery/datasets?dataset=tf_sales')
             ->assertStatus(200)
             ->assertJsonPath('key', 'tf_sales')
             ->assertJsonPath('date_column', 'order_date');
@@ -86,7 +86,7 @@ class SchemesEndpointTest extends TestCase
     {
         // Previously this returned an empty metrics list and a 200, which reads
         // as "that dataset exists and has nothing in it".
-        $response = $this->getJson('/naturalquery/schemes?scheme=not_a_dataset');
+        $response = $this->getJson('/naturalquery/datasets?dataset=not_a_dataset');
 
         $response->assertStatus(404);
         $response->assertJsonPath('error_code', 'cannot_answer');

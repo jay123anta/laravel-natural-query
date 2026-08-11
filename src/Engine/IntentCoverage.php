@@ -186,8 +186,8 @@ class IntentCoverage
 
         $haystack = strtolower($query);
 
-        foreach (array_keys($this->registry->all()) as $scheme) {
-            foreach ($this->registry->getComputedMetrics($scheme) as $key => $definition) {
+        foreach (array_keys($this->registry->all()) as $dataset) {
+            foreach ($this->registry->getComputedMetrics($dataset) as $key => $definition) {
                 $names = array_merge([$key], (array) ($definition['aliases'] ?? []));
 
                 foreach ($names as $name) {

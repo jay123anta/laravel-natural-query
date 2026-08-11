@@ -36,7 +36,7 @@ class ConversationStateTest extends TestCase
 
     private function started(): QueryState
     {
-        return new QueryState(['scheme' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'customer_name'], 1);
+        return new QueryState(['dataset' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'customer_name'], 1);
     }
 
     // ------------------------------------------------------------ classify
@@ -184,7 +184,7 @@ class ConversationStateTest extends TestCase
     #[Test]
     public function a_new_query_inherits_nothing()
     {
-        $next = $this->started()->replace(['scheme' => 'gb_sales', 'metric' => 'record_count'], 2);
+        $next = $this->started()->replace(['dataset' => 'gb_sales', 'metric' => 'record_count'], 2);
 
         $this->assertSame('record_count', $next->get('metric'));
         $this->assertNull($next->get('group_by'));
@@ -209,7 +209,7 @@ class ConversationStateTest extends TestCase
     public function a_metric_that_does_not_exist_becomes_a_question_not_a_query()
     {
         $result = $this->app->make(StateValidator::class)
-            ->validate(new QueryState(['scheme' => 'gb_sales', 'metric' => 'gross_margin'], 1));
+            ->validate(new QueryState(['dataset' => 'gb_sales', 'metric' => 'gross_margin'], 1));
 
         $this->assertFalse($result['valid']);
         $this->assertSame('metric', $result['slot']);
@@ -220,7 +220,7 @@ class ConversationStateTest extends TestCase
     public function a_breakdown_that_is_not_a_dimension_becomes_a_question()
     {
         $result = $this->app->make(StateValidator::class)
-            ->validate(new QueryState(['scheme' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'shoe_size'], 1));
+            ->validate(new QueryState(['dataset' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'shoe_size'], 1));
 
         $this->assertFalse($result['valid']);
         $this->assertSame('group_by', $result['slot']);
@@ -232,7 +232,7 @@ class ConversationStateTest extends TestCase
         // "sales" is an alias of revenue; resolving it once means the rest of
         // the conversation carries the canonical name.
         $result = $this->app->make(StateValidator::class)
-            ->validate(new QueryState(['scheme' => 'gb_sales', 'metric' => 'sales', 'group_by' => 'territory'], 1));
+            ->validate(new QueryState(['dataset' => 'gb_sales', 'metric' => 'sales', 'group_by' => 'territory'], 1));
 
         $this->assertTrue($result['valid']);
         $this->assertSame('revenue', $result['state']->get('metric'));

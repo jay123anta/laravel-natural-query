@@ -52,7 +52,7 @@ class CountMetricTest extends TestCase
     public function counting_produces_count_not_a_sum_of_some_measure()
     {
         $result = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'how many',
             'group_by' => 'status',
         ]);
@@ -71,7 +71,7 @@ class CountMetricTest extends TestCase
     public function the_count_expression_is_never_double_wrapped()
     {
         $result = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'count',
         ]);
 
@@ -85,7 +85,7 @@ class CountMetricTest extends TestCase
     {
         // "revenue by region" must not become "number of rows by region".
         $result = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
         ]);
@@ -97,7 +97,7 @@ class CountMetricTest extends TestCase
     #[Test]
     public function the_model_is_told_the_count_metric_exists()
     {
-        $list = $this->registry()->getSchemeListForLlm();
+        $list = $this->registry()->getDatasetListForLlm();
         $sales = collect($list)->firstWhere('key', 'gb_sales');
 
         $this->assertArrayHasKey(SchemaRegistry::COUNT_METRIC, $sales['metrics']);

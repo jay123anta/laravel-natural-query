@@ -4,7 +4,7 @@
  * Schema stub for PrivacyWallTest.
  *
  * Deliberately isolated from tests/Stubs/schemas so the privacy suite can seed
- * a real SQLite table without disturbing the other suites' scheme counts.
+ * a real SQLite table without disturbing the other suites' dataset counts.
  *
  * IMPORTANT: nothing in this file may contain any of the sentinel strings the
  * test seeds into the database. The whole point is that a sentinel appearing in

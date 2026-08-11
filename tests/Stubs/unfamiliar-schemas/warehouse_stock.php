@@ -8,7 +8,7 @@
  *     naturalquery:discover always writes one)
  *   - no column called `name`, `id`, `title` or anything else the engine
  *     might be tempted to assume
- *   - domain vocabulary unrelated to orders, districts or government schemes
+ *   - domain vocabulary unrelated to orders, districts or government datasets
  *
  * If the package only works because a table happens to have familiar column
  * names, this file is where that shows up.

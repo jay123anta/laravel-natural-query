@@ -53,7 +53,7 @@ class ProviderOrderDefaultTest extends TestCase
     #[Test]
     public function a_response_without_an_order_still_normalises(string $class)
     {
-        $intent = $this->normalize($class, ['scheme' => 'orders', 'metric' => 'revenue']);
+        $intent = $this->normalize($class, ['dataset' => 'orders', 'metric' => 'revenue']);
 
         $this->assertSame('desc', $intent['order']);
     }
@@ -62,8 +62,8 @@ class ProviderOrderDefaultTest extends TestCase
     #[Test]
     public function an_order_the_model_did_send_is_respected(string $class)
     {
-        $this->assertSame('asc', $this->normalize($class, ['scheme' => 'orders', 'order' => 'ASC'])['order']);
-        $this->assertSame('desc', $this->normalize($class, ['scheme' => 'orders', 'order' => 'desc'])['order']);
+        $this->assertSame('asc', $this->normalize($class, ['dataset' => 'orders', 'order' => 'ASC'])['order']);
+        $this->assertSame('desc', $this->normalize($class, ['dataset' => 'orders', 'order' => 'desc'])['order']);
     }
 
     #[DataProvider('providers')]
@@ -73,7 +73,7 @@ class ProviderOrderDefaultTest extends TestCase
         foreach ([null, '', 'sideways', 'DESC; DROP TABLE orders'] as $junk) {
             $this->assertSame(
                 'desc',
-                $this->normalize($class, ['scheme' => 'orders', 'order' => $junk])['order'],
+                $this->normalize($class, ['dataset' => 'orders', 'order' => $junk])['order'],
                 'accepted: ' . var_export($junk, true)
             );
         }

@@ -12,9 +12,9 @@ use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
  * exact — a facade docblock that has drifted from the class is worse than none,
  * because it is believed.
  *
- * @method static array query(string $naturalLanguageQuery, ?string $schemeHint = null, array $context = [])
- * @method static array getSchemes()
- * @method static array getSchemeMetrics(string $schemeKey)
+ * @method static array query(string $naturalLanguageQuery, ?string $datasetHint = null, array $context = [])
+ * @method static array getDatasets()
+ * @method static array getDatasetMetrics(string $datasetKey)
  * @method static array healthCheck()
  * @method static \Jayanta\NaturalQuery\Schema\SchemaRegistry registry()
  *

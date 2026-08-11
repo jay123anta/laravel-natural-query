@@ -23,7 +23,7 @@ class QueryState
 {
     /** Slots that carry between turns. */
     public const SLOTS = [
-        'scheme', 'metric', 'group_by', 'filter_column', 'group_value',
+        'dataset', 'metric', 'group_by', 'filter_column', 'group_value',
         // Filters ACCUMULATE. "Only in West" then "and what about
         // Electronics?" means both, and holding one at a time made the second
         // silently replace the first — the answer covered every region and
@@ -51,7 +51,7 @@ class QueryState
     public static function fromIntent(array $intent, int $seq = 1): self
     {
         return new self([
-            'scheme' => $intent['scheme'] ?? null,
+            'dataset' => $intent['dataset'] ?? null,
             'metric' => $intent['metric'] ?? null,
             'group_by' => $intent['group_by'] ?? null,
             'filter_column' => $intent['filter_column'] ?? null,
@@ -267,10 +267,10 @@ class QueryState
     {
         $parts = [];
 
-        if ($scheme = $this->get('scheme')) {
-            $parts[] = $registry && $registry->has($scheme)
-                ? ($registry->get($scheme)['name'] ?? $scheme)
-                : $scheme;
+        if ($dataset = $this->get('dataset')) {
+            $parts[] = $registry && $registry->has($dataset)
+                ? ($registry->get($dataset)['name'] ?? $dataset)
+                : $dataset;
         }
 
         if ($metric = $this->get('metric')) {

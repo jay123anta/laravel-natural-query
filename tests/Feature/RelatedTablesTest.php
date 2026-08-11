@@ -83,7 +83,7 @@ class RelatedTablesTest extends TestCase
     {
         // Listing them as separate "datasets" with no further comment made
         // models answer a cross-table question with "which one did you mean?".
-        $prompt = $this->app->make(PromptBuilder::class)->buildMultiSchemePrompt('top customers by revenue');
+        $prompt = $this->app->make(PromptBuilder::class)->buildMultiDatasetPrompt('top customers by revenue');
 
         $this->assertStringContainsString('SAME database', $prompt);
         $this->assertStringContainsString('JOIN across them', $prompt);

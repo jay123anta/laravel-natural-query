@@ -32,22 +32,22 @@ class PromptBuilder
     }
 
     /**
-     * Build a complete SQL generation prompt for a specific scheme.
+     * Build a complete SQL generation prompt for a specific dataset.
      *
      * Used in sql_generation mode — AI generates the full SQL query.
      */
-    public function buildSqlPrompt(string $schemeKey, string $userQuery): string
+    public function buildSqlPrompt(string $datasetKey, string $userQuery): string
     {
-        $schema = $this->registry->get($schemeKey);
+        $schema = $this->registry->get($datasetKey);
         if (!$schema) {
-            return "Error: Unknown scheme '{$schemeKey}'";
+            return "Error: Unknown dataset '{$datasetKey}'";
         }
 
         $dialect = $this->introspector->getDialect();
-        $schemaInfo = $this->buildFullSchemaInfo($schemeKey, $schema);
-        $examples = $this->buildExamples($schemeKey);
-        $llmInstructions = $this->registry->getLlmInstructions($schemeKey);
-        $maxLimit = $this->registry->getMaxLimit($schemeKey) ?? config('naturalquery.sql.max_limit');
+        $schemaInfo = $this->buildFullSchemaInfo($datasetKey, $schema);
+        $examples = $this->buildExamples($datasetKey);
+        $llmInstructions = $this->registry->getLlmInstructions($datasetKey);
+        $maxLimit = $this->registry->getMaxLimit($datasetKey) ?? config('naturalquery.sql.max_limit');
         $defaultLimit = $schema['defaults']['limit'] ?? config('naturalquery.sql.default_limit', 100);
 
         $limitRule = $maxLimit
@@ -97,7 +97,7 @@ PROMPT;
         }
 
         // Include past corrections so the AI learns from mistakes
-        $corrections = $this->buildCorrections($schemeKey);
+        $corrections = $this->buildCorrections($datasetKey);
         if ($corrections) {
             $prompt .= "\n\nPAST CORRECTIONS (avoid these mistakes):\n{$corrections}\n";
         }
@@ -109,7 +109,7 @@ USER QUERY: "{$userQuery}"
 Respond with ONLY a JSON object (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
-    "scheme": "{$schemeKey}",
+    "dataset": "{$datasetKey}",
     "query_type": "ranking|group_detail|aggregation|overview",
     "metric": "main metric column name or null",
     "group_value": "a specific record name to filter to, if the user named one, else null — never a category or column name",
@@ -123,7 +123,7 @@ If the query cannot be processed, respond with:
 {
     "error": "Reason why",
     "needs_clarification": true,
-    "clarification_type": "scheme|metric|ambiguous",
+    "clarification_type": "dataset|metric|ambiguous",
     "suggestions": ["suggestion 1", "suggestion 2"]
 }
 
@@ -134,11 +134,11 @@ PROMPT;
     }
 
     /**
-     * Build a multi-scheme SQL generation prompt (scheme not yet identified).
+     * Build a multi-dataset SQL generation prompt (dataset not yet identified).
      *
      * AI must first identify which dataset to query, then generate SQL.
      */
-    public function buildMultiSchemePrompt(string $userQuery): string
+    public function buildMultiDatasetPrompt(string $userQuery): string
     {
         $dialect = $this->introspector->getDialect();
         $allSchemaInfo = $this->buildAllSchemasFullInfo();
@@ -208,7 +208,7 @@ PROMPT;
             $prompt .= "\n\nGLOBAL EXAMPLES:\n{$globalExamples}\n";
         }
 
-        // Include past corrections for all schemes
+        // Include past corrections for all datasets
         $corrections = $this->buildAllCorrections();
         if ($corrections) {
             $prompt .= "\n\nPAST CORRECTIONS (avoid these mistakes):\n{$corrections}\n";
@@ -221,7 +221,7 @@ USER QUERY: "{$userQuery}"
 Return JSON only (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
-    "scheme": "dataset_key",
+    "dataset": "dataset_key",
     "query_type": "ranking|group_detail|aggregation|overview",
     "metric": "main metric name or null",
     "group_value": "specific group name if mentioned, or null",
@@ -235,7 +235,7 @@ Or if unclear:
 {
     "error": "Reason",
     "needs_clarification": true,
-    "clarification_type": "scheme|metric|ambiguous",
+    "clarification_type": "dataset|metric|ambiguous",
     "suggestions": ["try asking about X", "try asking about Y"]
 }
 
@@ -246,9 +246,9 @@ PROMPT;
     }
 
     /**
-     * Build FULL schema info for a single scheme — includes everything the AI needs.
+     * Build FULL schema info for a single dataset — includes everything the AI needs.
      */
-    protected function buildFullSchemaInfo(string $schemeKey, array $schema): string
+    protected function buildFullSchemaInfo(string $datasetKey, array $schema): string
     {
         $lines = [];
         $primary = $schema['tables']['primary'] ?? [];
@@ -258,7 +258,7 @@ PROMPT;
         $selectOverride = $primary['select_override'] ?? null;
 
         $lines[] = "TABLE: {$tableName}";
-        $lines[] = "  Dataset: {$schemeKey} ({$schema['name']})";
+        $lines[] = "  Dataset: {$datasetKey} ({$schema['name']})";
         $lines[] = "  Description: " . ($schema['description'] ?? '');
         $lines[] = "  Group/Filter Column: {$groupColumn}";
 
@@ -333,7 +333,7 @@ PROMPT;
     }
 
     /**
-     * Build full schema info for ALL schemes — used in multi-scheme prompts.
+     * Build full schema info for ALL datasets — used in multi-dataset prompts.
      */
     /**
      * Render foreign keys as ready-to-use JOIN clauses.
@@ -415,9 +415,9 @@ PROMPT;
     /**
      * Build example queries section.
      */
-    protected function buildExamples(string $schemeKey): string
+    protected function buildExamples(string $datasetKey): string
     {
-        $examples = $this->registry->getExampleQueries($schemeKey);
+        $examples = $this->registry->getExampleQueries($datasetKey);
         if (empty($examples)) {
             return '';
         }
@@ -433,11 +433,11 @@ PROMPT;
     }
 
     /**
-     * Build corrections section for a specific scheme.
+     * Build corrections section for a specific dataset.
      */
-    protected function buildCorrections(string $schemeKey): string
+    protected function buildCorrections(string $datasetKey): string
     {
-        $corrections = $this->feedback->getCorrectionsForPrompt($schemeKey);
+        $corrections = $this->feedback->getCorrectionsForPrompt($datasetKey);
         if (empty($corrections)) {
             return '';
         }
@@ -455,7 +455,7 @@ PROMPT;
     }
 
     /**
-     * Build corrections section for all schemes.
+     * Build corrections section for all datasets.
      */
     protected function buildAllCorrections(): string
     {
@@ -466,7 +466,7 @@ PROMPT;
 
         $lines = [];
         foreach ($corrections as $c) {
-            $lines[] = "- [{$c['scheme']}] When user asked: \"{$c['query']}\"";
+            $lines[] = "- [{$c['dataset']}] When user asked: \"{$c['query']}\"";
             $lines[] = "  Problem: {$c['correction']}";
             if (!empty($c['corrected_sql'])) {
                 $lines[] = "  Correct SQL: {$c['corrected_sql']}";
@@ -477,7 +477,7 @@ PROMPT;
     }
 
     /**
-     * Build routing hints from config for multi-scheme prompts.
+     * Build routing hints from config for multi-dataset prompts.
      */
     protected function buildRoutingHints(): string
     {
@@ -487,16 +487,16 @@ PROMPT;
         }
 
         $lines = [];
-        // Group by scheme
+        // Group by dataset
         $grouped = [];
-        foreach ($routing as $keyword => $scheme) {
-            $grouped[$scheme][] = $keyword;
+        foreach ($routing as $keyword => $dataset) {
+            $grouped[$dataset][] = $keyword;
         }
 
-        foreach ($grouped as $scheme => $keywords) {
-            $schemaData = $this->registry->get($scheme);
-            $name = $schemaData['name'] ?? $scheme;
-            $lines[] = "- If query mentions: " . implode(', ', $keywords) . " → use dataset \"{$scheme}\" ({$name})";
+        foreach ($grouped as $dataset => $keywords) {
+            $schemaData = $this->registry->get($dataset);
+            $name = $schemaData['name'] ?? $dataset;
+            $lines[] = "- If query mentions: " . implode(', ', $keywords) . " → use dataset \"{$dataset}\" ({$name})";
         }
 
         return implode("\n", $lines);

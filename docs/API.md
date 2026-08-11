@@ -69,15 +69,15 @@ and it looks like a network error rather than a policy one.
 ### `POST /text` — one-shot question
 
 ```json
-{ "text": "top 5 customers by revenue", "scheme": "orders" }
+{ "text": "top 5 customers by revenue", "dataset": "orders" }
 ```
 
-`scheme` is optional; omit it to let the package route the question.
+`dataset` is optional; omit it to let the package route the question.
 
 ### `POST /conversation` — a turn in a conversation
 
 ```json
-{ "session_id": "abc-123", "text": "only in West", "scheme": null }
+{ "session_id": "abc-123", "text": "only in West", "dataset": null }
 ```
 
 Identical response, plus `state`, `state_summary` and `conversation`. Follow-ups
@@ -125,7 +125,7 @@ your server or any model provider.
   "insights": { "count": 5, "total": "…", "average": "…", "min": "…", "max": "…" },
 
   "parsed_query": {
-    "scheme": "orders",
+    "dataset": "orders",
     "metric": "revenue",
     "group_by": "customer_name",  // what the rows ARE
     "filter_column": "region",    // the column a single filter matched on
@@ -193,7 +193,7 @@ steps are not comparable; a percentage is never invented.
 ```jsonc
 {
   "status": "clarification_needed",
-  "type": "metric_clarification",   // scheme_clarification | metric_clarification
+  "type": "metric_clarification",   // dataset_clarification | metric_clarification
                                     // | slot_clarification | refinement_cap
   "message": "What metric would you like to see for this dataset?",
 
@@ -203,14 +203,14 @@ steps are not comparable; a percentage is never invented.
     { "key": "revenue", "description": "Total order value", "type": "currency", "computed": false }
   ],
 
-  // On scheme_clarification ONLY — empty on every other type. A dataset button
-  // offered next to metric buttons re-sends the scheme the request already had
+  // On dataset_clarification ONLY — empty on every other type. A dataset button
+  // offered next to metric buttons re-sends the dataset the request already had
   // and redraws the same card, which reads as a broken button.
   "alternatives": [
-    { "scheme_name": "Orders", "scheme_key": "orders", "confidence": 0.5 }
+    { "dataset_name": "Orders", "dataset_key": "orders", "confidence": 0.5 }
   ],
 
-  "parsed_query": { "scheme": "orders", "metric": null, "group_value": null },
+  "parsed_query": { "dataset": "orders", "metric": null, "group_value": null },
   "metadata": { "confidence": 0.4 }
 }
 ```
@@ -257,7 +257,7 @@ Exceeding `limits.queries_per_day` returns **429** with
 ```jsonc
 {
   "status": "success",
-  "state": { "scheme": "orders", "metric": "revenue", "group_by": "customer_name",
+  "state": { "dataset": "orders", "metric": "revenue", "group_by": "customer_name",
              "filters": [ { "column": "region", "value": "West" } ] },
   "state_summary": "Orders · revenue · by customer name · region is West",
   "conversation": { "turn": 2, "refinements": 1, "context_active": true,
@@ -322,11 +322,11 @@ with — so "only revenue by region" does not inherit last turn's filters.
 
 ## Describing the schema
 
-### `GET /schemes` — what can be asked
+### `GET /datasets` — what can be asked
 
 ```jsonc
 {
-  "schemes": [ {
+  "datasets": [ {
     "key": "orders", "name": "Orders", "description": "…", "aliases": ["sales"],
     "metrics": [ { "key": "revenue", "description": "…", "computed": false } ],
     "dimensions": ["customer_name", "region", "product_category"],
@@ -341,7 +341,7 @@ with — so "only revenue by region" does not inherit last turn's filters.
 Everything needed for a "what can I ask?" panel. `dimensions` excludes measures,
 so a client cannot offer a breakdown the engine would refuse.
 
-`GET /schemes?scheme=orders` returns one dataset, or **404** naming the ones
+`GET /datasets?dataset=orders` returns one dataset, or **404** naming the ones
 that exist.
 
 ---
@@ -352,8 +352,8 @@ that exist.
 |---|---|
 | `GET /health` | Provider and database reachability. **503** when unhealthy — probe this |
 | `GET /cache-stats` | Cache size and hit counts |
-| `POST /clear-cache` | `{ scheme?, older_than_days?, min_hits? }` |
-| `POST /feedback` | `{ query, scheme, correction?, corrected_sql?, feedback_type? }` — fed into later prompts |
+| `POST /clear-cache` | `{ dataset?, older_than_days?, min_hits? }` |
+| `POST /feedback` | `{ query, dataset, correction?, corrected_sql?, feedback_type? }` — fed into later prompts |
 | `GET /feedback/stats` | Correction counts |
 | `GET /widget.js` | The reference widget, no publish step |
 | `GET /demo` | A working page to check a new install against before writing any front end |
@@ -441,5 +441,5 @@ Users can submit corrections. These are fed into future prompts so the AI learns
 
 ```bash
 curl -X POST /naturalquery/feedback \
-  -d '{"query":"show top customers","scheme":"orders","correction":"Should rank by SUM(quantity * unit_price), not the amount column","feedback_type":"wrong_metric"}'
+  -d '{"query":"show top customers","dataset":"orders","correction":"Should rank by SUM(quantity * unit_price), not the amount column","feedback_type":"wrong_metric"}'
 ```

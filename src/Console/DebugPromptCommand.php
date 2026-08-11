@@ -16,14 +16,14 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
  *
  * Usage:
  *   php artisan naturalquery:debug "your query here"
- *   php artisan naturalquery:debug "your query" --scheme=orders
+ *   php artisan naturalquery:debug "your query" --dataset=orders
  *   php artisan naturalquery:debug "your query" --execute
  */
 class DebugPromptCommand extends Command
 {
     protected $signature = 'naturalquery:debug
                             {query : The natural language query to debug}
-                            {--scheme= : Force a specific scheme}
+                            {--dataset= : Force a specific dataset}
                             {--execute : Actually execute the query and show results}
                             {--raw : Show the full raw AI response}';
 
@@ -35,7 +35,7 @@ class DebugPromptCommand extends Command
         LlmProviderInterface $llm
     ): int {
         $query = $this->argument('query');
-        $scheme = $this->option('scheme');
+        $dataset = $this->option('dataset');
 
         $this->info("NaturalQuery Prompt Debugger");
         $this->newLine();
@@ -44,44 +44,44 @@ class DebugPromptCommand extends Command
         $this->comment("Configuration:");
         $this->line("  Query mode: " . config('naturalquery.query_mode', 'auto'));
         $this->line("  LLM provider: " . $llm->getName());
-        $this->line("  Default scheme: " . (config('naturalquery.default_scheme') ?: 'none'));
+        $this->line("  Default dataset: " . (config('naturalquery.default_dataset') ?: 'none'));
         $this->line("  System instructions: " . (config('naturalquery.system_instructions') ? 'set (' . strlen(config('naturalquery.system_instructions')) . ' chars)' : 'none'));
         $this->line("  Schemas loaded: " . count($registry->all()) . ' (' . implode(', ', $registry->keys()) . ')');
         $this->newLine();
 
-        // Detect scheme
-        if (!$scheme) {
-            $scheme = config('naturalquery.default_scheme');
+        // Detect dataset
+        if (!$dataset) {
+            $dataset = config('naturalquery.default_dataset');
         }
 
-        if (!$scheme) {
+        if (!$dataset) {
             // Try keyword detection
             $queryLower = strtolower($query);
             foreach ($registry->all() as $key => $schemaData) {
                 if (str_contains($queryLower, strtolower($key))) {
-                    $scheme = $key;
+                    $dataset = $key;
                     break;
                 }
                 foreach ($schemaData['aliases'] ?? [] as $alias) {
                     if (str_contains($queryLower, strtolower($alias))) {
-                        $scheme = $key;
+                        $dataset = $key;
                         break 2;
                     }
                 }
             }
         }
 
-        $this->comment("Scheme detection:");
-        $this->line("  Detected: " . ($scheme ?: 'NONE — will use multi-scheme prompt'));
+        $this->comment("Dataset detection:");
+        $this->line("  Detected: " . ($dataset ?: 'NONE — will use multi-dataset prompt'));
         $this->newLine();
 
         // Build prompt
-        if ($scheme && $registry->has($scheme)) {
-            $prompt = $promptBuilder->buildSqlPrompt($scheme, $query);
-            $this->comment("Prompt type: Single-scheme ({$scheme})");
+        if ($dataset && $registry->has($dataset)) {
+            $prompt = $promptBuilder->buildSqlPrompt($dataset, $query);
+            $this->comment("Prompt type: Single-dataset ({$dataset})");
         } else {
-            $prompt = $promptBuilder->buildMultiSchemePrompt($query);
-            $this->comment("Prompt type: Multi-scheme (all schemas)");
+            $prompt = $promptBuilder->buildMultiDatasetPrompt($query);
+            $this->comment("Prompt type: Multi-dataset (all datasets)");
         }
 
         $this->line("  Length: " . strlen($prompt) . " chars (" . str_word_count($prompt) . " words)");
@@ -105,7 +105,7 @@ class DebugPromptCommand extends Command
                 $data = $response['data'];
                 if (isset($data['sql'])) {
                     $this->info("SQL: " . $data['sql']);
-                    $this->line("Scheme: " . ($data['scheme'] ?? '?'));
+                    $this->line("Dataset: " . ($data['dataset'] ?? '?'));
                     $this->line("Type: " . ($data['query_type'] ?? '?'));
                     $this->line("Explanation: " . ($data['explanation'] ?? '?'));
                 } elseif (isset($data['error'])) {
@@ -123,7 +123,7 @@ class DebugPromptCommand extends Command
                 if (isset($data['sql'])) {
                     $this->newLine();
                     $this->comment("Executing SQL...");
-                    $connection = $scheme ? $registry->getConnection($scheme) : null;
+                    $connection = $dataset ? $registry->getConnection($dataset) : null;
 
                     try {
                         $rows = $connection

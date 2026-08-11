@@ -26,7 +26,7 @@ class QueryStateMergeGuardTest extends TestCase
     private function established(): QueryState
     {
         return QueryState::fromIntent(
-            ['scheme' => 'invoices', 'metric' => 'amount', 'group_by' => 'city'],
+            ['dataset' => 'invoices', 'metric' => 'amount', 'group_by' => 'city'],
             1
         );
     }
@@ -35,7 +35,7 @@ class QueryStateMergeGuardTest extends TestCase
     private function reguessed(): array
     {
         return [
-            'scheme' => 'invoices',
+            'dataset' => 'invoices',
             'metric' => 'record_count',
             'group_by' => 'client',
             'filters' => [['column' => 'city', 'value' => 'Guwahati']],
@@ -110,7 +110,7 @@ class QueryStateMergeGuardTest extends TestCase
     public function a_first_turn_is_not_constrained()
     {
         $merged = (new QueryState())
-            ->merge(['scheme' => 'invoices', 'metric' => 'amount', 'group_by' => 'city'], 1, 'only in Guwahati')
+            ->merge(['dataset' => 'invoices', 'metric' => 'amount', 'group_by' => 'city'], 1, 'only in Guwahati')
             ->toIntent();
 
         $this->assertSame('amount', $merged['metric']);

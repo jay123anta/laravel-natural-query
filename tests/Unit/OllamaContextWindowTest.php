@@ -34,7 +34,7 @@ class OllamaContextWindowTest extends TestCase
 {
     private function capture(callable $call, array $config = []): array
     {
-        Http::fake(['*' => Http::response(['response' => '{"scheme":"orders","confidence":0.9}'], 200)]);
+        Http::fake(['*' => Http::response(['response' => '{"dataset":"orders","confidence":0.9}'], 200)]);
 
         $call(new OllamaProvider($config + ['model' => 'llama3']));
 

@@ -125,15 +125,17 @@ class TwoTierQueryCache implements QueryCacheInterface
                 DB::table($this->tableName)
                     ->where('id', $existing->id)
                     ->update([
+                        'contract_version' => static::INTENT_CONTRACT_VERSION,
                         'intent' => json_encode($intent),
                         'updated_at' => now(),
                     ]);
             } else {
                 DB::table($this->tableName)->insert([
                     'query_hash' => $hash,
+                    'contract_version' => static::INTENT_CONTRACT_VERSION,
                     'original_query' => $query,
                     'normalized_query' => $normalized,
-                    'scheme' => $intent['scheme'] ?? null,
+                    'dataset' => $intent['dataset'] ?? null,
                     'metric' => $intent['metric'] ?? null,
                     'group_value' => $intent['group_value'] ?? null,
                     'intent' => json_encode($intent),
@@ -153,7 +155,7 @@ class TwoTierQueryCache implements QueryCacheInterface
                     'cached' => true,
                     'cache_match_type' => 'exact',
                     'intent' => $intent,
-                    'scheme' => $intent['scheme'] ?? null,
+                    'dataset' => $intent['dataset'] ?? null,
                     'metric' => $intent['metric'] ?? null,
                     'group_value' => $intent['group_value'] ?? null,
                     'limit' => $intent['limit'] ?? null,
@@ -182,22 +184,22 @@ class TwoTierQueryCache implements QueryCacheInterface
                     COALESCE(SUM(hit_count), 0) as total_hits,
                     COALESCE(AVG(hit_count), 0) as avg_hits_per_entry,
                     COALESCE(MAX(hit_count), 0) as max_hits,
-                    COUNT(DISTINCT scheme) as unique_schemes,
+                    COUNT(DISTINCT dataset) as unique_datasets,
                     MIN(created_at) as oldest_entry,
                     MAX(last_hit_at) as most_recent_hit
                 ')
                 ->first();
 
-            $topSchemes = DB::table($this->tableName)
-                ->selectRaw('scheme, COUNT(*) as entries, SUM(hit_count) as total_hits')
-                ->whereNotNull('scheme')
-                ->groupBy('scheme')
+            $topDatasets = DB::table($this->tableName)
+                ->selectRaw('dataset, COUNT(*) as entries, SUM(hit_count) as total_hits')
+                ->whereNotNull('dataset')
+                ->groupBy('dataset')
                 ->orderByDesc('total_hits')
                 ->limit(10)
                 ->get();
 
             $topQueries = DB::table($this->tableName)
-                ->select('original_query', 'scheme', 'hit_count', 'last_hit_at')
+                ->select('original_query', 'dataset', 'hit_count', 'last_hit_at')
                 ->orderByDesc('hit_count')
                 ->limit(10)
                 ->get();
@@ -208,12 +210,12 @@ class TwoTierQueryCache implements QueryCacheInterface
                 'total_hits' => (int) ($stats->total_hits ?? 0),
                 'avg_hits_per_entry' => round($stats->avg_hits_per_entry ?? 0, 2),
                 'max_hits' => (int) ($stats->max_hits ?? 0),
-                'unique_schemes' => (int) ($stats->unique_schemes ?? 0),
+                'unique_datasets' => (int) ($stats->unique_datasets ?? 0),
                 'oldest_entry' => $stats->oldest_entry,
                 'most_recent_hit' => $stats->most_recent_hit,
                 'tier1_enabled' => $this->useTier1,
                 'tier1_store' => $this->tier1Store,
-                'top_schemes' => $topSchemes,
+                'top_datasets' => $topDatasets,
                 'top_queries' => $topQueries,
             ];
         } catch (\Exception $e) {
@@ -225,20 +227,20 @@ class TwoTierQueryCache implements QueryCacheInterface
     /**
      * Clear cache entries.
      */
-    public function clear(?string $scheme = null, int $olderThanDays = 0, int $minHits = 0): int
+    public function clear(?string $dataset = null, int $olderThanDays = 0, int $minHits = 0): int
     {
         try {
             $query = DB::table($this->tableName);
 
-            if ($scheme) {
-                // Clear Tier 1 entries for this scheme
+            if ($dataset) {
+                // Clear Tier 1 entries for this dataset
                 if ($this->useTier1) {
-                    $hashes = DB::table($this->tableName)->where('scheme', $scheme)->pluck('query_hash');
+                    $hashes = DB::table($this->tableName)->where('dataset', $dataset)->pluck('query_hash');
                     foreach ($hashes as $hash) {
                         $this->getCacheStore()->forget($this->tier1Prefix . $hash);
                     }
                 }
-                $query->where('scheme', $scheme);
+                $query->where('dataset', $dataset);
             }
 
             if ($olderThanDays > 0) {
@@ -253,7 +255,7 @@ class TwoTierQueryCache implements QueryCacheInterface
 
             Log::info('[NaturalQuery:Cache] Cleared entries', [
                 'deleted' => $deleted,
-                'scheme' => $scheme,
+                'dataset' => $dataset,
                 'older_than_days' => $olderThanDays,
             ]);
 
@@ -299,8 +301,14 @@ class TwoTierQueryCache implements QueryCacheInterface
      * before `group_by` existed answer "revenue by region" with the default
      * grouping; without this they would keep doing so until the TTL expired,
      * and the upgrade would look like it had changed nothing.
+     *
+     * 3 — 2.0.0 renamed the `scheme` slot to `dataset`. The stored intent is a
+     * JSON blob, so the column rename does not touch what is inside it: a row
+     * written by 1.0.0 still says "scheme". Served to 2.0.0 the dataset reads
+     * null, and Tier 2 has no expiry, so every question asked before the
+     * upgrade would have stayed broken until someone ran cache-cleanup.
      */
-    protected const INTENT_CONTRACT_VERSION = 2;
+    protected const INTENT_CONTRACT_VERSION = 3;
 
     protected function generateHash(string $normalizedQuery): string
     {
@@ -337,9 +345,21 @@ class TwoTierQueryCache implements QueryCacheInterface
 
     protected function findExactMatch(string $hash): ?object
     {
-        return DB::table($this->tableName)->where('query_hash', $hash)->first();
+        return DB::table($this->tableName)
+            ->where('query_hash', $hash)
+            ->where('contract_version', static::INTENT_CONTRACT_VERSION)
+            ->first();
     }
 
+    /**
+     * The version filter is not redundant with the hash.
+     *
+     * Fuzzy matching finds rows by their normalized TEXT, so it never touches
+     * the hash and the contract version folded into it had no effect here at
+     * all. Bumping the constant made the exact tier miss an old row and the
+     * fuzzy tier serve the very same row a moment later — which quietly
+     * defeated every previous bump too, not just this one.
+     */
     protected function findFuzzyMatch(string $normalizedQuery): ?object
     {
         $words = explode(' ', $normalizedQuery);
@@ -350,6 +370,7 @@ class TwoTierQueryCache implements QueryCacheInterface
         }
 
         $candidates = DB::table($this->tableName)
+            ->where('contract_version', static::INTENT_CONTRACT_VERSION)
             ->where(function ($query) use ($significantWords) {
                 foreach ($significantWords as $word) {
                     $query->orWhere('normalized_query', 'LIKE', "%{$word}%");
@@ -429,7 +450,7 @@ class TwoTierQueryCache implements QueryCacheInterface
             'hit_count' => $cached->hit_count,
             'original_cached_query' => $cached->original_query,
             'intent' => $intent,
-            'scheme' => $intent['scheme'] ?? $cached->scheme,
+            'dataset' => $intent['dataset'] ?? $cached->dataset,
             'metric' => $intent['metric'] ?? $cached->metric,
             'group_value' => $intent['group_value'] ?? $cached->group_value,
             'limit' => $intent['limit'] ?? $cached->limit_value,

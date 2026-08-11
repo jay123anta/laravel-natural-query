@@ -31,21 +31,21 @@ class StateValidator
      */
     public function validate(QueryState $state): array
     {
-        $scheme = $state->get('scheme');
+        $dataset = $state->get('dataset');
 
-        if (!$scheme || !$this->registry->has($scheme)) {
-            return ['valid' => false, 'slot' => 'scheme', 'value' => (string) $scheme,
+        if (!$dataset || !$this->registry->has($dataset)) {
+            return ['valid' => false, 'slot' => 'dataset', 'value' => (string) $dataset,
                     'options' => array_keys($this->registry->all())];
         }
 
         $slots = $state->toIntent();
 
         if ($metric = $state->get('metric')) {
-            $resolved = $this->registry->resolveMetric($scheme, (string) $metric);
+            $resolved = $this->registry->resolveMetric($dataset, (string) $metric);
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => 'metric', 'value' => (string) $metric,
-                        'options' => array_column($this->registry->getSchemeMetrics($scheme), 'key')];
+                        'options' => array_column($this->registry->getDatasetMetrics($dataset), 'key')];
             }
 
             $slots['metric'] = $resolved;
@@ -56,11 +56,11 @@ class StateValidator
                 continue;
             }
 
-            $resolved = $this->registry->resolveGroupColumn($scheme, (string) $value);
+            $resolved = $this->registry->resolveGroupColumn($dataset, (string) $value);
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => $dimensionSlot, 'value' => (string) $value,
-                        'options' => $this->registry->getGroupableColumns($scheme)];
+                        'options' => $this->registry->getGroupableColumns($dataset)];
             }
 
             $slots[$dimensionSlot] = $resolved;
@@ -72,11 +72,11 @@ class StateValidator
         $filters = [];
 
         foreach ($state->get('filters') ?? [] as $filter) {
-            $resolved = $this->registry->resolveGroupColumn($scheme, (string) ($filter['column'] ?? ''));
+            $resolved = $this->registry->resolveGroupColumn($dataset, (string) ($filter['column'] ?? ''));
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => 'filter_column', 'value' => (string) ($filter['column'] ?? ''),
-                        'options' => $this->registry->getGroupableColumns($scheme)];
+                        'options' => $this->registry->getGroupableColumns($dataset)];
             }
 
             $filters[] = ['column' => $resolved, 'value' => $filter['value'] ?? null];

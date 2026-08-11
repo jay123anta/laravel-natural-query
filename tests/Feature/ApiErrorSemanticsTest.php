@@ -137,7 +137,7 @@ class ApiErrorSemanticsTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'customer_name',
             'confidence' => 0.9,
@@ -253,7 +253,7 @@ class ApiErrorSemanticsTest extends TestCase
         $provider = new RecordingProvider();
         // Intent parsing produces nothing usable, so the retry runs; the retry's
         // call succeeds but comes back with no SQL in it.
-        $provider->intentResponse = ['success' => true, 'scheme' => null, 'metric' => null, 'confidence' => 0.1];
+        $provider->intentResponse = ['success' => true, 'dataset' => null, 'metric' => null, 'confidence' => 0.1];
         $provider->sqlResponse = ['success' => true, 'data' => ['explanation' => 'I cannot express that.']];
 
         $this->app->instance(LlmProviderInterface::class, $provider);

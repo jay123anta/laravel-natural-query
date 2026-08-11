@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\Log;
  * Each .php file in the schemas directory defines one queryable dataset.
  *
  * Provides methods to:
- * - List all available schemes
- * - Get schema details for a specific scheme
- * - Resolve scheme by alias
- * - Get available metrics for a scheme
- * - Build scheme info for LLM prompts
+ * - List all available datasets
+ * - Get schema details for a specific dataset
+ * - Resolve dataset by alias
+ * - Get available metrics for a dataset
+ * - Build dataset info for LLM prompts
  */
 class SchemaRegistry
 {
@@ -130,7 +130,7 @@ class SchemaRegistry
     }
 
     /**
-     * Find a scheme key by alias.
+     * Find a dataset key by alias.
      */
     public function findByAlias(string $input): ?string
     {
@@ -483,12 +483,12 @@ class SchemaRegistry
     }
 
     /**
-     * Get scheme list formatted for LLM providers.
+     * Get dataset list formatted for LLM providers.
      *
-     * Returns an array of schemes with key, name, aliases, and metrics
+     * Returns an array of datasets with key, name, aliases, and metrics
      * suitable for passing to LlmProviderInterface::parseIntent().
      */
-    public function getSchemeListForLlm(): array
+    public function getDatasetListForLlm(): array
     {
         $list = [];
 
@@ -517,9 +517,9 @@ class SchemaRegistry
     }
 
     /**
-     * Get available schemes for clarification UI.
+     * Get available datasets for clarification UI.
      */
-    public function getAvailableSchemes(): array
+    public function getAvailableDatasets(): array
     {
         $result = [];
         foreach ($this->all() as $key => $schema) {
@@ -534,9 +534,9 @@ class SchemaRegistry
     }
 
     /**
-     * Get available metrics for a specific scheme (for clarification UI).
+     * Get available metrics for a specific dataset (for clarification UI).
      */
-    public function getSchemeMetrics(string $key): array
+    public function getDatasetMetrics(string $key): array
     {
         $metrics = $this->getMetrics($key);
         $computedMetrics = $this->getComputedMetrics($key);

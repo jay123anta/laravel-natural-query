@@ -35,25 +35,25 @@ interface LlmProviderInterface
     /**
      * Parse a natural language query into structured intent.
      *
-     * Used when the system first identifies what scheme/metric the user wants,
+     * Used when the system first identifies what dataset/metric the user wants,
      * before generating SQL.
      *
      * @param string $text User's natural language query
-     * @param array $schemeList Available schemes [{key, name, aliases, metrics}]
+     * @param array $datasetList Available datasets [{key, name, aliases, metrics}]
      * @return array {
      *   success: bool,
-     *   scheme?: string,
+     *   dataset?: string,
      *   metric?: string,
      *   limit?: int,
      *   order?: 'asc'|'desc',
      *   district?: string,
      *   confidence?: float (0.0-1.0),
      *   needs_clarification?: bool,
-     *   clarification_type?: 'scheme'|'metric'|'ambiguous',
+     *   clarification_type?: 'dataset'|'metric'|'ambiguous',
      *   error?: string
      * }
      */
-    public function parseIntent(string $text, array $schemeList): array;
+    public function parseIntent(string $text, array $datasetList): array;
 
     /**
      * Check if the provider is available and configured correctly.

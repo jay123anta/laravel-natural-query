@@ -61,7 +61,7 @@ class TotalsAndFiltersTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = array_merge([
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'confidence' => 0.9,
             'needs_clarification' => false,
         ], $intent);
@@ -162,7 +162,7 @@ class TotalsAndFiltersTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'filters' => [['column' => 'region', 'value' => 'West']],
@@ -194,7 +194,7 @@ class TotalsAndFiltersTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'filters' => [['column' => 'region', 'value' => 'West']],
@@ -218,7 +218,7 @@ class TotalsAndFiltersTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'region',
             'confidence' => 0.9,

@@ -15,7 +15,10 @@ return new class extends Migration
             $table->string('query_hash', 64)->unique()->index();
             $table->text('original_query');
             $table->text('normalized_query')->index();
-            $table->string('scheme', 100)->nullable()->index();
+            // Which parsed-intent contract this row was written against. Rows
+            // from an older contract are unreachable rather than misread.
+            $table->unsignedSmallInteger('contract_version')->nullable()->index();
+            $table->string('dataset', 100)->nullable()->index();
             $table->string('metric', 100)->nullable();
             $table->string('group_value', 255)->nullable();
             $table->json('intent')->nullable();
@@ -26,7 +29,7 @@ return new class extends Migration
             $table->timestamp('last_hit_at')->nullable()->index();
             $table->timestamps();
 
-            $table->index(['scheme', 'metric']);
+            $table->index(['dataset', 'metric']);
         });
     }
 

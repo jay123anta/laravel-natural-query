@@ -19,7 +19,7 @@ class CacheTest extends TestCase
     public function null_cache_store_returns_true()
     {
         $cache = new NullQueryCache();
-        $this->assertTrue($cache->store('query', ['scheme' => 'test']));
+        $this->assertTrue($cache->store('query', ['dataset' => 'test']));
     }
 
     #[Test]

@@ -21,7 +21,7 @@ class QuestionAsked
         public readonly string $question,
 
         /** Dataset the caller pinned, if any. Null means the engine routes it. */
-        public readonly ?string $scheme,
+        public readonly ?string $dataset,
 
         /** intent | sql_generation | auto — as configured for this call. */
         public readonly string $queryMode,

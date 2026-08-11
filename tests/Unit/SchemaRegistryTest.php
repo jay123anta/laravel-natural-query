@@ -103,9 +103,9 @@ class SchemaRegistryTest extends TestCase
     }
 
     #[Test]
-    public function it_gets_scheme_list_for_llm()
+    public function it_gets_dataset_list_for_llm()
     {
-        $list = $this->registry->getSchemeListForLlm();
+        $list = $this->registry->getDatasetListForLlm();
         $this->assertNotEmpty($list);
         $keys = array_column($list, 'key');
         $this->assertContains('test_orders', $keys);

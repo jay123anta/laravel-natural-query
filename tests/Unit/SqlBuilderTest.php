@@ -22,7 +22,7 @@ class SqlBuilderTest extends TestCase
     public function it_builds_ranking_query()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 10,
             'order' => 'desc',
@@ -47,7 +47,7 @@ class SqlBuilderTest extends TestCase
         // summed per customer, not ranked as raw order lines (which produced
         // duplicate customers in the top-N).
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 10,
             'order' => 'desc',
@@ -63,7 +63,7 @@ class SqlBuilderTest extends TestCase
     public function it_groups_aggregate_computed_metrics_without_nesting()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'avg_amount',
             'limit' => 5,
             'order' => 'desc',
@@ -83,7 +83,7 @@ class SqlBuilderTest extends TestCase
         // Backward compatibility: no aggregatable columns (one row per
         // district) → read rows as-is, no GROUP BY, no SUM
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_districts',
+            'dataset' => 'test_districts',
             'metric' => 'total_households',
             'limit' => 10,
             'order' => 'desc',
@@ -99,7 +99,7 @@ class SqlBuilderTest extends TestCase
     public function it_aggregates_group_value_detail_on_transactional_tables()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
@@ -116,14 +116,14 @@ class SqlBuilderTest extends TestCase
     public function aggregation_query_does_not_nest_aggregate_expressions()
     {
         $plain = $this->builder->buildAggregationQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
         ]);
         $this->assertTrue($plain['success']);
         $this->assertStringContainsString('SUM(amount)', $plain['sql']);
 
         $computed = $this->builder->buildAggregationQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'avg_amount',
         ]);
         $this->assertTrue($computed['success']);
@@ -135,7 +135,7 @@ class SqlBuilderTest extends TestCase
     public function it_builds_a_group_detail_query_with_parameterized_bindings()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
@@ -161,7 +161,7 @@ class SqlBuilderTest extends TestCase
     public function the_legacy_district_key_is_still_honoured()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
@@ -177,7 +177,7 @@ class SqlBuilderTest extends TestCase
     public function it_resolves_metric_aliases()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'revenue', // alias for 'amount'
             'limit' => 5,
             'order' => 'desc',
@@ -192,7 +192,7 @@ class SqlBuilderTest extends TestCase
     public function it_uses_default_metric_when_none_specified()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => null,
             'limit' => 5,
             'order' => 'desc',
@@ -204,10 +204,10 @@ class SqlBuilderTest extends TestCase
     }
 
     #[Test]
-    public function it_fails_for_unknown_scheme()
+    public function it_fails_for_unknown_dataset()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'nonexistent',
+            'dataset' => 'nonexistent',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
@@ -218,10 +218,10 @@ class SqlBuilderTest extends TestCase
     }
 
     #[Test]
-    public function it_fails_for_null_scheme()
+    public function it_fails_for_null_dataset()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => null,
+            'dataset' => null,
             'metric' => 'amount',
         ]);
 
@@ -232,7 +232,7 @@ class SqlBuilderTest extends TestCase
     public function it_caps_limit_to_max()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 500, // max is 100
             'order' => 'desc',
@@ -247,7 +247,7 @@ class SqlBuilderTest extends TestCase
     public function it_keeps_a_dangerous_group_value_out_of_the_sql_string()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
@@ -270,7 +270,7 @@ class SqlBuilderTest extends TestCase
     public function it_normalizes_order_direction()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'invalid',
@@ -291,7 +291,7 @@ class SqlBuilderTest extends TestCase
     public function the_named_record_lookup_uses_portable_sql_not_postgres_only_ilike()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
@@ -313,7 +313,7 @@ class SqlBuilderTest extends TestCase
     public function the_named_record_lookup_parameterises_the_value()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
@@ -334,7 +334,7 @@ class SqlBuilderTest extends TestCase
     public function an_injection_payload_stays_out_of_the_sql_string()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',
@@ -373,7 +373,7 @@ class SqlBuilderTest extends TestCase
 
         foreach ($identifiers as $identifier) {
             $result = $this->builder->buildQuery([
-                'scheme' => 'test_orders',
+                'dataset' => 'test_orders',
                 'metric' => 'amount',
                 'limit' => 1,
                 'order' => 'desc',
@@ -395,7 +395,7 @@ class SqlBuilderTest extends TestCase
     public function like_wildcards_inside_the_value_are_escaped_not_removed()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 1,
             'order' => 'desc',
@@ -414,7 +414,7 @@ class SqlBuilderTest extends TestCase
     public function control_characters_are_stripped_and_blank_values_mean_no_filter()
     {
         $result = $this->builder->buildQuery([
-            'scheme' => 'test_orders',
+            'dataset' => 'test_orders',
             'metric' => 'amount',
             'limit' => 5,
             'order' => 'desc',

@@ -132,10 +132,10 @@ class QueryPlanner
     {
         $datasets = [];
 
-        foreach ($this->registry->getSchemeListForLlm() as $scheme) {
-            $dimensions = implode(', ', $scheme['dimensions'] ?? []);
-            $metrics = implode(', ', array_keys($scheme['metrics'] ?? []));
-            $datasets[] = "- {$scheme['key']} ({$scheme['name']}): metrics=[{$metrics}], group_by=[{$dimensions}]";
+        foreach ($this->registry->getDatasetListForLlm() as $dataset) {
+            $dimensions = implode(', ', $dataset['dimensions'] ?? []);
+            $metrics = implode(', ', array_keys($dataset['metrics'] ?? []));
+            $datasets[] = "- {$dataset['key']} ({$dataset['name']}): metrics=[{$metrics}], group_by=[{$dimensions}]";
         }
 
         $datasetList = implode("\n", $datasets);

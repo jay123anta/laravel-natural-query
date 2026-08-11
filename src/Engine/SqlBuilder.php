@@ -26,25 +26,25 @@ class SqlBuilder
     /**
      * Build SQL query from parsed intent.
      *
-     * @param array $intent Parsed intent {scheme, metric, district, limit, order}
-     * @return array {success, sql, scheme, scheme_name, metric, query_type, ...}
+     * @param array $intent Parsed intent {dataset, metric, district, limit, order}
+     * @return array {success, sql, dataset, dataset_name, metric, query_type, ...}
      */
     public function buildQuery(array $intent): array
     {
         try {
-            $schemeKey = $intent['scheme'] ?? null;
-            if (!$schemeKey) {
-                return $this->errorResponse('No scheme specified');
+            $datasetKey = $intent['dataset'] ?? null;
+            if (!$datasetKey) {
+                return $this->errorResponse('No dataset specified');
             }
 
-            $schema = $this->registry->get($schemeKey);
+            $schema = $this->registry->get($datasetKey);
             if (!$schema) {
-                return $this->errorResponse("Unknown scheme: {$schemeKey}");
+                return $this->errorResponse("Unknown dataset: {$datasetKey}");
             }
 
-            $tableName = $this->registry->getTableName($schemeKey);
+            $tableName = $this->registry->getTableName($datasetKey);
             if (!$tableName) {
-                return $this->errorResponse("No table configured for scheme: {$schemeKey}");
+                return $this->errorResponse("No table configured for dataset: {$datasetKey}");
             }
 
             // "revenue by region" asks for a different breakdown than the
@@ -53,11 +53,11 @@ class SqlBuilder
             // confidently worded, and about a question nobody asked.
             $requestedDimension = $intent['group_by'] ?? null;
             $groupColumn = $requestedDimension
-                ? $this->registry->resolveGroupColumn($schemeKey, $requestedDimension)
-                : $this->registry->getGroupColumn($schemeKey);
+                ? $this->registry->resolveGroupColumn($datasetKey, $requestedDimension)
+                : $this->registry->getGroupColumn($datasetKey);
 
             if ($requestedDimension && !$groupColumn) {
-                $groupable = $this->registry->getGroupableColumns($schemeKey);
+                $groupable = $this->registry->getGroupableColumns($datasetKey);
 
                 return $this->errorResponse(
                     "Cannot group by '{$requestedDimension}'."
@@ -78,10 +78,10 @@ class SqlBuilder
             // here lets auto mode try SQL generation, which can join to the
             // table the measure actually lives in.
             $namedMetric = $intent['metric'] ?? null;
-            $metric = $this->registry->resolveMetric($schemeKey, $namedMetric);
+            $metric = $this->registry->resolveMetric($datasetKey, $namedMetric);
 
             if (!$metric && $namedMetric) {
-                $available = array_column($this->registry->getSchemeMetrics($schemeKey), 'key');
+                $available = array_column($this->registry->getDatasetMetrics($datasetKey), 'key');
 
                 return $this->errorResponse(
                     "'{$namedMetric}' is not a measure of this dataset."
@@ -90,7 +90,7 @@ class SqlBuilder
             }
 
             if (!$metric) {
-                $metric = $this->registry->getDefaultMetric($schemeKey);
+                $metric = $this->registry->getDefaultMetric($datasetKey);
             }
 
             if (!$metric) {
@@ -98,8 +98,8 @@ class SqlBuilder
             }
 
             // Get metric SQL expression (handles computed metrics)
-            $metricExpr = $this->getMetricExpression($schemeKey, $metric);
-            $metricData = $this->getMetricData($schemeKey, $metric);
+            $metricExpr = $this->getMetricExpression($datasetKey, $metric);
+            $metricData = $this->getMetricData($datasetKey, $metric);
 
             // Validate and sanitize parameters
             // 'district' is the pre-1.0 name for this field. Still accepted so
@@ -108,7 +108,7 @@ class SqlBuilder
             $groupValue = $this->sanitizeGroupValue(
                 $intent['group_value'] ?? $intent['district'] ?? null
             );
-            $maxLimit = $this->registry->getMaxLimit($schemeKey) ?? config('naturalquery.sql.max_limit');
+            $maxLimit = $this->registry->getMaxLimit($datasetKey) ?? config('naturalquery.sql.max_limit');
             $defaultLimit = $schema['defaults']['limit'] ?? config('naturalquery.sql.default_limit', 100);
             $limit = intval($intent['limit'] ?? $defaultLimit);
             $limit = max(1, $maxLimit ? min($limit, $maxLimit) : $limit);
@@ -138,11 +138,11 @@ class SqlBuilder
             // The schema decides: a plain column marked 'aggregatable' is
             // summed per group; a computed metric whose expression already
             // aggregates (SUM/COUNT/AVG/...) is grouped as-is.
-            $isComputed = isset($this->registry->getComputedMetrics($schemeKey)[$metric]);
+            $isComputed = isset($this->registry->getComputedMetrics($datasetKey)[$metric]);
             if ($isComputed) {
                 $aggregate = $this->isAggregateExpression($metricExpr);
             } else {
-                $aggregate = $this->isAggregatableColumn($schemeKey, $metric);
+                $aggregate = $this->isAggregatableColumn($datasetKey, $metric);
                 if ($aggregate) {
                     $metricExpr = "SUM({$metricExpr})";
                 }
@@ -152,7 +152,7 @@ class SqlBuilder
             // had nowhere to live in the intent, was dropped, and the answer
             // came back covering all time — correctly totalled, confidently
             // worded, and about a period nobody asked for.
-            $time = $this->resolveTimeFilter($schemeKey, $intent);
+            $time = $this->resolveTimeFilter($datasetKey, $intent);
 
             if (isset($time['error'])) {
                 return $this->errorResponse($time['error']);
@@ -186,17 +186,17 @@ class SqlBuilder
             // second silently replace the first — the region vanished and the
             // answer covered every region, which reads exactly like a correct
             // answer to the question that was asked.
-            $filters = $this->resolveFilters($schemeKey, $intent, $groupColumn);
+            $filters = $this->resolveFilters($datasetKey, $intent, $groupColumn);
 
             if (isset($filters['error'])) {
                 return $this->errorResponse($filters['error']);
             }
 
-            $filterColumn = $this->registry->resolveGroupColumn($schemeKey, $intent['filter_column'] ?? null);
+            $filterColumn = $this->registry->resolveGroupColumn($datasetKey, $intent['filter_column'] ?? null);
             $filtersAnotherColumn = !empty($filters['clauses']);
 
             if (($intent['filter_column'] ?? null) && !$filterColumn) {
-                $groupable = $this->registry->getGroupableColumns($schemeKey);
+                $groupable = $this->registry->getGroupableColumns($datasetKey);
 
                 return $this->errorResponse(
                     "Cannot filter by '{$intent['filter_column']}'."
@@ -241,7 +241,7 @@ class SqlBuilder
                 $bindings = $result['bindings'];
                 $queryType = 'ranking';
             } elseif ($groupValue) {
-                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $schemeKey, $time);
+                $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $datasetKey, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'group_detail';
@@ -262,8 +262,8 @@ class SqlBuilder
                 'success' => true,
                 'sql' => $sql,
                 'bindings' => $bindings,
-                'scheme' => $schemeKey,
-                'scheme_name' => $schema['name'] ?? $schemeKey,
+                'dataset' => $datasetKey,
+                'dataset_name' => $schema['name'] ?? $datasetKey,
                 'metric' => $metric,
                 'metric_description' => $metricData['description'] ?? $metric,
                 'metric_unit' => $metricData['unit'] ?? 'units',
@@ -368,7 +368,7 @@ class SqlBuilder
      *
      * @return array{clauses: array, bindings: array, columns: array, error?: string}
      */
-    protected function resolveFilters(string $schemeKey, array $intent, string $groupColumn): array
+    protected function resolveFilters(string $datasetKey, array $intent, string $groupColumn): array
     {
         $pairs = [];
 
@@ -392,10 +392,10 @@ class SqlBuilder
         $resolvedPairs = [];
 
         foreach ($pairs as [$column, $value]) {
-            $resolved = $this->registry->resolveGroupColumn($schemeKey, (string) $column);
+            $resolved = $this->registry->resolveGroupColumn($datasetKey, (string) $column);
 
             if (!$resolved) {
-                $groupable = $this->registry->getGroupableColumns($schemeKey);
+                $groupable = $this->registry->getGroupableColumns($datasetKey);
 
                 return ['clauses' => [], 'bindings' => [], 'columns' => [],
                         'error' => "Cannot filter by '{$column}'."
@@ -451,7 +451,7 @@ class SqlBuilder
      *
      * @return array{clause?: string, bindings?: array, label?: string, column?: string, error?: string}
      */
-    protected function resolveTimeFilter(string $schemeKey, array $intent): array
+    protected function resolveTimeFilter(string $datasetKey, array $intent): array
     {
         $requestedFrom = $intent['date_from'] ?? null;
         $requestedTo = $intent['date_to'] ?? null;
@@ -475,7 +475,7 @@ class SqlBuilder
             return [];
         }
 
-        $column = $this->registry->getDateColumn($schemeKey);
+        $column = $this->registry->getDateColumn($datasetKey);
 
         if (!$column) {
             return ['error' => 'This dataset has no date column, so it cannot be narrowed to a period.'];
@@ -557,13 +557,13 @@ class SqlBuilder
         string $metricExpr,
         string $metricAlias,
         string $groupValue,
-        string $schemeKey,
+        string $datasetKey,
         array $time = []
     ): array {
         // Transactional tables need per-group aggregation for the detail view
         // too — otherwise "revenue for <customer>" returns one arbitrary row.
-        $plainMetrics = $this->registry->getMetrics($schemeKey);
-        $computedMetrics = $this->registry->getComputedMetrics($schemeKey);
+        $plainMetrics = $this->registry->getMetrics($datasetKey);
+        $computedMetrics = $this->registry->getComputedMetrics($datasetKey);
 
         $aggregate = false;
         foreach ($plainMetrics as $key => $data) {
@@ -692,9 +692,9 @@ class SqlBuilder
     /**
      * Is this plain column marked aggregatable in the schema?
      */
-    protected function isAggregatableColumn(string $schemeKey, string $column): bool
+    protected function isAggregatableColumn(string $datasetKey, string $column): bool
     {
-        $columns = $this->registry->getColumns($schemeKey);
+        $columns = $this->registry->getColumns($datasetKey);
 
         return (bool) ($columns[$column]['aggregatable'] ?? false);
     }
@@ -702,9 +702,9 @@ class SqlBuilder
     /**
      * Get SQL expression for a metric (handles computed metrics).
      */
-    protected function getMetricExpression(string $schemeKey, string $metric): string
+    protected function getMetricExpression(string $datasetKey, string $metric): string
     {
-        $computedMetrics = $this->registry->getComputedMetrics($schemeKey);
+        $computedMetrics = $this->registry->getComputedMetrics($datasetKey);
 
         if (isset($computedMetrics[$metric])) {
             return $computedMetrics[$metric]['expression'];
@@ -716,14 +716,14 @@ class SqlBuilder
     /**
      * Get metric metadata.
      */
-    protected function getMetricData(string $schemeKey, string $metric): array
+    protected function getMetricData(string $datasetKey, string $metric): array
     {
-        $metrics = $this->registry->getMetrics($schemeKey);
+        $metrics = $this->registry->getMetrics($datasetKey);
         if (isset($metrics[$metric])) {
             return $metrics[$metric];
         }
 
-        $computed = $this->registry->getComputedMetrics($schemeKey);
+        $computed = $this->registry->getComputedMetrics($datasetKey);
         return $computed[$metric] ?? [];
     }
 

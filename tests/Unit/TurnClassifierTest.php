@@ -38,7 +38,7 @@ class TurnClassifierTest extends TestCase
 
         // A turn already on the table, so there is something to continue.
         $state = QueryState::fromIntent(
-            ['scheme' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'region'],
+            ['dataset' => 'gb_sales', 'metric' => 'revenue', 'group_by' => 'region'],
             1
         );
 

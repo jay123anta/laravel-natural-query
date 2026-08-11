@@ -29,7 +29,7 @@ class JsonParserTest extends TestCase
     #[Test]
     public function it_parses_clean_json()
     {
-        $result = $this->parse('{"sql": "SELECT 1", "scheme": "test"}');
+        $result = $this->parse('{"sql": "SELECT 1", "dataset": "test"}');
         $this->assertNotNull($result);
         $this->assertEquals('SELECT 1', $result['sql']);
     }
@@ -53,7 +53,7 @@ class JsonParserTest extends TestCase
     #[Test]
     public function it_handles_trailing_commas()
     {
-        $result = $this->parse('{"sql": "SELECT 1", "scheme": "test",}');
+        $result = $this->parse('{"sql": "SELECT 1", "dataset": "test",}');
         $this->assertNotNull($result);
     }
 

@@ -13,7 +13,7 @@ return new class extends Migration
         Schema::create($tableName, function (Blueprint $table) {
             $table->id();
             $table->text('query');                                // Original natural language query
-            $table->string('scheme', 100)->nullable()->index();   // Which scheme was queried
+            $table->string('dataset', 100)->nullable()->index();   // Which dataset was queried
             $table->text('generated_sql')->nullable();            // The SQL that was generated
             $table->text('correction')->nullable();               // User's correction text
             $table->text('corrected_sql')->nullable();            // Optional: correct SQL
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->integer('times_applied')->default(0);         // How many times this correction was fed into prompts
             $table->timestamps();
 
-            $table->index(['scheme', 'feedback_type']);
+            $table->index(['dataset', 'feedback_type']);
         });
     }
 

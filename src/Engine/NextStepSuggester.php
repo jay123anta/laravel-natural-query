@@ -45,9 +45,9 @@ class NextStepSuggester
             return [];
         }
 
-        $scheme = $queryResult['scheme'] ?? null;
+        $dataset = $queryResult['dataset'] ?? null;
 
-        if (!$scheme || !$this->registry->has($scheme)) {
+        if (!$dataset || !$this->registry->has($dataset)) {
             return [];
         }
 
@@ -86,7 +86,7 @@ class NextStepSuggester
             return [];
         }
 
-        $scheme = $queryResult['scheme'];
+        $dataset = $queryResult['dataset'];
         $groupColumn = $queryResult['group_column'] ?? null;
         $top = (array) $rows[0];
         $label = $groupColumn !== null ? ($top[$groupColumn] ?? null) : null;
@@ -97,7 +97,7 @@ class NextStepSuggester
 
         $label = trim((string) $label);
         $metric = $queryResult['metric'] ?? '';
-        $other = $this->otherDimensions($scheme, [$groupColumn]);
+        $other = $this->otherDimensions($dataset, [$groupColumn]);
 
         if (empty($other)) {
             return [];
@@ -119,11 +119,11 @@ class NextStepSuggester
     /** The same measure, sliced a different way. */
     protected function otherBreakdowns(array $queryResult): array
     {
-        $scheme = $queryResult['scheme'];
+        $dataset = $queryResult['dataset'];
         $metric = $queryResult['metric'] ?? '';
         $out = [];
 
-        foreach ($this->otherDimensions($scheme, [$queryResult['group_column'] ?? null]) as $dimension) {
+        foreach ($this->otherDimensions($dataset, [$queryResult['group_column'] ?? null]) as $dimension) {
             $out[] = [
                 'label' => ucfirst($this->humanize($metric)) . ' by ' . $this->humanize($dimension),
                 'query' => "{$metric} by {$dimension}",
@@ -139,7 +139,7 @@ class NextStepSuggester
      */
     protected function sameBreakdownOtherMetric(array $queryResult): array
     {
-        $scheme = $queryResult['scheme'];
+        $dataset = $queryResult['dataset'];
         $current = $queryResult['metric'] ?? '';
         $groupColumn = $queryResult['group_column'] ?? null;
 
@@ -148,7 +148,7 @@ class NextStepSuggester
         }
 
         $countMetric = SchemaRegistry::COUNT_METRIC;
-        $metrics = array_column($this->registry->getSchemeMetrics($scheme), 'key');
+        $metrics = array_column($this->registry->getDatasetMetrics($dataset), 'key');
 
         $candidates = [];
 
@@ -210,12 +210,12 @@ class NextStepSuggester
      *
      * @return array<int, string>
      */
-    protected function otherDimensions(string $scheme, array $exclude): array
+    protected function otherDimensions(string $dataset, array $exclude): array
     {
         $exclude = array_filter($exclude);
 
         return array_values(array_filter(
-            $this->registry->getGroupableColumns($scheme),
+            $this->registry->getGroupableColumns($dataset),
             fn ($c) => !in_array($c, $exclude, true)
         ));
     }

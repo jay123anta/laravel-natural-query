@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\Test;
  * the same question, got back the same response, and redrew the same card —
  * so the widget looked broken while behaving exactly as written.
  *
- * The dataset was never in doubt. The model says clarification_type=scheme
+ * The dataset was never in doubt. The model says clarification_type=dataset
  * when it cannot tell what "best" measures, and that was taken literally.
  */
 class ClarificationTest extends TestCase
@@ -46,10 +46,10 @@ class ClarificationTest extends TestCase
     public function a_single_dataset_app_is_never_asked_which_dataset()
     {
         $this->provider([
-            'scheme' => null,
+            'dataset' => null,
             'metric' => null,
             'needs_clarification' => true,
-            'clarification_type' => 'scheme',
+            'clarification_type' => 'dataset',
         ]);
 
         $result = $this->app->make(QueryOrchestrator::class)->query('which is the best?');
@@ -67,10 +67,10 @@ class ClarificationTest extends TestCase
     {
         // An empty options list is what made the card a dead end.
         $this->provider([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => null,
             'needs_clarification' => true,
-            'clarification_type' => 'scheme',
+            'clarification_type' => 'dataset',
         ]);
 
         $result = $this->app->make(QueryOrchestrator::class)->query('which is the best?');
@@ -100,7 +100,7 @@ class ClarificationTest extends TestCase
         $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
 
         $provider = $this->provider([
-            'scheme' => 'rel_orders',
+            'dataset' => 'rel_orders',
             'metric' => 'quantity',
             'needs_clarification' => true,
             'clarification_type' => 'ambiguous',
@@ -125,7 +125,7 @@ class ClarificationTest extends TestCase
         // metric ambiguity must still be put to the user rather than resolved
         // by letting the model write whatever SQL it likes.
         $this->provider([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => null,
             'needs_clarification' => true,
             'clarification_type' => 'metric',
@@ -140,7 +140,7 @@ class ClarificationTest extends TestCase
      * Every clarification used to carry the dataset list, so a METRIC question
      * rendered the dataset name as an extra button among the metrics —
      * "Orders" beside "Quantity" and "Revenue". Clicking it re-sent the same
-     * question with the scheme it already had, received the same response, and
+     * question with the dataset it already had, received the same response, and
      * redrew the same card. A button that does nothing, on the screen whose
      * only job is to give the user somewhere to go.
      */
@@ -148,7 +148,7 @@ class ClarificationTest extends TestCase
     public function a_metric_question_offers_metrics_and_not_datasets()
     {
         $this->provider([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => null,
             'needs_clarification' => true,
             'clarification_type' => 'metric',
@@ -170,15 +170,15 @@ class ClarificationTest extends TestCase
         $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
 
         $this->provider([
-            'scheme' => null,
+            'dataset' => null,
             'metric' => null,
             'needs_clarification' => true,
-            'clarification_type' => 'scheme',
+            'clarification_type' => 'dataset',
         ]);
 
         $result = $this->app->make(QueryOrchestrator::class)->query('show me something');
 
-        $this->assertSame('scheme_clarification', $result['type']);
+        $this->assertSame('dataset_clarification', $result['type']);
         $this->assertNotEmpty($result['alternatives']);
     }
 
@@ -191,7 +191,7 @@ class ClarificationTest extends TestCase
         $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
 
         $metrics = array_column(
-            $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class)->getSchemeMetrics('tf_sales'),
+            $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class)->getDatasetMetrics('tf_sales'),
             'key'
         );
 
@@ -204,14 +204,14 @@ class ClarificationTest extends TestCase
     public function the_resolved_dataset_is_reported_back()
     {
         $this->provider([
-            'scheme' => null,
+            'dataset' => null,
             'metric' => null,
             'needs_clarification' => true,
-            'clarification_type' => 'scheme',
+            'clarification_type' => 'dataset',
         ]);
 
         $result = $this->app->make(QueryOrchestrator::class)->query('which is the best?');
 
-        $this->assertSame('gb_sales', $result['parsed_query']['scheme']);
+        $this->assertSame('gb_sales', $result['parsed_query']['dataset']);
     }
 }

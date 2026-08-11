@@ -64,7 +64,7 @@ class MultiStepOrchestrationTest extends TestCase
 
         $provider->intentResponse = fn ($text) => [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_value' => str_contains($text, 'West') ? 'West' : 'East',
             'group_by' => 'region',

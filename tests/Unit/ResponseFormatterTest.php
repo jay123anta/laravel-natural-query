@@ -20,8 +20,8 @@ class ResponseFormatterTest extends TestCase
     public function it_formats_success_response()
     {
         $queryResult = [
-            'scheme' => 'test',
-            'scheme_name' => 'Test',
+            'dataset' => 'test',
+            'dataset_name' => 'Test',
             'metric' => 'amount',
             'metric_description' => 'Order amount',
             'metric_unit' => '$',
@@ -50,8 +50,8 @@ class ResponseFormatterTest extends TestCase
     public function it_formats_no_data_response()
     {
         $queryResult = [
-            'scheme' => 'test',
-            'scheme_name' => 'Test',
+            'dataset' => 'test',
+            'dataset_name' => 'Test',
             'metric' => 'amount',
             'group_value' => 'Unknown',
         ];
@@ -76,10 +76,10 @@ class ResponseFormatterTest extends TestCase
     #[Test]
     public function it_formats_clarification_response()
     {
-        $intent = ['scheme' => null, 'metric' => null, 'group_value' => null, 'confidence' => 0.3];
-        $schemes = [['key' => 'orders', 'name' => 'Orders', 'description' => 'test']];
+        $intent = ['dataset' => null, 'metric' => null, 'group_value' => null, 'confidence' => 0.3];
+        $datasets = [['key' => 'orders', 'name' => 'Orders', 'description' => 'test']];
 
-        $result = $this->formatter->formatClarification($intent, $schemes);
+        $result = $this->formatter->formatClarification($intent, $datasets);
 
         $this->assertEquals('clarification_needed', $result['status']);
         $this->assertNotEmpty($result['alternatives']);
@@ -89,9 +89,9 @@ class ResponseFormatterTest extends TestCase
     public function it_determines_visualization_type()
     {
         $queryResult = [
-            'scheme' => 'test', 'metric' => 'amount', 'group_value' => null,
+            'dataset' => 'test', 'metric' => 'amount', 'group_value' => null,
             'query_type' => 'ranking', 'group_column' => 'name',
-            'scheme_name' => 'Test', 'metric_description' => 'Amount',
+            'dataset_name' => 'Test', 'metric_description' => 'Amount',
             'metric_unit' => '$', 'metric_type' => 'positive',
             'limit' => 3, 'order' => 'DESC',
         ];
@@ -106,9 +106,9 @@ class ResponseFormatterTest extends TestCase
     public function it_generates_insights_for_numeric_data()
     {
         $queryResult = [
-            'scheme' => 'test', 'metric' => 'amount', 'group_value' => null,
+            'dataset' => 'test', 'metric' => 'amount', 'group_value' => null,
             'query_type' => 'ranking', 'group_column' => 'name',
-            'scheme_name' => 'Test', 'metric_description' => 'Amount',
+            'dataset_name' => 'Test', 'metric_description' => 'Amount',
             'metric_unit' => '$', 'metric_type' => 'positive',
             'limit' => 10, 'order' => 'DESC',
         ];
@@ -135,8 +135,8 @@ class ResponseFormatterTest extends TestCase
     {
         $result = $this->formatter->format(
             [
-                'scheme' => 'orders',
-                'scheme_name' => 'Orders',
+                'dataset' => 'orders',
+                'dataset_name' => 'Orders',
                 'metric' => 'revenue',
                 'group_column' => 'status',   // not present in the rows below
                 'order' => 'desc',
@@ -158,8 +158,8 @@ class ResponseFormatterTest extends TestCase
     {
         $result = $this->formatter->format(
             [
-                'scheme' => 'orders',
-                'scheme_name' => 'Orders',
+                'dataset' => 'orders',
+                'dataset_name' => 'Orders',
                 'metric' => 'revenue',
                 'group_column' => 'status',
                 'order' => 'desc',

@@ -70,7 +70,7 @@ class GoldSqlAccuracyTest extends TestCase
      */
     private function assertMatchesGold(array $intent, string $goldSql, string $because): void
     {
-        $built = $this->app->make(SqlBuilder::class)->buildQuery($intent + ['scheme' => 'tf_sales']);
+        $built = $this->app->make(SqlBuilder::class)->buildQuery($intent + ['dataset' => 'tf_sales']);
 
         $this->assertTrue($built['success'], "build failed: " . ($built['error'] ?? '') . " — {$because}");
 
@@ -169,7 +169,7 @@ class GoldSqlAccuracyTest extends TestCase
     public function a_period_and_a_name_filter_both_apply()
     {
         $built = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
             'group_value' => 'West',
             'date_from' => '2026-07-01',
@@ -199,7 +199,7 @@ class GoldSqlAccuracyTest extends TestCase
         // the period were applied to shipped_at instead of the declared
         // order_date, the total changes — so this distinguishes them.
         $ours = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
             'date_from' => '2026-07-01',
             'date_to' => '2026-07-31',

@@ -464,16 +464,30 @@ class DoctorCommand extends Command
 
         $this->pass(count($schemas) . ' schema(s) loaded: ' . implode(', ', array_keys($schemas)));
 
-        $default = config('naturalquery.default_scheme');
+        // 2.0.0 renamed this key. Laravel merges package config one level deep,
+        // so a config published under 1.0.0 keeps `default_scheme` and simply
+        // never has `default_dataset` read from it — the pinned dataset goes
+        // quiet and every question starts going through detection instead.
+        // Nothing else notices, so it is reported here.
+        if (config('naturalquery.default_scheme') !== null) {
+            $this->problem(
+                "Your published config still sets 'default_scheme', which 2.0.0 no longer reads",
+                "Rename the key to 'default_dataset' in config/naturalquery.php "
+                . '(and NATURALQUERY_DEFAULT_SCHEME to NATURALQUERY_DEFAULT_DATASET in .env), '
+                . 'then run: php artisan config:clear'
+            );
+        }
+
+        $default = config('naturalquery.default_dataset');
         if ($default && !$registry->has($default)) {
             $this->problem(
-                "default_scheme '{$default}' does not match any loaded schema",
-                'Set default_scheme to one of: ' . implode(', ', array_keys($schemas))
+                "default_dataset '{$default}' does not match any loaded dataset",
+                'Set default_dataset to one of: ' . implode(', ', array_keys($schemas))
             );
         } elseif (!$default && count($schemas) === 1) {
             $this->warn_(
-                'Single schema but no default_scheme set',
-                "Set 'default_scheme' => '" . array_key_first($schemas) . "' in config/naturalquery.php so users never have to name the dataset."
+                'Single dataset but no default_dataset set',
+                "Set 'default_dataset' => '" . array_key_first($schemas) . "' in config/naturalquery.php so users never have to name the dataset."
             );
         }
 

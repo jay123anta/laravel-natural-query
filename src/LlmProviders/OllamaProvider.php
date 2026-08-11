@@ -135,16 +135,16 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
         return ['success' => true, 'data' => $parsed];
     }
 
-    public function parseIntent(string $text, array $schemeList): array
+    public function parseIntent(string $text, array $datasetList): array
     {
-        $schemeInfo = $this->buildSchemeInfo($schemeList);
+        $datasetInfo = $this->buildDatasetInfo($datasetList);
         $today = $this->today();
 
         $prompt = <<<PROMPT
 Parse this query: "{$text}"
 
 DATASETS:
-{$schemeInfo}
+{$datasetInfo}
 
 query_type = "aggregation" for one number over the whole dataset ("total revenue", "how many orders"), else "ranking".
 filters = EVERY narrowing, as [{"column":..,"value":..}] — including one stated in the question: "how many invoices are pending" is [{"column":"status","value":"pending"}]. In a conversation repeat the ones still in force; omitting one switches it off.
@@ -155,7 +155,7 @@ metric = record_count when the user asks HOW MANY ("how many orders", "orders by
 Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
 date_from / date_to = YYYY-MM-DD dates if the user named a period ("last month", "in 2025"), else null. TODAY IS {$today}.
 
-Return JSON: {"scheme":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
+Return JSON: {"dataset":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
 
         if ($tooBig = $this->willNotFit($prompt, 256)) {
@@ -187,7 +187,7 @@ PROMPT;
             return $this->errorResponse('Failed to parse intent response');
         }
 
-        return $this->normalizeIntent($parsed, $schemeList);
+        return $this->normalizeIntent($parsed, $datasetList);
     }
 
     public function healthCheck(): array
@@ -219,13 +219,13 @@ PROMPT;
         return 'ollama';
     }
 
-    protected function normalizeIntent(array $parsed, array $schemeList): array
+    protected function normalizeIntent(array $parsed, array $datasetList): array
     {
-        $scheme = $parsed['scheme'] ?? null;
-        if ($scheme) {
-            $validKeys = array_column($schemeList, 'key');
-            if (!in_array($scheme, $validKeys)) {
-                $scheme = null;
+        $dataset = $parsed['dataset'] ?? null;
+        if ($dataset) {
+            $validKeys = array_column($datasetList, 'key');
+            if (!in_array($dataset, $validKeys)) {
+                $dataset = null;
             }
         }
 
@@ -233,7 +233,7 @@ PROMPT;
 
         return [
             'success' => true,
-            'scheme' => $scheme,
+            'dataset' => $dataset,
             'metric' => $parsed['metric'] ?? null,
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             // Coalesced ONCE. The old line guarded the in_array check with

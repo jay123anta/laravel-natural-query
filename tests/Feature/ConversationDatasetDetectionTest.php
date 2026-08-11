@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * Deciding whether a short utterance names a DIFFERENT dataset — and so starts
  * a new question — or is a value to filter the current one by used to match a
- * hardcoded list of scheme names from the project this package was extracted
+ * hardcoded list of dataset names from the project this package was extracted
  * from. On every other application that list matched nothing, so short
  * follow-ups were always treated as record lookups, and an unrelated app that
  * happened to mention one of those words was told it had switched dataset.
@@ -22,12 +22,12 @@ use PHPUnit\Framework\Attributes\Test;
  * cases run against the test schemas (test_orders, test_districts), which share
  * no vocabulary with that list.
  */
-class ConversationSchemeDetectionTest extends TestCase
+class ConversationDatasetDetectionTest extends TestCase
 {
     /** A conversation already in progress, so there is something to refine. */
     private function classify(string $text): string
     {
-        $state = new QueryState(['scheme' => 'test_orders', 'metric' => 'amount'], 1);
+        $state = new QueryState(['dataset' => 'test_orders', 'metric' => 'amount'], 1);
 
         return $this->app->make(TurnClassifier::class)->classify($text, $state);
     }

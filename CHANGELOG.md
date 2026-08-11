@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-12
+
+One rename, and a fix for a silent Ollama failure.
+
+### Changed — BREAKING
+
+- **`scheme` is now `dataset`, everywhere.**
+
+  The word came in with the application this package was extracted from, where
+  the things being queried really were government schemes. Here it means "one
+  of the datasets you have described", and it sat one letter away from
+  `schema` — which the package also uses, for the files that define those
+  datasets, and which PostgreSQL uses for something else again. The codebase
+  had 400 of one and 464 of the other, so a reader meeting
+  `SchemaRegistry::getAvailableSchemes()` had no way to tell whether `scheme`
+  was a typo, a Postgres schema, or a third thing.
+
+  `dataset` was already the word in the prompts (`AVAILABLE DATASETS:`) and in
+  the documentation prose. This finishes a rename that had only ever been
+  half done.
+
+  **`schema` keeps its meaning** — the schema files, `SchemaRegistry`, and
+  database introspection are unchanged. Only `scheme` moved.
+
+  | Was | Now |
+  |---|---|
+  | `GET /naturalquery/schemes` | `GET /naturalquery/datasets` |
+  | `?scheme=` query parameter | `?dataset=` |
+  | `scheme` in every response and in `parsed_query` | `dataset` |
+  | `scheme_name` in responses | `dataset_name` |
+  | `default_scheme` config key | `default_dataset` |
+  | `NATURALQUERY_DEFAULT_SCHEME` | `NATURALQUERY_DEFAULT_DATASET` |
+  | `NaturalQuery::query($q, $schemeHint)` | `$datasetHint` |
+  | `NaturalQuery::getSchemeMetrics($key)` | `getDatasetMetrics($key)` |
+  | `<x-naturalquery::widget scheme="orders" />` | `dataset="orders"` |
+  | `scheme` column on the cache and feedback tables | `dataset` |
+  | `"scheme"` in the intent JSON contract | `"dataset"` |
+  | route name `naturalquery.schemes` | `naturalquery.datasets` |
+  | `schemes` key in the `/datasets` response body | `datasets` |
+  | `unique_schemes`, `top_schemes` in `/cache-stats` | `unique_datasets`, `top_datasets` |
+  | `schemes_with_feedback` in `/feedback/stats` | `datasets_with_feedback` |
+  | `POST /feedback` field `scheme` | `dataset` (still required) |
+  | `LlmProviderInterface::parseIntent($text, $schemeList)` | `$datasetList` |
+  | `QueryCacheInterface::clear(?string $scheme)` | `?string $dataset` |
+  | `SchemaRegistry::getAvailableSchemes()` / `getSchemeListForLlm()` | `getAvailableDatasets()` / `getDatasetListForLlm()` |
+  | `PromptBuilder::buildMultiSchemePrompt()` | `buildMultiDatasetPrompt()` |
+  | `Events\QuestionAsked::$scheme` | `$dataset` |
+  | `--scheme=` on `cache-cleanup` and `debug` | `--dataset=` |
+  | widget JS option `scheme:` | `dataset:` |
+  | conversation `state.scheme` | `state.dataset` |
+
+  **Upgrading from 1.0.0:** run `php artisan migrate`. A guarded migration
+  renames the columns, renames their indexes to match what a fresh install
+  gets, and keeps your cached queries and submitted feedback. It is a no-op on
+  a fresh install, and it reads your table names from config, so a renamed
+  table is migrated too.
+
+  Then rename the config key, the env variable and any widget prop, and update
+  anything reading `scheme` or `scheme_name` out of a response.
+  `naturalquery:doctor` reports a published config that still sets
+  `default_scheme`, because Laravel merges package config only one level deep
+  and the old key would otherwise sit there being silently ignored.
+
+  There is no compatibility shim. With a rename this thorough, one that
+  accepted both spellings would reintroduce exactly the ambiguity being
+  removed.
+
+- **Cached intents now carry the contract version they were written against.**
+
+  Bumping `INTENT_CONTRACT_VERSION` was supposed to make an upgrade miss stale
+  rows rather than serve them. It never did on the fuzzy tier: fuzzy matching
+  finds rows by their normalized *text* and never touches the hash the version
+  was folded into. So the exact lookup would miss an old row and the fuzzy
+  lookup would hand back the same row immediately afterwards — which had
+  quietly defeated the earlier `group_by` bump too.
+
+  The cache table gains a `contract_version` column, written on store and
+  required by both lookups. Rows from 1.0.0 have it null and are unreachable,
+  which is the intended behaviour: the question is asked once more and
+  re-cached under the current shape. This matters here because the column
+  rename does not reach inside the stored intent, which is JSON and still says
+  `scheme` — served to 2.0.0 it would read as a null dataset, and Tier 2 rows
+  have no expiry, so those questions would have stayed broken indefinitely.
+
 ### Fixed
 - **Ollama was reading a truncated schema and not saying so.** The driver set
   `num_predict` — how many tokens to write — and never `num_ctx`, how many it
@@ -289,5 +373,6 @@ formats the result.
   label is for. Suitable for an internal tool where figures get sanity-checked;
   not yet for unattended reporting.
 
-[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jay123anta/laravel-natural-query/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/jay123anta/laravel-natural-query/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/jay123anta/laravel-natural-query/releases/tag/v1.0.0

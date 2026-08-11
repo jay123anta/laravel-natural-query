@@ -56,7 +56,7 @@ class ApiContractTest extends TestCase
         $provider = new RecordingProvider();
         $provider->intentResponse = [
             'success' => true,
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_by' => 'customer_name',
             'confidence' => 0.9,
@@ -82,7 +82,7 @@ class ApiContractTest extends TestCase
         }
 
         // parsed_query is what a client renders as "we read this as".
-        foreach (['scheme', 'metric', 'group_by', 'filter_column', 'filters', 'period',
+        foreach (['dataset', 'metric', 'group_by', 'filter_column', 'filters', 'period',
                   'group_value', 'limit', 'order', 'query_type'] as $field) {
             $this->assertArrayHasKey($field, $response->json('parsed_query'), "parsed_query.{$field}");
         }
@@ -195,7 +195,7 @@ class ApiContractTest extends TestCase
     {
         $this->postJson('/naturalquery/feedback', [
             'query' => 'top customers',
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'correction' => 'should rank by revenue, not row count',
             'feedback_type' => 'wrong_metric',
         ])->assertStatus(200)->assertJsonStructure(['status']);

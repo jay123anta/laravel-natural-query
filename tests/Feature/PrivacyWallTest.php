@@ -159,7 +159,7 @@ class PrivacyWallTest extends TestCase
                 'success' => true,
                 'data' => [
                     'sql' => 'SELECT buyer, total FROM nq_privacy_orders ORDER BY total DESC LIMIT 10',
-                    'scheme' => 'privacy_orders',
+                    'dataset' => 'privacy_orders',
                     'metric' => 'total',
                     'query_type' => 'ranking',
                 ],
@@ -200,10 +200,10 @@ class PrivacyWallTest extends TestCase
 
         $this->provider->intentResponse = [
             'success' => true,
-            'scheme' => null,
+            'dataset' => null,
             'metric' => null,
             'needs_clarification' => true,
-            'clarification_type' => 'scheme',
+            'clarification_type' => 'dataset',
             'confidence' => 0.2,
         ];
 

@@ -27,7 +27,7 @@ class TimeFilterTest extends TestCase
     private function build(array $intent): array
     {
         return $this->app->make(SqlBuilder::class)->buildQuery($intent + [
-            'scheme' => 'tf_sales',
+            'dataset' => 'tf_sales',
             'metric' => 'revenue',
         ]);
     }
@@ -107,7 +107,7 @@ class TimeFilterTest extends TestCase
         $this->app->forgetInstance(SqlBuilder::class);
 
         $result = $this->app->make(SqlBuilder::class)->buildQuery([
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'date_from' => '2026-07-01',
         ]);

@@ -32,7 +32,7 @@ class FeedbackStore
      * Record a correction from the user.
      *
      * @param string $query Original natural language query
-     * @param string $scheme The scheme that was queried
+     * @param string $dataset The dataset that was queried
      * @param string $generatedSql The SQL that was generated (the wrong one)
      * @param string $correction User's correction text (what was wrong / what was expected)
      * @param string|null $correctedSql Optional: the correct SQL if user provides it
@@ -41,7 +41,7 @@ class FeedbackStore
      */
     public function recordCorrection(
         string $query,
-        string $scheme,
+        string $dataset,
         string $generatedSql,
         string $correction,
         ?string $correctedSql = null,
@@ -50,7 +50,7 @@ class FeedbackStore
         try {
             DB::table($this->tableName)->insert([
                 'query' => $query,
-                'scheme' => $scheme,
+                'dataset' => $dataset,
                 'generated_sql' => $generatedSql,
                 'correction' => $correction,
                 'corrected_sql' => $correctedSql,
@@ -61,7 +61,7 @@ class FeedbackStore
             ]);
 
             Log::info('[NaturalQuery:Feedback] Correction recorded', [
-                'scheme' => $scheme,
+                'dataset' => $dataset,
                 'type' => $feedbackType,
             ]);
 
@@ -75,12 +75,12 @@ class FeedbackStore
     /**
      * Record a positive signal — user confirmed the result was correct.
      */
-    public function recordPositive(string $query, string $scheme, string $generatedSql): bool
+    public function recordPositive(string $query, string $dataset, string $generatedSql): bool
     {
         try {
             DB::table($this->tableName)->insert([
                 'query' => $query,
-                'scheme' => $scheme,
+                'dataset' => $dataset,
                 'generated_sql' => $generatedSql,
                 'correction' => null,
                 'corrected_sql' => null,
@@ -98,16 +98,16 @@ class FeedbackStore
     }
 
     /**
-     * Get relevant corrections for a scheme to include in the AI prompt.
+     * Get relevant corrections for a dataset to include in the AI prompt.
      *
      * Returns recent corrections that the AI should learn from.
      * Prioritizes: most recent + most frequently needed corrections.
      */
-    public function getCorrectionsForPrompt(string $scheme, int $limit = 5): array
+    public function getCorrectionsForPrompt(string $dataset, int $limit = 5): array
     {
         try {
             $corrections = DB::table($this->tableName)
-                ->where('scheme', $scheme)
+                ->where('dataset', $dataset)
                 ->where('feedback_type', '!=', 'positive')
                 ->whereNotNull('correction')
                 ->orderByDesc('times_applied')
@@ -127,7 +127,7 @@ class FeedbackStore
     }
 
     /**
-     * Get corrections for ALL schemes (used in multi-scheme prompts).
+     * Get corrections for ALL datasets (used in multi-dataset prompts).
      */
     public function getAllCorrectionsForPrompt(int $limit = 10): array
     {
@@ -138,10 +138,10 @@ class FeedbackStore
                 ->orderByDesc('times_applied')
                 ->orderByDesc('created_at')
                 ->limit($limit)
-                ->get(['scheme', 'query', 'correction', 'corrected_sql', 'feedback_type']);
+                ->get(['dataset', 'query', 'correction', 'corrected_sql', 'feedback_type']);
 
             return $corrections->map(fn($c) => [
-                'scheme' => $c->scheme,
+                'dataset' => $c->dataset,
                 'query' => $c->query,
                 'correction' => $c->correction,
                 'corrected_sql' => $c->corrected_sql,
@@ -180,14 +180,14 @@ class FeedbackStore
                     COUNT(*) as total,
                     COUNT(CASE WHEN feedback_type = 'positive' THEN 1 END) as positive,
                     COUNT(CASE WHEN feedback_type != 'positive' THEN 1 END) as corrections,
-                    COUNT(DISTINCT scheme) as schemes_with_feedback
+                    COUNT(DISTINCT dataset) as datasets_with_feedback
                 ")
                 ->first();
 
             $topCorrections = DB::table($this->tableName)
                 ->where('feedback_type', '!=', 'positive')
                 ->whereNotNull('correction')
-                ->select('scheme', 'feedback_type', 'query', 'correction')
+                ->select('dataset', 'feedback_type', 'query', 'correction')
                 ->orderByDesc('times_applied')
                 ->limit(5)
                 ->get();
@@ -196,7 +196,7 @@ class FeedbackStore
                 'total_feedback' => (int) $stats->total,
                 'positive' => (int) $stats->positive,
                 'corrections' => (int) $stats->corrections,
-                'schemes_with_feedback' => (int) $stats->schemes_with_feedback,
+                'datasets_with_feedback' => (int) $stats->datasets_with_feedback,
                 'top_corrections' => $topCorrections,
             ];
         } catch (\Exception $e) {

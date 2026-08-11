@@ -50,9 +50,9 @@ class FeedbackLoopTest extends TestCase
         return $this->app->make(FeedbackStore::class);
     }
 
-    private function prompt(string $scheme = 'test_orders'): string
+    private function prompt(string $dataset = 'test_orders'): string
     {
-        return $this->app->make(PromptBuilder::class)->buildSqlPrompt($scheme, 'top customers by amount');
+        return $this->app->make(PromptBuilder::class)->buildSqlPrompt($dataset, 'top customers by amount');
     }
 
     #[Test]

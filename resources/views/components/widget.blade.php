@@ -3,7 +3,7 @@
 
     Usage:
         <x-naturalquery::widget />
-        <x-naturalquery::widget title="Ask about sales" scheme="orders" :examples="['Top 10 customers by revenue']" />
+        <x-naturalquery::widget title="Ask about sales" dataset="orders" :examples="['Top 10 customers by revenue']" />
 
     All attributes are optional — defaults come from config('naturalquery.widget').
     The widget JS is served by the package route (no publishing needed); to serve a
@@ -27,7 +27,7 @@
         'examples'    => $examples ?? config('naturalquery.widget.examples', []),
         'themeColor'  => $themeColor ?? config('naturalquery.widget.theme_color', '#2563eb'),
         'footerNote'  => config('naturalquery.widget.footer_note', 'AI-generated · please verify important figures'),
-        'scheme'      => $scheme ?? config('naturalquery.default_scheme'),
+        'dataset'      => $dataset ?? config('naturalquery.default_dataset'),
         // Chat frame height. "auto" means grow with the content — a string
         // rather than null on purpose, because null cannot survive the trip:
         // both `??` here and Blade's own @props treat an explicitly-passed

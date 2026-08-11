@@ -217,7 +217,7 @@ class MysqlIntrospectorTest extends TestCase
         $builder = new SqlBuilder(new SchemaRegistry(__DIR__ . '/../Stubs/mysql-schemas'));
 
         $result = $builder->buildQuery(array_merge([
-            'scheme' => 'stock_moves',
+            'dataset' => 'stock_moves',
             'metric' => 'units_held',
             'limit' => 5,
             'order' => 'desc',

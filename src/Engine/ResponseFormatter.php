@@ -30,7 +30,7 @@ class ResponseFormatter
             'type' => $responseType,
             'rows' => $rows,
             'parsed_query' => [
-                'scheme' => $queryResult['scheme'],
+                'dataset' => $queryResult['dataset'],
                 'metric' => $queryResult['metric'],
                 'group_value' => $queryResult['group_value'] ?? null,
                 // The dimension the rows are actually broken down by. Exposed
@@ -80,18 +80,18 @@ class ResponseFormatter
     public function formatNoData(array $queryResult): array
     {
         $groupValue = $queryResult['group_value'] ?? null;
-        $schemeName = $queryResult['scheme_name'] ?? $queryResult['scheme'];
+        $datasetName = $queryResult['dataset_name'] ?? $queryResult['dataset'];
 
         $message = $groupValue
-            ? "No data found for {$groupValue} in {$schemeName}. The name may be spelled differently in the database."
-            : "No data found for {$schemeName}.";
+            ? "No data found for {$groupValue} in {$datasetName}. The name may be spelled differently in the database."
+            : "No data found for {$datasetName}.";
 
         return [
             'status' => 'success',
             'type' => 'no_data',
             'rows' => [],
             'parsed_query' => [
-                'scheme' => $queryResult['scheme'],
+                'dataset' => $queryResult['dataset'],
                 'metric' => $queryResult['metric'],
                 'group_value' => $groupValue,
             ],
@@ -103,11 +103,11 @@ class ResponseFormatter
     /**
      * Format a clarification response.
      */
-    public function formatClarification(array $intent, array $availableSchemes, array $availableMetrics = []): array
+    public function formatClarification(array $intent, array $availableDatasets, array $availableMetrics = []): array
     {
-        $rawType = $intent['clarification_type'] ?? 'scheme';
-        $clarificationType = in_array($rawType, ['scheme', 'scheme_clarification'])
-            ? 'scheme_clarification'
+        $rawType = $intent['clarification_type'] ?? 'dataset';
+        $clarificationType = in_array($rawType, ['dataset', 'dataset_clarification'])
+            ? 'dataset_clarification'
             : 'metric_clarification';
 
         // Dataset choices belong on a dataset question and nowhere else.
@@ -115,15 +115,15 @@ class ResponseFormatter
         // They were sent on every clarification, so a metric question rendered
         // the dataset name as an extra button among the metrics — "Orders"
         // sitting beside "Quantity" and "Revenue". Clicking it re-sent the same
-        // question with the scheme it already had, got the same response, and
+        // question with the dataset it already had, got the same response, and
         // redrew the same card: a button that looks broken because there is
         // nothing for it to do.
-        $alternatives = $clarificationType === 'scheme_clarification'
+        $alternatives = $clarificationType === 'dataset_clarification'
             ? array_map(fn ($s) => [
-                'scheme_name' => $s['name'],
-                'scheme_key' => $s['key'],
+                'dataset_name' => $s['name'],
+                'dataset_key' => $s['key'],
                 'confidence' => 0.5,
-            ], $availableSchemes)
+            ], $availableDatasets)
             : [];
 
         return [
@@ -139,7 +139,7 @@ class ResponseFormatter
             // generic failure. Provider portability matters more than strict
             // response shapes here.
             'parsed_query' => [
-                'scheme' => $intent['scheme'] ?? null,
+                'dataset' => $intent['dataset'] ?? null,
                 'metric' => $intent['metric'] ?? null,
                 'group_value' => $intent['group_value'] ?? null,
             ],
@@ -232,7 +232,7 @@ class ResponseFormatter
      */
     protected function generateAnswerText(array $queryResult, array $rows, string $type): array
     {
-        $schemeName = $queryResult['scheme_name'] ?? $queryResult['scheme'];
+        $datasetName = $queryResult['dataset_name'] ?? $queryResult['dataset'];
         $metric = $queryResult['metric'] ?? 'data';
         $metricDesc = $queryResult['metric_description'] ?? $metric;
         $unit = $queryResult['metric_unit'] ?? '';
@@ -249,7 +249,7 @@ class ResponseFormatter
 
             return [
                 'display' => "{$name}: {$formattedValue} {$unit} ({$metricDesc})",
-                'speech' => "{$name} has {$formattedValue} {$unit} for {$metricDesc} in {$schemeName}.",
+                'speech' => "{$name} has {$formattedValue} {$unit} for {$metricDesc} in {$datasetName}.",
             ];
         }
 
@@ -261,7 +261,7 @@ class ResponseFormatter
 
             return [
                 'display' => "Total {$metricDesc}: {$formatted} {$unit}",
-                'speech' => "The total {$metricDesc} for {$schemeName} is {$formatted} {$unit}.",
+                'speech' => "The total {$metricDesc} for {$datasetName} is {$formatted} {$unit}.",
             ];
         }
 
@@ -278,7 +278,7 @@ class ResponseFormatter
 
         return [
             'display' => "Top {$count} {$noun} by {$metricDesc} ({$direction}): {$topList}" . ($count > 3 ? '...' : ''),
-            'speech' => "Here are the {$count} {$noun} with the {$direction} {$metricDesc} in {$schemeName}. Top entries are {$topList}.",
+            'speech' => "Here are the {$count} {$noun} with the {$direction} {$metricDesc} in {$datasetName}. Top entries are {$topList}.",
         ];
     }
 

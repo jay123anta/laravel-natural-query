@@ -126,16 +126,16 @@ php artisan vendor:publish --tag=naturalquery-config
 If your project has only one dataset:
 
 ```env
-NATURALQUERY_DEFAULT_SCHEME=orders
+NATURALQUERY_DEFAULT_DATASET=orders
 ```
 
-All queries go to that schema. No scheme detection needed.
+All queries go to that dataset. No detection needed.
 
-### Multi-Schema Projects
+### Multi-dataset projects
 
-With several schema files loaded, the package works out which one a question is
-about. Routing is for the cases where the wording alone is not a giveaway - map
-a word users say to the dataset that answers it:
+With several schema files loaded — one dataset each — the package works out
+which one a question is about. Routing is for the cases where the wording alone
+is not a giveaway: map a word users say to the dataset that answers it.
 
 ```php
 // config/naturalquery.php

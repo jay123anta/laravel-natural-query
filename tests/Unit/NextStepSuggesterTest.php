@@ -25,7 +25,7 @@ class NextStepSuggesterTest extends TestCase
     private function suggest(array $overrides = [], array $rows = []): array
     {
         return $this->app->make(NextStepSuggester::class)->suggest($overrides + [
-            'scheme' => 'gb_sales',
+            'dataset' => 'gb_sales',
             'metric' => 'revenue',
             'group_column' => 'region',
             'query_type' => 'ranking',
@@ -142,6 +142,6 @@ class NextStepSuggesterTest extends TestCase
         $this->assertSame([], $this->suggest());
 
         config(['naturalquery.chat.suggest_next_steps' => true]);
-        $this->assertSame([], $this->suggest(['scheme' => 'no_such_dataset']));
+        $this->assertSame([], $this->suggest(['dataset' => 'no_such_dataset']));
     }
 }

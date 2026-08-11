@@ -33,7 +33,7 @@ about the South region?") via the conversation API.
 ```blade
 <x-naturalquery::widget
     title="Ask about sales"
-    scheme="orders"
+    dataset="orders"
     language="en-IN"
     height="640px"
     :examples="['Top 10 customers by revenue', 'Revenue by region']"
