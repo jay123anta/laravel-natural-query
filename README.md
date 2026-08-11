@@ -1,6 +1,6 @@
 # Laravel NaturalQuery
 
-**Let people ask your database questions in English — by voice or by typing —
+**Let people ask your database questions in English - by voice or by typing -
 without your data ever leaving your server.**
 
 [![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml)
@@ -10,13 +10,13 @@ without your data ever leaving your server.**
 [![Downloads](https://img.shields.io/packagist/dt/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
 [![PHP](https://img.shields.io/packagist/dependency-v/jayanta/laravel-natural-query/php.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
 
-The AI is sent your **schema structure only** — table names, column names,
+The AI is sent your **schema structure only** - table names, column names,
 types, and the words your users use for them. It returns SQL. Your server
 validates that SQL, runs it locally, and formats the rows. **Not one row is
 ever sent upstream**, and that is enforced by tests, not by intent.
 
 **Any model, hosted or your own.** Gemini, Claude, OpenAI, DeepSeek, Mistral,
-Groq, OpenRouter — or a model you run yourself on Ollama, vLLM, LM Studio or
+Groq, OpenRouter - or a model you run yourself on Ollama, vLLM, LM Studio or
 llama.cpp. One config block, no code changes. Self-hosting goes further still:
 nothing leaves your network at all, not even the schema.
 
@@ -24,7 +24,7 @@ nothing leaves your network at all, not even the schema.
 $result = NaturalQuery::query("top 5 customers by revenue");
 ```
 
-Or drop the whole UI — chat thread, microphone, charts — into any Blade view:
+Or drop the whole UI - chat thread, microphone, charts - into any Blade view:
 
 ```blade
 <x-naturalquery::widget />
@@ -57,8 +57,8 @@ GEMINI_API_KEY=your-key-here
 ```
 
 Built-in drivers: `ollama`, `gemini`, `openai`, `claude`. Any other
-OpenAI-compatible service — DeepSeek, Groq, Mistral, OpenRouter, vLLM,
-LM Studio, LocalAI — plugs in with a `base_url` and a `model`; see
+OpenAI-compatible service - DeepSeek, Groq, Mistral, OpenRouter, vLLM,
+LM Studio, LocalAI - plugs in with a `base_url` and a `model`; see
 [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## Teach it your data
@@ -70,11 +70,11 @@ php artisan naturalquery:discover --ai
 This is the whole adaptation step. The package knows nothing about your
 application: this reads *your* database and writes one plain PHP file per table
 into `config/naturalquery-schemas/`. Those files are the only thing that makes
-it understand your domain — no code changes, no subclassing.
+it understand your domain - no code changes, no subclassing.
 
 `--ai` also fills in the human layer that cannot be read from a database:
 descriptions, the words your users actually say, business rules, and computed
-metrics like averages. **Worth doing** — without it, a question like "average
+metrics like averages. **Worth doing** - without it, a question like "average
 amount" costs an extra API call to answer.
 
 Then check it:
@@ -108,7 +108,7 @@ $result = NaturalQuery::query('total revenue by region last month');
 ```
 
 **Show `parsed_query` to your users.** It states which measure, breakdown,
-filters and dates were actually used — the difference between someone catching
+filters and dates were actually used - the difference between someone catching
 a misreading and believing a number that answers a different question.
 
 Or over HTTP, which is what the widget uses:
@@ -131,20 +131,20 @@ browser's `SpeechRecognition` to turn speech into English text on the device,
 then posts that text exactly as if it had been typed. Three things follow from
 that one decision:
 
-- **It works with every model** — Gemini, Claude, Ollama, anything — because by
+- **It works with every model** - Gemini, Claude, Ollama, anything - because by
   the time the model is involved it is reading a sentence, not hearing a
   recording.
 - **No audio leaves the device.** Not to your server, not to a provider. There
   is no upload path in the package at all.
-- **Nothing extra to set up or pay for** — no transcription service, no second
+- **Nothing extra to set up or pay for** - no transcription service, no second
   API key, no added latency.
 
 Answers carry a `speech_text` field phrased for reading aloud, and the widget
 speaks it. Chrome, Edge and Safari support recognition; Firefox does not, so
-the microphone is hidden there and people type — which is why text input is
+the microphone is hidden there and people type - which is why text input is
 never optional.
 
-`language` picks which English **accent** to listen for — `en-IN` recognises
+`language` picks which English **accent** to listen for - `en-IN` recognises
 Indian English far more accurately than `en-US` does:
 
 ```blade
@@ -162,7 +162,7 @@ These endpoints spend your API key, so they are not open by default.
 | | Who gets in |
 |---|---|
 | A `viewNaturalQuery` gate you define | Whatever the gate says |
-| No gate, `local` or `testing` | Everyone — so it works the moment you install it |
+| No gate, `local` or `testing` | Everyone - so it works the moment you install it |
 | No gate, anywhere else | Signed-in users only |
 
 ```php
@@ -185,8 +185,8 @@ are meant to answer.
 **It is not magic.** Pointed at an undescribed database and asked something
 vague, any text-to-SQL system will sometimes produce a confident, wrong answer.
 
-Measured against the Spider benchmark — real questions, unfamiliar databases,
-no curation — it answers **29 of 36 (81%)**. Read that as: roughly one question
+Measured against the Spider benchmark - real questions, unfamiliar databases,
+no curation - it answers **29 of 36 (81%)**. Read that as: roughly one question
 in five is wrong on an *uncurated* schema. On a described one it is far better,
 which is why the schema files matter more than anything else you will do.
 
@@ -197,7 +197,7 @@ every answer shows the query it understood.
 
 ### Provider conformance
 
-Seventeen cases whose answers are arithmetic on three seeded rows — totals,
+Seventeen cases whose answers are arithmetic on three seeded rows - totals,
 filters, averages, periods, a decomposed comparison, and a conversation that
 narrows, drills down and rewinds:
 
@@ -212,8 +212,8 @@ narrows, drills down and rewinds:
 
 **Model size matters more than vendor.** The 70B open-weight model scores the
 same as the four frontier hosted ones, and runs on a single good GPU. The 8B
-drops filters and ignores date periods — asked for July it returns the whole
-table, confidently — so **use a 70B-class model or better wherever a wrong
+drops filters and ignores date periods - asked for July it returns the whole
+table, confidently - so **use a 70B-class model or better wherever a wrong
 number matters.**
 
 Conversation state is the exception worth noting: narrowing, drill-down and
@@ -226,7 +226,7 @@ NATURALQUERY_CONFORMANCE_KEY=sk-... vendor/bin/phpunit --testsuite Conformance
 ```
 
 Run any battery more than once before believing it. On a free tier the first
-pass often measures the rate limit rather than the model — add
+pass often measures the rate limit rather than the model - add
 `NATURALQUERY_CONFORMANCE_DELAY=15` to space the calls out.
 
 ---
@@ -235,8 +235,8 @@ pass often measures the rate limit rather than the model — add
 
 | | |
 |---|---|
-| [docs/SCHEMA.md](docs/SCHEMA.md) | Schema files in full — metrics, aliases, joins, many tables |
-| [docs/API.md](docs/API.md) | Every endpoint, field and error code — plus events and token cost |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Schema files in full - metrics, aliases, joins, many tables |
+| [docs/API.md](docs/API.md) | Every endpoint, field and error code - plus events and token cost |
 | [docs/CONVERSATIONS.md](docs/CONVERSATIONS.md) | Follow-ups, drill-downs, rewind, multi-step answers |
 | [docs/PROVIDERS.md](docs/PROVIDERS.md) | Every LLM driver, and adding your own |
 | [docs/WIDGET.md](docs/WIDGET.md) | The bundled UI and browser voice input |
