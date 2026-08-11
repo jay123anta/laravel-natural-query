@@ -6,10 +6,9 @@ without your data ever leaving your server.**
 [![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-<!-- Add once published to Packagist — until then these render as "not found":
 [![Packagist](https://img.shields.io/packagist/v/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
 [![Downloads](https://img.shields.io/packagist/dt/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
--->
+[![PHP](https://img.shields.io/packagist/dependency-v/jayanta/laravel-natural-query/php.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
 
 The AI is sent your **schema structure only** — table names, column names,
 types, and the words your users use for them. It returns SQL. Your server
