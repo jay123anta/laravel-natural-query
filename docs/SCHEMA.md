@@ -319,4 +319,4 @@ producing SQL the validator then rejects.
 
 **When an answer is wrong, correct it once.** Submitted corrections are stored
 and fed back into later prompts as examples, so a join path you fix by hand
-becomes the one the model reuses. See [Feedback / Training](#feedback--training).
+becomes the one the model reuses. See [Feedback / Training](API.md#feedback--training).

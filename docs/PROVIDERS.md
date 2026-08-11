@@ -121,7 +121,7 @@ php artisan vendor:publish --tag=naturalquery-config
 | `sql_generation` | AI generates SQL directly from schema context. Most flexible. |
 | `auto` | Tries intent first, falls back to sql_generation. Recommended. |
 
-### Single-Schema Projects
+### Single-Dataset Projects
 
 If your project has only one dataset:
 
@@ -155,4 +155,4 @@ is not a giveaway: map a word users say to the dataset that answers it.
 
 Routing picks the dataset a question *starts* from; it does not stop a query
 from reaching other tables. If the tables are related, the answer can still span
-them - see [Working with many tables](#working-with-many-tables).
+them - see [Working with many tables](SCHEMA.md#working-with-many-tables).

@@ -185,7 +185,7 @@ return [
     //                     More flexible — works with any query pattern. SQL is validated
     //                     before execution to prevent dangerous operations.
     //
-    // 'auto'            - Uses intent mode for known schemas with defined metrics.
+    // 'auto'            - Uses intent mode for known datasets with defined metrics.
     //                     Falls back to sql_generation when intent parsing fails.
     //                     Recommended for most projects.
     'query_mode' => env('NATURALQUERY_QUERY_MODE', 'auto'),
@@ -223,12 +223,12 @@ return [
     'system_instructions' => '',
 
     // ==========================================================================
-    // QUERY ROUTING (Multi-Schema Projects)
+    // QUERY ROUTING (Multi-Dataset Projects)
     // ==========================================================================
-    // Tell the AI which schema to use for specific keywords/topics.
-    // This prevents the #1 error: AI picks wrong schema or can't identify schema.
+    // Tell the AI which dataset to use for specific keywords/topics.
+    // This prevents the #1 error: AI picks the wrong dataset or can't identify one.
     //
-    // Format: 'keyword or phrase' => 'schema_key'
+    // Format: 'keyword or phrase' => 'dataset_key'
     // The keyword is checked against the user's query (case-insensitive).
     // Longer phrases are checked first for best matching.
     //
@@ -237,7 +237,7 @@ return [
     //   'churn' => 'subscriptions',
     //   'abandoned cart' => 'carts',        // longer phrases win over 'cart'
     'query_routing' => [
-        // 'keyword' => 'schema_key',
+        // 'keyword' => 'dataset_key',
     ],
 
     // ==========================================================================
@@ -250,7 +250,7 @@ return [
     // Global examples go here — for routing/disambiguation.
     'global_examples' => [
         // ['natural' => 'Compare support load and revenue', 'note' => 'Use support_tickets for load, orders for revenue'],
-        // ['natural' => 'Show overall status of everything', 'note' => 'Query each schema separately and combine results'],
+        // ['natural' => 'Show overall status of everything', 'note' => 'Query each dataset separately and combine results'],
     ],
 
     // ==========================================================================

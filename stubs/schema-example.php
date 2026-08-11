@@ -6,7 +6,7 @@
  * This file defines one queryable dataset for the NaturalQuery engine.
  * Place schema files in: config/naturalquery-schemas/
  *
- * The filename becomes the schema key (e.g., 'sales.php' → dataset key 'sales').
+ * The filename becomes the dataset key (e.g., 'sales.php' → dataset key 'sales').
  * You can have unlimited schema files - one per dataset/topic.
  *
  * PRIVACY: Only the structure defined here (table names, column names, types)
