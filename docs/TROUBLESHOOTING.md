@@ -92,6 +92,11 @@ start and answers from what is left. The start is your schema, so you would get
 a normal-looking answer written by a model that never saw some of your tables.
 Refusing is the loud version of a failure that is otherwise invisible.
 
+If you are on 2.0.0 and have *never* seen this message on a large schema, that
+is worth knowing about: in 2.0.0 the refusal was retried automatically with a
+single-dataset prompt, which fits, so you received an answer computed from one
+table instead. Upgrade — the refusal now reaches you.
+
 Three ways out, cheapest first:
 
 ```env

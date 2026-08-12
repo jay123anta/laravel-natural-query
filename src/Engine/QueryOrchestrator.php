@@ -249,10 +249,19 @@ class QueryOrchestrator
 
             // Retry with refined prompt on failure (if enabled).
             // Never retry a rate-limited request — it would only add load.
+            // Never retry a request the provider refused before sending
+            // anything (NQ-002): Strategy 1 below retries with a SMALLER,
+            // single-dataset prompt, which is exactly the wrong move for a
+            // refusal caused by prompt SIZE — the smaller prompt can clear
+            // the same guard and be answered for real, but as a narrower
+            // question than the one that was refused. isProviderFailure()
+            // already recognises this class of result; it just used to be
+            // consulted too late, after Strategy 1 had already fired.
             if (($result['status'] ?? '') === 'error'
                 && config('naturalquery.errors.retry_on_failure', true)
                 && !($result['_retried'] ?? false)
                 && !($result['_rate_limited'] ?? false)
+                && !($result['_unretriable'] ?? false)
             ) {
                 // The failure so far is passed in, so the retry can decline to
                 // overwrite a provider fault with a claim about the question.
@@ -260,7 +269,7 @@ class QueryOrchestrator
             }
 
             // Remove internal flags
-            unset($result['_fallback_eligible'], $result['_rate_limited']);
+            unset($result['_fallback_eligible'], $result['_rate_limited'], $result['_unretriable']);
 
             // Add timing
             $result['metadata'] = array_merge($result['metadata'] ?? [], [
@@ -1086,11 +1095,26 @@ class QueryOrchestrator
             );
         }
 
-        return $this->formatter->formatError(
+        $error = $this->formatter->formatError(
             $response['error'] ?? 'AI failed to generate SQL',
             $metadata,
             ErrorCode::PROVIDER_ERROR
         );
+
+        // A provider can refuse BEFORE sending anything — OllamaProvider's
+        // context-window guard does, because Ollama does not reject an
+        // oversized prompt, it silently truncates the schema and answers
+        // anyway. That refusal is tied to prompt SIZE, not to what the model
+        // thinks of the question, so it is not the "model answered badly"
+        // case retryWithRefinedPrompt() exists for. Flagged here, at the one
+        // place every such response passes through, so the caller can decide
+        // not to retry at all rather than send a smaller prompt that clears
+        // the guard and answers a narrower question than was asked.
+        if ($response['refused_before_sending'] ?? false) {
+            $error['_unretriable'] = true;
+        }
+
+        return $error;
     }
 
     protected function retryWithRefinedPrompt(string $query, ?string $datasetHint, array $metadata, array $previous = []): array

@@ -104,7 +104,11 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
     public function generateSql(string $prompt): array
     {
         if ($tooBig = $this->willNotFit($prompt, 512)) {
-            return ['success' => false, 'error' => $tooBig];
+            // refused_before_sending: nothing went out on the wire, so a
+            // retry with a smaller prompt would not be correcting a bad
+            // answer — it would be asking, and answering, a different
+            // question. QueryOrchestrator uses this to decline retrying.
+            return ['success' => false, 'error' => $tooBig, 'refused_before_sending' => true];
         }
 
         $payload = [

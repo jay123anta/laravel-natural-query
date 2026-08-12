@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Ollama context guard was being undone by the retry path.** 2.0.0 added
+  a refusal so an oversized prompt is never sent, because Ollama does not
+  reject one — it discards the beginning, which is the schema, and answers from
+  what is left. The refusal worked. What happened next did not.
+
+  A refusal became `provider_error`, and `retry_on_failure` (default true) then
+  retried with a *single-dataset* prompt, which is far smaller, clears the same
+  guard, and gets answered for real. So a question that should have produced
+  "raise num_ctx" produced a confident number computed from one table, under a
+  prompt telling the model those were the only tables in the database.
+  `metadata.retry` was the only trace.
+
+  Reproduced end to end: four linked datasets, `num_ctx` 1700, multi-dataset
+  prompt needing ~2,026 tokens (refused), single-dataset retry needing ~1,382
+  (sent). The caller received `revenue: 500` — arithmetic on one table — instead
+  of the refusal.
+
+  A provider that declines locally now says so with `refused_before_sending`,
+  and the orchestrator does not retry it. The distinction matters and is the
+  whole fix: when the *model* returns something unusable, a simpler prompt
+  genuinely is more likely to succeed and that retry is kept. When the request
+  never left the machine, a smaller prompt is not a second attempt at the
+  question — it is a first attempt at a narrower one.
+
+  The field is documented on `LlmProviderInterface`, so any provider adding a
+  pre-flight guard gets the same protection without touching the orchestrator.
+
+  Affects anyone on Ollama whose schema outgrew `num_ctx` — the case 2.0.0's
+  guard was written for.
+
 ## [2.0.0] - 2026-08-12
 
 One rename, and a fix for a silent Ollama failure.
