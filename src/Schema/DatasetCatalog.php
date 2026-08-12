@@ -12,11 +12,15 @@ namespace Jayanta\NaturalQuery\Schema;
  * produces — no registry, no config, no I/O — so it can be unit-tested with a
  * hand-built array and reused anywhere that list already exists.
  *
- * This absorbs two near-identical loops that grew independently:
- * `AbstractProvider::buildDatasetInfo()` (intent-parsing prompts, every
- * provider) and `QueryPlanner::buildPlanPrompt()` (multi-step planning). A
- * third copy for `PromptBuilder`'s compact index (NQ-001) would have made it
- * three; this is the one place the line format is decided.
+ * One caller today: `AbstractProvider::buildDatasetInfo()`, the intent-parsing
+ * prompt every provider sends. `QueryPlanner::buildPlanPrompt()` has its own
+ * near-identical loop and deliberately still does — pointing it here changed
+ * the planning prompt on every provider, which is a prompt change needing a
+ * live conformance run, not a refactor. Merge them when someone is willing to
+ * pay for that run.
+ *
+ * So this is an extraction, not yet a deduplication. It exists because the
+ * line format wants one owner before a third caller appears.
  */
 class DatasetCatalog
 {

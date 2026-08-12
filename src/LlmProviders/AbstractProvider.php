@@ -627,11 +627,14 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * Render the dataset list for an intent-parsing prompt.
      *
      * Shared by every provider so the intent contract is described one way.
-     * The line format itself lives in `DatasetCatalog` — `QueryPlanner` and
-     * `PromptBuilder`'s compact index (NQ-001) render the same list and must
-     * not each grow their own near-copy of this loop.
+     * The line format itself lives in `DatasetCatalog`, extracted so that the
+     * next place needing this list borrows it rather than growing a near-copy
+     * — `QueryPlanner` already had one, and it had drifted.
+     *
      * Pinned byte-for-byte by `tests/Unit/DatasetInfoRenderingTest.php`
      * before this delegated, so the move is provably behaviour-identical.
+     * That matters more than it sounds: this feeds the intent prompt on every
+     * provider, on every question.
      */
     protected function buildDatasetInfo(array $datasetList): string
     {

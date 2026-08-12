@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The dataset-index line format used by every provider's intent prompt now
+  lives in one class, `Schema\DatasetCatalog`, instead of being open-coded in
+  `AbstractProvider`. Output is byte-identical — verified across 29 hand-built
+  shapes and 20,000 generated ones against the previous implementation, not
+  merely asserted by a test.
+
 ### Fixed
 
 - **The Ollama context guard was being undone by the retry path.** 2.0.0 added
