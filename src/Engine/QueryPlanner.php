@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Engine;
 
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Schema\DatasetCatalog;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\Log;
 
@@ -130,15 +131,9 @@ class QueryPlanner
 
     protected function buildPlanPrompt(string $query, int $maxSteps): string
     {
-        $datasets = [];
-
-        foreach ($this->registry->getDatasetListForLlm() as $dataset) {
-            $dimensions = implode(', ', $dataset['dimensions'] ?? []);
-            $metrics = implode(', ', array_keys($dataset['metrics'] ?? []));
-            $datasets[] = "- {$dataset['key']} ({$dataset['name']}): metrics=[{$metrics}], group_by=[{$dimensions}]";
-        }
-
-        $datasetList = implode("\n", $datasets);
+        // Same line format every provider's intent prompt uses — see
+        // DatasetCatalog for why this used to be its own near-identical loop.
+        $datasetList = DatasetCatalog::render($this->registry->getDatasetListForLlm());
 
         return <<<PROMPT
 A user asked a question about their data. Decide whether answering it honestly

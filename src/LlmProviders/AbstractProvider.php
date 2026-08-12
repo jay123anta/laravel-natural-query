@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\LlmProviders;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Schema\DatasetCatalog;
 
 /**
  * Abstract LLM Provider
@@ -626,33 +627,15 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * Render the dataset list for an intent-parsing prompt.
      *
      * Shared by every provider so the intent contract is described one way.
-     * `dimensions` matters as much as `metrics`: without it the model cannot
-     * know that "by region" is a breakdown this dataset supports, and the
-     * request is silently answered with the default grouping instead.
+     * The line format itself lives in `DatasetCatalog` — `QueryPlanner` and
+     * `PromptBuilder`'s compact index (NQ-001) render the same list and must
+     * not each grow their own near-copy of this loop.
+     * Pinned byte-for-byte by `tests/Unit/DatasetInfoRenderingTest.php`
+     * before this delegated, so the move is provably behaviour-identical.
      */
     protected function buildDatasetInfo(array $datasetList): string
     {
-        $lines = [];
-
-        foreach ($datasetList as $dataset) {
-            $aliases = implode(', ', array_slice($dataset['aliases'] ?? [], 0, 3));
-            $metrics = implode(', ', array_keys($dataset['metrics'] ?? []));
-            $dimensions = implode(', ', $dataset['dimensions'] ?? []);
-
-            $line = "- {$dataset['key']} ({$dataset['name']}): aliases=[{$aliases}], metrics=[{$metrics}]";
-
-            if ($dimensions !== '') {
-                $line .= ", group_by=[{$dimensions}]";
-            }
-
-            if (!empty($dataset['default_dimension'])) {
-                $line .= ", default group_by={$dataset['default_dimension']}";
-            }
-
-            $lines[] = $line;
-        }
-
-        return implode("\n", $lines);
+        return DatasetCatalog::render($datasetList);
     }
 
     protected function errorResponse(string $message, ?int $status = null): array

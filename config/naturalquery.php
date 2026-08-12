@@ -279,6 +279,16 @@ return [
         'intent_parsing' => null,
         // Override the system role / preamble
         'system_role' => null,
+
+        // How many foreign-key hops SchemaShortlister::shortlist() walks
+        // outward from a seed dataset. 1 catches the immediate join a
+        // question like "top customers by revenue" needs (orders ->
+        // customers); raising it pulls in more of a normalised schema.
+        //
+        // Nothing in the query path consults the shortlister yet — it is the
+        // graph half of a feature whose selection half is still being
+        // designed, and it changes no prompt today.
+        'shortlist_hops' => (int) env('NATURALQUERY_SHORTLIST_HOPS', 1),
     ],
 
     // ==========================================================================
