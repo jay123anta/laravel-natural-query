@@ -101,14 +101,31 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
         );
     }
 
+    /**
+     * Mark a response as one that never reached the wire.
+     *
+     * Nothing was sent, so a retry with a smaller prompt would not be
+     * correcting a bad answer — it would be asking, and answering, a
+     * different question. QueryOrchestrator reads this to decline retrying.
+     *
+     * It exists as a helper because the flag belongs to the REFUSAL, not to
+     * whichever method produced it. It was first added inline in generateSql()
+     * and parseIntent() was missed, so an intent-mode context refusal still
+     * looked like a model answering badly and was retried into exactly the
+     * confident wrong number the flag was introduced to prevent. Two call
+     * sites, one of them forgotten, within a single change.
+     */
+    private function refused(array $response): array
+    {
+        $response['refused_before_sending'] = true;
+
+        return $response;
+    }
+
     public function generateSql(string $prompt): array
     {
         if ($tooBig = $this->willNotFit($prompt, 512)) {
-            // refused_before_sending: nothing went out on the wire, so a
-            // retry with a smaller prompt would not be correcting a bad
-            // answer — it would be asking, and answering, a different
-            // question. QueryOrchestrator uses this to decline retrying.
-            return ['success' => false, 'error' => $tooBig, 'refused_before_sending' => true];
+            return $this->refused(['success' => false, 'error' => $tooBig]);
         }
 
         $payload = [
@@ -163,7 +180,7 @@ Return JSON: {"dataset":"key","metric":"name","limit":10,"order":"desc","query_t
 PROMPT;
 
         if ($tooBig = $this->willNotFit($prompt, 256)) {
-            return $this->errorResponse($tooBig);
+            return $this->refused($this->errorResponse($tooBig));
         }
 
         $payload = [

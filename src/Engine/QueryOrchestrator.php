@@ -454,6 +454,25 @@ class QueryOrchestrator
                 );
             }
 
+            // A refusal that never reached the wire is NOT fallback-eligible.
+            //
+            // Falling back means trying SQL generation, and on a schema with
+            // no linked datasets that builds the single-dataset prompt — which
+            // is SMALLER, clears the very guard that just refused, and gets
+            // answered. The user asked a question the context could not hold
+            // and receives a confident number computed from one table.
+            //
+            // That is the same conversion NQ-002 stopped in retryWithRefinedPrompt,
+            // reappearing on the auto-mode fallback because the flag was read
+            // in providerFailure() and this path builds its error inline.
+            // Marked unretriable too, so handle() does not then retry it.
+            if ($intent['refused_before_sending'] ?? false) {
+                return array_merge(
+                    $this->formatter->formatError($intent['error'] ?? 'The AI service could not be reached.', $metadata, ErrorCode::PROVIDER_ERROR),
+                    ['_unretriable' => true]
+                );
+            }
+
             // Still fallback-eligible: in auto mode a garbled intent response
             // is worth one attempt at SQL generation, which asks for something
             // simpler. If that fails too, its error is the one reported.
