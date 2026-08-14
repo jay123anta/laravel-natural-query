@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Cache;
 
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Cache;
  * 4. On hit, update hit count
  * 5. Store new entries in both tiers
  */
-class TwoTierQueryCache implements QueryCacheInterface
+class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 {
     protected array $fillerWords = [
         'show', 'me', 'the', 'please', 'can', 'you', 'what', 'is', 'are',
@@ -68,8 +69,27 @@ class TwoTierQueryCache implements QueryCacheInterface
 
     /**
      * Find a cached result for a query.
+     *
+     * $datasetHint (NQ-003) is the dataset the ASKING question resolves to,
+     * not a filter on which row's text may match — Tier 1 and Tier 2 exact
+     * stay purely hash-based, unchanged, because an identical normalized
+     * question under the current contract version is already a strong
+     * enough signal that this is the same question asked before. It is
+     * consulted only to decide whether the FUZZY tier may run at all: fuzzy
+     * matches by TEXT alone, so a row it returns can belong to any dataset,
+     * and the caller (QueryOrchestrator) is the one that can tell whether a
+     * hit answers the dataset actually asked about, and re-target or refuse
+     * it accordingly. Without any way to name the asking dataset there is
+     * nothing to check that against, so fuzzy matching is skipped rather
+     * than guessed at — a miss costs one API call, a wrong hit costs a
+     * wrong answer (AGENTS.md §0).
      */
     public function find(string $query): ?array
+    {
+        return $this->findForDataset($query, null);
+    }
+
+    public function findForDataset(string $query, ?string $datasetHint = null): ?array
     {
         $normalized = $this->normalizeQuery($query);
         $hash = $this->generateHash($normalized);
@@ -96,7 +116,13 @@ class TwoTierQueryCache implements QueryCacheInterface
             return $result;
         }
 
-        // TIER 2: Fuzzy match
+        // TIER 2: Fuzzy match — refused outright when nothing places the
+        // asking question on any dataset (see docblock above).
+        if ($datasetHint === null) {
+            Log::debug('[NaturalQuery:Cache] Fuzzy tier skipped: asking dataset unresolved');
+            return null;
+        }
+
         $fuzzyMatch = $this->findFuzzyMatch($normalized);
         if ($fuzzyMatch) {
             $this->incrementHitCount($fuzzyMatch->id);

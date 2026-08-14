@@ -3,13 +3,19 @@
 namespace Jayanta\NaturalQuery\Cache;
 
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 
 /**
  * Null Query Cache - used when caching is disabled.
  * All operations are no-ops.
  */
-class NullQueryCache implements QueryCacheInterface
+class NullQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 {
+    public function findForDataset(string $query, ?string $datasetHint = null): ?array
+    {
+        return null;
+    }
+
     public function find(string $query): ?array
     {
         return null;

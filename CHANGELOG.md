@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Optional bound on the multi-dataset SQL-generation prompt**, for schemas
+  with dozens to hundreds of tables. New config key `prompts.max_chars`
+  (default `null` = unbounded, today's behaviour byte for byte). When set,
+  the package narrows a question's prompt to the dataset(s) it and your
+  `query_routing` rules actually point at, plus one hop of foreign
+  keys/joins — a dataset is always rendered in FULL (required filters,
+  joins, computed metrics) or entirely absent, never in a degraded middle
+  form. If a question still would not fit, it is refused with an actionable
+  message BEFORE any request reaches the AI, rather than silently answering
+  from fewer tables than the question needed. The response gains
+  `metadata.datasets_in_scope` and `metadata.datasets_omitted` (present only
+  when `prompts.max_chars` is set). The scope is also enforced against the
+  SQL actually generated — a reply naming a table outside the question's
+  scope is refused, not executed.
+
 ### Changed
 - The dataset-index line format used by every provider's intent prompt now
   lives in one class, `Schema\DatasetCatalog`, instead of being open-coded in

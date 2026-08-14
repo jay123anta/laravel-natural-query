@@ -279,6 +279,29 @@ return [
         'intent_parsing' => null,
         // Override the system role / preamble
         'system_role' => null,
+
+        // Bound the multi-dataset SQL-generation prompt, in characters.
+        // null (default) = unbounded — every dataset always goes in the
+        // prompt, exactly as before this setting existed. This is safe on
+        // small schemas and is why upgrading never changes behaviour unless
+        // you set this yourself.
+        //
+        // On a LARGE schema (dozens to hundreds of tables), set a byte
+        // budget your provider's context window can actually hold. When a
+        // question's prompt would exceed it, the package narrows to the
+        // dataset(s) the question and your query_routing rules actually
+        // point at (plus one hop of foreign keys/joins) — never a compact
+        // or degraded rendering of a table, only the full one or none at
+        // all. If it STILL does not fit, the call is refused with an
+        // actionable message BEFORE any request reaches the AI, rather than
+        // silently answering from a narrower — and possibly wrong — set of
+        // tables than the question needed. See metadata.datasets_in_scope
+        // and metadata.datasets_omitted on the response.
+        //
+        // Not named "budget" — that word already means milliseconds in
+        // retry.total_budget_ms and a request count in
+        // Http/Middleware/EnforceQueryBudget.
+        'max_chars' => env('NATURALQUERY_PROMPT_MAX_CHARS', null),
     ],
 
     // ==========================================================================

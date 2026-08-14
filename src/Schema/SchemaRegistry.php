@@ -191,6 +191,118 @@ class SchemaRegistry
     }
 
     /**
+     * Datasets directly reachable from $key by ONE hop, in EITHER direction,
+     * via a foreign key OR a hand-written join (NQ-001-v2 scope expansion).
+     *
+     * Three kinds of edge, all gated by allowsTable() so nothing is
+     * advertised that the security whitelist would refuse a join to:
+     *
+     *   - forward: $key's own `relationships` point AT another dataset's table
+     *   - reverse: another dataset's `relationships` point AT $key's table —
+     *     a seed of "customers" carries no relationship of its own, only
+     *     "orders" does (by pointing at customers), so the referencing side
+     *     must count exactly as much as the referenced side
+     *   - hand-written: `required_join`/`select_override` NAME another
+     *     dataset's table without ever populating `relationships` — this is
+     *     the fix for the defect the previous attempt shipped (reverted in
+     *     cc9b07b): hasLinkedSchemas() four hundred lines up already counts
+     *     a required_join as a link ("a hand-written join counts too"), so a
+     *     graph walk that is blind to it disagreed with the registry's own
+     *     definition of "linked"
+     *
+     * @return array<int, string> dataset keys, never including $key itself
+     */
+    public function relatedDatasets(string $key): array
+    {
+        $schema = $this->get($key);
+        if (!$schema) {
+            return [];
+        }
+
+        $primary = $schema['tables']['primary'] ?? [];
+        $tableName = $primary['name'] ?? null;
+        $joinText = ($primary['required_join'] ?? '') . ' ' . ($primary['select_override'] ?? '');
+        $related = [];
+
+        foreach ($this->all() as $otherKey => $otherSchema) {
+            if ($otherKey === $key) {
+                continue;
+            }
+
+            $otherPrimary = $otherSchema['tables']['primary'] ?? [];
+            $otherTableName = $otherPrimary['name'] ?? null;
+
+            // Reverse direction: does $otherKey point AT $key's table, by a
+            // real relationship or by naming it in a hand-written join?
+            if ($tableName) {
+                foreach ($otherPrimary['relationships'] ?? [] as $rel) {
+                    if ($this->sameTable($rel['references_table'] ?? null, $tableName)) {
+                        $related[$otherKey] = true;
+                    }
+                }
+
+                $otherJoinText = ($otherPrimary['required_join'] ?? '') . ' ' . ($otherPrimary['select_override'] ?? '');
+                if ($this->mentionsTable($otherJoinText, $tableName)) {
+                    $related[$otherKey] = true;
+                }
+            }
+
+            // Forward direction: does $key point AT $otherKey's table?
+            if ($otherTableName && $this->allowsTable($otherTableName)) {
+                foreach ($primary['relationships'] ?? [] as $rel) {
+                    if ($this->sameTable($rel['references_table'] ?? null, $otherTableName)) {
+                        $related[$otherKey] = true;
+                    }
+                }
+
+                if ($this->mentionsTable($joinText, $otherTableName)) {
+                    $related[$otherKey] = true;
+                }
+            }
+        }
+
+        return array_keys($related);
+    }
+
+    /**
+     * Expand a seed list of dataset keys by ONE foreign-key/join hop —
+     * R3's "seeds, then FK expansion, then done": the seed decides WHERE to
+     * start, this decides what else the question needs, and it stops there
+     * rather than walking the graph further, so scope stays a fact about
+     * relevance rather than a guess about how far to keep going.
+     *
+     * @param array<int, string> $keys
+     * @return array<int, string> $keys plus everything one hop away,
+     *         deduplicated; unknown keys are silently dropped
+     */
+    public function expand(array $keys): array
+    {
+        $seen = array_flip(array_values(array_unique(array_filter($keys, fn ($key) => $this->has($key)))));
+
+        foreach (array_keys($seen) as $key) {
+            foreach ($this->relatedDatasets($key) as $related) {
+                $seen[$related] = true;
+            }
+        }
+
+        return array_keys($seen);
+    }
+
+    /**
+     * Does $text name $table, unqualified, on a word boundary?
+     *
+     * How a hand-written `required_join`/`select_override` edge is read —
+     * mechanically, off the same table name every other edge is matched by,
+     * never a business term, so this stays I10-clean.
+     */
+    protected function mentionsTable(string $text, string $table): bool
+    {
+        $needle = preg_quote($this->unqualify($table), '/');
+
+        return $needle !== '' && (bool) preg_match('/\b' . $needle . '\b/i', $text);
+    }
+
+    /**
      * The column results are grouped and labelled by.
      *
      * When a schema file does not declare `group_column`, this used to assume
@@ -473,6 +585,21 @@ class SchemaRegistry
         }
 
         return array_map(fn ($t) => array_keys($t), $missing);
+    }
+
+    /**
+     * Same physical table, ignoring schema-qualification — Postgres reports
+     * foreign key targets as `public.customers`, a hand-written schema file
+     * may just say `customers`, and relatedDatasets() must treat those the
+     * same way allowsTable() already does.
+     */
+    protected function sameTable(?string $a, ?string $b): bool
+    {
+        if ($a === null || $b === null) {
+            return false;
+        }
+
+        return strtolower($this->unqualify($a)) === strtolower($this->unqualify($b));
     }
 
     protected function unqualify(string $table): string

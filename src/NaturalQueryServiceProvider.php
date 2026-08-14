@@ -105,6 +105,21 @@ class NaturalQueryServiceProvider extends ServiceProvider
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\StepSynthesizer::class);
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\NextStepSuggester::class);
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\IntentCoverage::class);
+
+        // NQ-001-v2: bounding the multi-dataset prompt. DatasetSeeder and
+        // SchemaShortlister need only SchemaRegistry, already bound above, so
+        // the container auto-wires them. PromptBudget takes a scalar
+        // (prompts.max_chars, null = unbounded, C1) that the container cannot
+        // infer, so it gets an explicit factory. All three are STATELESS —
+        // singletons are safe only because resolve()/seeds()/check() never
+        // memoise anything on $this, which is what lets scope be recomputed
+        // per step in a multi-step answer.
+        $this->app->singleton(\Jayanta\NaturalQuery\Engine\DatasetSeeder::class);
+        $this->app->singleton(\Jayanta\NaturalQuery\Engine\SchemaShortlister::class);
+        $this->app->singleton(\Jayanta\NaturalQuery\Engine\PromptBudget::class, function ($app) {
+            return new \Jayanta\NaturalQuery\Engine\PromptBudget(config('naturalquery.prompts.max_chars'));
+        });
+
         $this->app->singleton(QueryOrchestrator::class);
         $this->app->singleton(ConversationManager::class);
     }

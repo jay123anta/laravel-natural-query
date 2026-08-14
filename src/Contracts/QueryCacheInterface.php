@@ -14,6 +14,13 @@ interface QueryCacheInterface
     /**
      * Find a cached result for a query.
      *
+     * Deliberately unchanged since 1.0.0. Dataset-aware lookup arrived in
+     * 2.0.1 and lives in `ScopesCacheByDataset` instead of here, because
+     * adding even an OPTIONAL parameter to an interface method is a fatal
+     * error for every class already implementing the old signature — the
+     * app does not boot. A patch release cannot do that, and the package
+     * already had the right precedent in `ReportsUsage`.
+     *
      * @param string $query The natural language query
      * @return array|null Cached intent data, or null if not found
      */
