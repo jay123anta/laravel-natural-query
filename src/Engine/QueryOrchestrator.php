@@ -224,9 +224,19 @@ class QueryOrchestrator
             // generated. The one path where the self-check matters most was the
             // one path that turned it off.
             //
-            // A null dataset on the cached side counts as a mismatch too: if it
-            // cannot be shown to be the same dataset, it is not usable.
-            if ($cachedResult && $askingDataset !== null && ($cachedResult['dataset'] ?? null) !== $askingDataset) {
+            // Null counts as a mismatch on EITHER side. The first version of
+            // this guard read `$askingDataset !== null && ...`, which skipped
+            // the check entirely whenever the asking dataset could not be
+            // placed — and resolveAskingDataset() returns null routinely, any
+            // time more than one dataset is registered and neither a hint, the
+            // conversation state, nor a keyword names one. So a row cached from
+            // a dataset-scoped page was served verbatim to the same wording
+            // asked from the general one. That is the widget's ordinary shape,
+            // and it is the exact failure this guard was added to close.
+            //
+            // Both null is the one case that still serves: neither ask carried
+            // dataset context, so there is nothing to disagree about.
+            if ($cachedResult && ($cachedResult['dataset'] ?? null) !== $askingDataset) {
                 Log::debug('[NaturalQuery:Cache] Discarded: entry belongs to another dataset', [
                     'asking' => $askingDataset,
                     'cached' => $cachedResult['dataset'] ?? null,
@@ -980,7 +990,15 @@ class QueryOrchestrator
         // success on the unfiltered query. So a mismatch is a cache MISS, not
         // a retarget: a fresh generation below costs one API call and cannot
         // drop anything, because it starts from the question, not the recipe.
-        if ($cached && isset($cached['intent']['_sql_result'])) {
+        // A conversation turn is never served from this cache, matching what
+        // processWithIntent has always done and what docs/CONVERSATIONS.md
+        // promises in as many words. The key is the question's TEXT and carries
+        // no session, so "and the total there" is the same key for every
+        // conversation in the application — a follow-up only means anything
+        // relative to the turns before it, and those are not in the key.
+        $inConversation = !empty($context['state']);
+
+        if ($cached && !$inConversation && isset($cached['intent']['_sql_result'])) {
             $sqlResult = $cached['intent']['_sql_result'];
             $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
 
@@ -1141,16 +1159,22 @@ class QueryOrchestrator
             }
         }
 
-        // Cache the VERIFIED SQL result for future identical queries
-        $this->cache->store($query, [
-            'dataset' => $dataset,
-            'metric' => $queryResult['metric'],
-            'group_value' => $queryResult['group_value'],
-            'limit' => $queryResult['limit'],
-            'order' => $queryResult['order'],
-            'query_type' => $queryResult['query_type'],
-            '_sql_result' => $queryResult,
-        ]);
+        // Cache the VERIFIED SQL result for future identical queries — but
+        // never a conversation turn. Writing one poisons the shared, text-keyed
+        // store for every other session that asks the same follow-up words,
+        // and it is the write, not the read, that does the damage: the row
+        // outlives the conversation that created it.
+        if (!$inConversation) {
+            $this->cache->store($query, [
+                'dataset' => $dataset,
+                'metric' => $queryResult['metric'],
+                'group_value' => $queryResult['group_value'],
+                'limit' => $queryResult['limit'],
+                'order' => $queryResult['order'],
+                'query_type' => $queryResult['query_type'],
+                '_sql_result' => $queryResult,
+            ]);
+        }
 
         // Validate and execute
         return $this->validateAndExecute($queryResult, $dataset, $metadata);
