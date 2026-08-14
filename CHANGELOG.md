@@ -8,20 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Optional bound on the multi-dataset SQL-generation prompt**, for schemas
-  with dozens to hundreds of tables. New config key `prompts.max_chars`
-  (default `null` = unbounded, today's behaviour byte for byte). When set,
-  the package narrows a question's prompt to the dataset(s) it and your
-  `query_routing` rules actually point at, plus one hop of foreign
-  keys/joins — a dataset is always rendered in FULL (required filters,
-  joins, computed metrics) or entirely absent, never in a degraded middle
-  form. If a question still would not fit, it is refused with an actionable
-  message BEFORE any request reaches the AI, rather than silently answering
-  from fewer tables than the question needed. The response gains
-  `metadata.datasets_in_scope` and `metadata.datasets_omitted` (present only
-  when `prompts.max_chars` is set). The scope is also enforced against the
-  SQL actually generated — a reply naming a table outside the question's
-  scope is refused, not executed.
+- **`prompts.max_chars`** bounds the multi-dataset SQL-generation prompt, in
+  characters. `null` (default) = unbounded, today's behaviour byte for byte
+  — upgrading never changes anything unless you set this yourself. When a
+  question's prompt would exceed it, the call is refused with an actionable
+  message (bytes needed, bytes allowed, the config key to raise) BEFORE any
+  request reaches the AI provider, rather than silently sending a truncated
+  prompt.
+
+  This is a **size bound only** — it does not narrow which datasets are
+  sent. An earlier iteration of this feature attempted to also shortlist the
+  dataset(s) a question's prompt is built from; that half was withdrawn
+  before release. Deciding a dimension table one join away is or is not
+  relevant to a question is a guess about someone's domain, which this
+  package will not make, and the guess was demonstrably capable of changing
+  a correctly-grouped answer's grouping while still reporting `success`. On
+  a schema too large for `max_chars` to hold, the fix is a smaller
+  schema/`system_instructions` footprint, `query_mode: intent` for the
+  affected questions, or raising the limit — not scoping.
 
 ### Changed
 - The dataset-index line format used by every provider's intent prompt now

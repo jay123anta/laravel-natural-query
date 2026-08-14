@@ -63,12 +63,14 @@ class QueryOrchestrator
     protected ?NextStepSuggester $suggester;
     protected ?IntentCoverage $coverage;
 
-    // NQ-001-v2: bounding the multi-dataset prompt. All three optional and
-    // nullable, same pattern as the four above — a hand-built orchestrator
-    // (existing unit tests construct one directly) keeps working exactly as
-    // today, with scoping simply never engaging (see resolveScope()).
+    // NQ-001-REDUCE: DatasetSeeder is load-bearing on its own for NQ-003 (see
+    // resolveAskingDataset() below) as well as dataset detection in
+    // processWithSqlGeneration(); PromptBudget is the bare `prompts.max_chars`
+    // size bound the G1-round-3 ruling kept. Both optional and nullable, same
+    // pattern as the four above — a hand-built orchestrator (existing unit
+    // tests construct one directly) keeps working exactly as today, with the
+    // bound simply never engaging.
     protected ?DatasetSeeder $seeder;
-    protected ?SchemaShortlister $shortlister;
     protected ?PromptBudget $budget;
 
     /**
@@ -98,7 +100,6 @@ class QueryOrchestrator
         ?NextStepSuggester $suggester = null,
         ?IntentCoverage $coverage = null,
         ?DatasetSeeder $seeder = null,
-        ?SchemaShortlister $shortlister = null,
         ?PromptBudget $budget = null
     ) {
         $this->llmProvider = $llmProvider;
@@ -120,7 +121,6 @@ class QueryOrchestrator
         $this->coverage = $coverage;
 
         $this->seeder = $seeder;
-        $this->shortlister = $shortlister;
         $this->budget = $budget;
     }
 
@@ -211,6 +211,29 @@ class QueryOrchestrator
             $cacheHit = false;
             $askingDataset = $this->resolveAskingDataset($naturalLanguageQuery, $datasetHint, $context);
             $cachedResult = $this->findInCache($naturalLanguageQuery, $askingDataset);
+
+            // An entry belonging to a different dataset is not a hit, and it is
+            // discarded HERE — at the one place a cached result enters — rather
+            // than downstream where the mismatch is finally acted on.
+            //
+            // Discovering it downstream was too late. `cache_hit` is set the
+            // moment the cache returns anything, so a question that went on to
+            // call the provider still reported itself as cached; and
+            // verification.skip_on_cache_hit, which defaults to true, reads that
+            // flag and skipped QueryVerifier on the SQL that had just been
+            // generated. The one path where the self-check matters most was the
+            // one path that turned it off.
+            //
+            // A null dataset on the cached side counts as a mismatch too: if it
+            // cannot be shown to be the same dataset, it is not usable.
+            if ($cachedResult && $askingDataset !== null && ($cachedResult['dataset'] ?? null) !== $askingDataset) {
+                Log::debug('[NaturalQuery:Cache] Discarded: entry belongs to another dataset', [
+                    'asking' => $askingDataset,
+                    'cached' => $cachedResult['dataset'] ?? null,
+                ]);
+                $cachedResult = null;
+            }
+
             if ($cachedResult && isset($cachedResult['intent'])) {
                 $cacheHit = true;
                 $metadata['cache_hit'] = true;
@@ -344,19 +367,24 @@ class QueryOrchestrator
 
         $intent = null;
         if ($cached && !$inConversation) {
-            $intent = $this->normalizeIntent($cached['intent']);
-
-            // NQ-003: this recipe was cached for whatever dataset an EARLIER
-            // question resolved to. Reconcile it against the dataset THIS
-            // question resolves to before it reaches SqlBuilder below —
-            // the one place a mismatch is still cheap to correct, because
-            // SqlBuilder rebuilds the SQL from the recipe's structured
-            // fields rather than replaying stored text.
+            // NQ-003-FIX: this recipe was cached for whatever dataset an
+            // EARLIER question resolved to. NQ-003 reconciled a mismatch by
+            // overwriting $intent['dataset'] with the dataset THIS question
+            // resolves to — cheap, but wrong: resolveAskingDataset() falls
+            // back to a bare keyword guess (DatasetSeeder::detect()) when no
+            // explicit hint or conversation state is available, so an
+            // identical repeat of a question could be silently answered
+            // from a different table than the one the model itself chose
+            // the first time. A mismatch is now a cache MISS, not a
+            // correction: one more provider call below, never a silent
+            // override.
             $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
-            if ($askingDataset && $askingDataset !== ($intent['dataset'] ?? null)) {
-                $intent['dataset'] = $askingDataset;
+            if (!$askingDataset || $askingDataset === ($cached['intent']['dataset'] ?? null)) {
+                $intent = $this->normalizeIntent($cached['intent']);
             }
-        } else {
+        }
+
+        if ($intent === null) {
             $datasetList = $this->registry->getDatasetListForLlm();
             $intent = $this->normalizeIntent(
                 $this->llmProvider->parseIntent($this->withState($query, $context), $datasetList)
@@ -937,47 +965,31 @@ class QueryOrchestrator
         // one was being tested.
         $stated = $this->withState($query, $context);
 
-        // NQ-001-v2: resolved BEFORE the cache lookup below, because the
-        // cached _sql_result branch returns without ever building a prompt —
-        // the only other place scope would get computed — so a fuzzy cache
-        // hit for a differently-scoped question would slip the gate entirely
-        // if this ran any later. Null throughout (no seeding, no expansion,
-        // no gate, no metadata key) when prompts.max_chars is unset — C1.
-        $scope = $this->resolveScope($query, $datasetHint, $context);
-        if ($scope) {
-            $metadata['datasets_in_scope'] = $scope->keys();
-            $metadata['datasets_omitted'] = $scope->omitted();
-        }
-
         // Check if we have a cached SQL result.
         //
-        // NQ-003: the cached SQL names whatever dataset the ORIGINAL question
-        // resolved to, which is not necessarily this one — replaying it
-        // verbatim would silently answer the wrong table. When the dataset
-        // THIS question resolves to disagrees, the cached recipe (metric,
-        // query_type, group_value, limit, order — the same fields intent
-        // mode already caches and rebuilds from) is dataset-agnostic, so
-        // SqlBuilder retargets it locally, at zero API cost, rather than
-        // either replaying the wrong SQL or spending a call to confirm what
-        // the recipe already says. Only when SqlBuilder cannot express the
-        // recipe on that dataset (the metric does not exist there) does this
-        // fall through to a fresh generation — a miss costs one API call, a
-        // wrong hit costs a wrong answer (§0).
+        // NQ-003-FIX: the cached SQL names whatever dataset the ORIGINAL
+        // question resolved to, which is not necessarily this one — replaying
+        // it verbatim would silently answer the wrong table. NQ-003 handled a
+        // disagreement by retargeting the cached recipe (metric, query_type,
+        // group_value, limit, order) through SqlBuilder for the dataset THIS
+        // question resolves to, at zero API cost. That recipe is exactly the
+        // fields the INTENT contract can express — this cached result exists
+        // in the first place because the question needed SQL generation, i.e.
+        // something beyond that contract, most often a WHERE predicate with
+        // no slot to carry it. Retargeting silently dropped it and reported
+        // success on the unfiltered query. So a mismatch is a cache MISS, not
+        // a retarget: a fresh generation below costs one API call and cannot
+        // drop anything, because it starts from the question, not the recipe.
         if ($cached && isset($cached['intent']['_sql_result'])) {
             $sqlResult = $cached['intent']['_sql_result'];
             $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
 
-            if ($askingDataset && $askingDataset !== ($sqlResult['dataset'] ?? null)) {
-                $retargeted = $this->sqlBuilder->buildQuery(['dataset' => $askingDataset] + $cached['intent']);
-                if ($retargeted['success']) {
-                    return $this->validateAndExecute($retargeted, $askingDataset, $metadata, $scope);
-                }
-                // Cannot be safely expressed on the dataset actually asked
-                // about — fall through to a fresh generation below rather
-                // than answer with the wrong dataset's SQL.
-            } else {
-                return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata, $scope);
+            if (!$askingDataset || $askingDataset === ($sqlResult['dataset'] ?? null)) {
+                return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
             }
+            // Mismatch: fall through to a fresh generation below rather than
+            // answer with the wrong dataset's SQL or a retargeted recipe that
+            // cannot carry whatever made this need SQL generation at all.
         }
 
         // Step 1: Identify the dataset (priority: hint → routing → keywords → LLM intent)
@@ -1018,8 +1030,10 @@ class QueryOrchestrator
         // name it mentions.
         if ($dataset && $this->registry->has($dataset) && !$this->registry->hasLinkedSchemas()) {
             $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $stated);
+            $datasetsRendered = 1;
         } else {
-            $prompt = $this->promptBuilder->buildMultiDatasetPrompt($stated, $scope);
+            $prompt = $this->promptBuilder->buildMultiDatasetPrompt($stated);
+            $datasetsRendered = count($this->registry->all());
         }
 
         // R4: over budget refuses BEFORE any provider call — never a smaller
@@ -1027,7 +1041,8 @@ class QueryOrchestrator
         // retry strategy this package has (retryWithRefinedPrompt) sends a
         // SMALLER, single-dataset prompt, which is exactly the wrong move for
         // a refusal caused by size.
-        if ($scope && ($refusal = $this->budget?->check($prompt, $scope)) !== null) {
+        $refusal = $this->budget?->check($prompt, $datasetsRendered);
+        if ($refusal !== null) {
             return array_merge(
                 $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
                 ['_unretriable' => true]
@@ -1138,7 +1153,7 @@ class QueryOrchestrator
         ]);
 
         // Validate and execute
-        return $this->validateAndExecute($queryResult, $dataset, $metadata, $scope);
+        return $this->validateAndExecute($queryResult, $dataset, $metadata);
     }
 
     /**
@@ -1222,41 +1237,6 @@ class QueryOrchestrator
 
         $keys = $this->registry->keys();
         return count($keys) === 1 ? $keys[0] : null;
-    }
-
-    /**
-     * Which datasets this question's prompt may draw on (NQ-001-v2). Every
-     * question-inspecting signal lives in DatasetSeeder — this is wiring.
-     *
-     * $context carries conversation state, not question text, so reading
-     * $context['state']['dataset'] here does not belong in DatasetSeeder
-     * (whose whole point is that resolve() never sees the question) — it is
-     * the same kind of signal as $datasetHint, just arriving from a previous
-     * turn instead of this call's argument. The design's own I10 list names
-     * "conversation state dataset" as a permitted seed alongside
-     * default_dataset and query_routing: without it, a follow-up whose own
-     * words name nothing ("and only the paid ones, please") falls through to
-     * whatever default_dataset happens to be configured, and R6's scope gate
-     * then refuses the model's correct SQL for continuing the conversation
-     * on the dataset it was actually established on.
-     */
-    protected function resolveScope(string $query, ?string $datasetHint, array $context = []): ?PromptScope
-    {
-        if (config('naturalquery.prompts.max_chars') === null || !$this->shortlister) {
-            return null;
-        }
-
-        $seeds = $this->seeder?->seeds($query) ?? [];
-        if ($datasetHint) {
-            $seeds[] = $datasetHint;
-        }
-
-        $stateDataset = $context['state']['dataset'] ?? null;
-        if (is_string($stateDataset) && $stateDataset !== '') {
-            $seeds[] = $stateDataset;
-        }
-
-        return $this->shortlister->resolve($seeds);
     }
 
     // =========================================================================
@@ -1435,15 +1415,8 @@ class QueryOrchestrator
 
     /**
      * Validate SQL, execute it, and format the response.
-     *
-     * @param PromptScope|null $scope NQ-001-v2, R6: an ADDITIONAL gate,
-     *        never a replacement for the whitelist validation above it. Null
-     *        (the default, and every call site except sql_generation's own)
-     *        skips it entirely — intent mode's SQL is built by SqlBuilder
-     *        from a schema-known dataset, never free text from a model, so
-     *        it carries no risk of naming an out-of-scope table.
      */
-    protected function validateAndExecute(array $queryResult, ?string $dataset, array $metadata, ?PromptScope $scope = null): array
+    protected function validateAndExecute(array $queryResult, ?string $dataset, array $metadata): array
     {
         $sql = $queryResult['sql'];
 
@@ -1477,33 +1450,6 @@ class QueryOrchestrator
             ));
 
             return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata, ErrorCode::UNSAFE_SQL);
-        }
-
-        // R6: run again against the NARROWER, per-question whitelist, only
-        // now that the real security pass above has already cleared
-        // SELECT-only, forbidden keywords, injection and limits — so any
-        // failure here can only be a table outside this question's scope,
-        // not a security concern, which is why it is reported as "cannot
-        // answer" rather than reusing UnsafeSqlRejected.
-        if ($scope) {
-            $scoped = $this->validator->validate($sql, $scope->scopedTables(), ['require_limit' => false]);
-
-            if (!$scoped['valid']) {
-                Log::info('[NaturalQuery] SQL referenced a table outside the question\'s scope', [
-                    'sql' => $sql,
-                    'reason' => $scoped['reason'],
-                ]);
-
-                return array_merge(
-                    $this->formatter->formatError(
-                        'This could not be answered from the datasets this question was scoped to. '
-                            . 'Try naming the dataset directly, or ask about one topic at a time.',
-                        $metadata,
-                        ErrorCode::CANNOT_ANSWER
-                    ),
-                    ['_unretriable' => true]
-                );
-            }
         }
 
         // Execute SQL (with parameterized bindings when available)

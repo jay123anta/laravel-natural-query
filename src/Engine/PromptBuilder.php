@@ -137,18 +137,11 @@ PROMPT;
      * Build a multi-dataset SQL generation prompt (dataset not yet identified).
      *
      * AI must first identify which dataset to query, then generate SQL.
-     *
-     * @param PromptScope|null $scope NQ-001-v2 bounding. Null means today's
-     *        behaviour, byte for byte (C1) — every dataset, unfiltered. When
-     *        given, all four scope-sensitive sections below render ONLY
-     *        `$scope->keys()`, in full (R1: no degraded middle tier), and
-     *        `$scope->omitted()` datasets are not named anywhere at all (R2)
-     *        — not even to say they were left out.
      */
-    public function buildMultiDatasetPrompt(string $userQuery, ?PromptScope $scope = null): string
+    public function buildMultiDatasetPrompt(string $userQuery): string
     {
         $dialect = $this->introspector->getDialect();
-        $allSchemaInfo = $this->buildAllSchemasFullInfo($scope);
+        $allSchemaInfo = $this->buildAllSchemasFullInfo();
         $defaultLimit = config('naturalquery.sql.default_limit', 100);
         $maxLimit = config('naturalquery.sql.max_limit');
         $systemInstructions = config('naturalquery.system_instructions', '');
@@ -166,7 +159,7 @@ PROMPT;
         }
 
         // Query routing hints
-        $routingHints = $this->buildRoutingHints($scope);
+        $routingHints = $this->buildRoutingHints();
         if ($routingHints) {
             $prompt .= "QUERY ROUTING (use these to pick the correct dataset):\n{$routingHints}\n\n";
         }
@@ -216,7 +209,7 @@ PROMPT;
         }
 
         // Include past corrections for all datasets
-        $corrections = $this->buildAllCorrections($scope);
+        $corrections = $this->buildAllCorrections();
         if ($corrections) {
             $prompt .= "\n\nPAST CORRECTIONS (avoid these mistakes):\n{$corrections}\n";
         }
@@ -254,15 +247,8 @@ PROMPT;
 
     /**
      * Build FULL schema info for a single dataset — includes everything the AI needs.
-     *
-     * @param PromptScope|null $scope threaded through only to keep joinsFor()
-     *        from naming an out-of-scope neighbour's table — every OTHER
-     *        field here (required_filter, required_join, select_override,
-     *        computed metrics) is unconditional: a dataset that reaches this
-     *        method is IN scope by definition (its caller decided that), and
-     *        R1 forbids rendering it in anything less than full.
      */
-    protected function buildFullSchemaInfo(string $datasetKey, array $schema, ?PromptScope $scope = null): string
+    protected function buildFullSchemaInfo(string $datasetKey, array $schema): string
     {
         $lines = [];
         $primary = $schema['tables']['primary'] ?? [];
@@ -284,7 +270,7 @@ PROMPT;
         // Foreign keys, so a question whose answer spans tables can be joined
         // rather than answered with raw id values. Without this the model sees
         // `customer_id` as just another integer and groups by it.
-        foreach ($this->joinsFor($tableName, $primary['relationships'] ?? [], $scope) as $line) {
+        foreach ($this->joinsFor($tableName, $primary['relationships'] ?? []) as $line) {
             $lines[] = $line;
         }
 
@@ -362,16 +348,9 @@ PROMPT;
      * separate single-column keys pointing at the same table.
      *
      * @param array<int, array<string, mixed>> $relationships
-     * @param PromptScope|null $scope when given, a relationship whose target
-     *        is not one of `$scope->scopedTables()` is skipped too — a
-     *        dataset pulled into scope by ONE relationship can still declare
-     *        others the FK expansion did not reach (expansion is a single
-     *        hop from the SEEDS, not from every scope member transitively),
-     *        and rendering that further neighbour's physical table name here
-     *        would name a dataset R2 says must not be mentioned at all.
      * @return string[]
      */
-    protected function joinsFor(string $tableName, array $relationships, ?PromptScope $scope = null): array
+    protected function joinsFor(string $tableName, array $relationships): array
     {
         $byConstraint = [];
 
@@ -388,10 +367,6 @@ PROMPT;
             // had itself asked the model to write. The whitelist is where the
             // user drew the line; the prompt follows it.
             if (!$this->registry->allowsTable($rel['references_table'])) {
-                continue;
-            }
-
-            if (!$this->tableInScope($rel['references_table'], $scope)) {
                 continue;
             }
 
@@ -425,51 +400,16 @@ PROMPT;
         return $lines;
     }
 
-    protected function buildAllSchemasFullInfo(?PromptScope $scope = null): string
+    protected function buildAllSchemasFullInfo(): string
     {
         $sections = [];
 
         foreach ($this->registry->all() as $key => $schema) {
-            if ($scope !== null && !$scope->isDataset($key)) {
-                continue; // R2: an omitted dataset is absent, not degraded
-            }
-
-            $sections[] = $this->buildFullSchemaInfo($key, $schema, $scope);
+            $sections[] = $this->buildFullSchemaInfo($key, $schema);
             $sections[] = ""; // blank line between schemas
         }
 
         return implode("\n", $sections);
-    }
-
-    /**
-     * Is $table one of the physical tables PromptScope allows into THIS
-     * prompt? Compared unqualified, same rule as SchemaRegistry::allowsTable()
-     * — Postgres reports a foreign key target schema-qualified while a
-     * hand-written schema file may not. Null $scope means no scoping is in
-     * effect (C1), so every whitelisted table is in scope.
-     */
-    protected function tableInScope(string $table, ?PromptScope $scope): bool
-    {
-        if ($scope === null) {
-            return true;
-        }
-
-        $needle = strtolower($this->unqualifyTableName($table));
-
-        foreach ($scope->scopedTables() as $scoped) {
-            if (strtolower($this->unqualifyTableName($scoped)) === $needle) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected function unqualifyTableName(string $table): string
-    {
-        $parts = explode('.', $table);
-
-        return end($parts);
     }
 
     /**
@@ -517,7 +457,7 @@ PROMPT;
     /**
      * Build corrections section for all datasets.
      */
-    protected function buildAllCorrections(?PromptScope $scope = null): string
+    protected function buildAllCorrections(): string
     {
         $corrections = $this->feedback->getAllCorrectionsForPrompt();
         if (empty($corrections)) {
@@ -526,12 +466,6 @@ PROMPT;
 
         $lines = [];
         foreach ($corrections as $c) {
-            // A correction for an omitted dataset is schema knowledge about a
-            // table that is not in this prompt at all — R2.
-            if ($scope !== null && !$scope->isDataset($c['dataset'] ?? '')) {
-                continue;
-            }
-
             $lines[] = "- [{$c['dataset']}] When user asked: \"{$c['query']}\"";
             $lines[] = "  Problem: {$c['correction']}";
             if (!empty($c['corrected_sql'])) {
@@ -545,7 +479,7 @@ PROMPT;
     /**
      * Build routing hints from config for multi-dataset prompts.
      */
-    protected function buildRoutingHints(?PromptScope $scope = null): string
+    protected function buildRoutingHints(): string
     {
         $routing = config('naturalquery.query_routing', []);
         if (empty($routing)) {
@@ -560,12 +494,6 @@ PROMPT;
         }
 
         foreach ($grouped as $dataset => $keywords) {
-            // A rule pointing at an omitted dataset would name a table the
-            // model has no other information about in this prompt — R2.
-            if ($scope !== null && !$scope->isDataset($dataset)) {
-                continue;
-            }
-
             $schemaData = $this->registry->get($dataset);
             $name = $schemaData['name'] ?? $dataset;
             $lines[] = "- If query mentions: " . implode(', ', $keywords) . " → use dataset \"{$dataset}\" ({$name})";

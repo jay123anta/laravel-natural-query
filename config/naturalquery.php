@@ -286,17 +286,29 @@ return [
         // small schemas and is why upgrading never changes behaviour unless
         // you set this yourself.
         //
-        // On a LARGE schema (dozens to hundreds of tables), set a byte
-        // budget your provider's context window can actually hold. When a
-        // question's prompt would exceed it, the package narrows to the
-        // dataset(s) the question and your query_routing rules actually
-        // point at (plus one hop of foreign keys/joins) — never a compact
-        // or degraded rendering of a table, only the full one or none at
-        // all. If it STILL does not fit, the call is refused with an
-        // actionable message BEFORE any request reaches the AI, rather than
-        // silently answering from a narrower — and possibly wrong — set of
-        // tables than the question needed. See metadata.datasets_in_scope
-        // and metadata.datasets_omitted on the response.
+        // This is a SIZE BOUND ONLY. When a question's multi-dataset prompt
+        // would exceed it, the call is refused with an actionable message
+        // (bytes needed, bytes allowed, this config key) BEFORE any request
+        // reaches the AI — never a narrower prompt built from fewer tables,
+        // and never a silently truncated one. It does NOT narrow which
+        // datasets go into the prompt; every dataset is always rendered, so
+        // on a LARGE schema (dozens to hundreds of tables) that outgrows a
+        // budget your provider's context window can hold, the fix is a
+        // smaller schema/system_instructions footprint, a query_mode of
+        // 'intent' for the affected questions, or raising this value — not
+        // scoping, which this package deliberately does not attempt (a
+        // dimension table one join away from the question's own tables
+        // cannot be told apart from one that is genuinely irrelevant without
+        // guessing at your domain, which this package will not do).
+        //
+        // Only the SQL-generation prompt PromptBuilder builds is bounded.
+        // 'intent' mode's prompt is built separately, per-provider, from a
+        // compact dataset list — it never goes through this check and is not
+        // affected by this setting at all, whatever you set it to. In 'auto'
+        // mode (the default), a question answered via intent parsing —
+        // ordinarily most of them — is likewise unaffected; the bound only
+        // engages once 'auto' escalates to SQL generation, exactly as under
+        // an explicit query_mode of 'sql_generation'.
         //
         // Not named "budget" — that word already means milliseconds in
         // retry.total_budget_ms and a request count in

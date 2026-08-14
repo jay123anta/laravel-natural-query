@@ -8,23 +8,26 @@ use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
- * NQ-001-v2, RED for G2.
+ * NQ-001-REDUCE trimmed this to `detect()` alone. `seeds()` and its three
+ * per-signal helpers existed only to feed `SchemaShortlister`, the
+ * scope-narrowing half of NQ-001-v2 the G1-round-3 ruling struck out
+ * entirely, and were deleted with it.
  *
- * `Jayanta\NaturalQuery\Engine\DatasetSeeder` does not exist yet, so every
- * test here fails now with "class not found". What it will own once built:
- * `detect()` is `QueryOrchestrator::detectDatasetFromKeywords()` moved
- * verbatim (single best guess, existing behaviour); `seeds()` is new —
- * EVERY matching signal, not just the first — which is what makes property 3
- * (routing is supreme, every match counts) and property 13 (I10: no signal
- * outside the permitted list) testable independently of the rest of the
- * design.
+ * `detect()` is load-bearing on its own: `QueryOrchestrator::
+ * resolveAskingDataset()` calls it, and that is what stops the NQ-003 cache
+ * fix from replaying one dataset's cached answer for another (see
+ * `tests/Feature/FuzzyCacheDatasetIsolationTest.php`).
+ *
+ * Fixture reused from `tests/Stubs/related-schemas` — it was not written for
+ * this test, but its two aliased, unrelated datasets (rel_orders / "orders",
+ * rel_customers / "customers") are exactly the shape `detect()` needs.
  */
 class DatasetSeederTest extends TestCase
 {
     protected function getEnvironmentSetUp($app): void
     {
         parent::getEnvironmentSetUp($app);
-        $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/shortlist-schemas');
+        $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/related-schemas');
     }
 
     private function seeder(): DatasetSeeder
@@ -32,92 +35,52 @@ class DatasetSeederTest extends TestCase
         return new DatasetSeeder($this->app->make(SchemaRegistry::class));
     }
 
-    /** Property 3, part A: default_dataset seeds a question naming nothing at all. */
+    /** Priority 1: a configured query_routing rule wins. */
     #[Test]
-    public function default_dataset_is_seeded_for_a_question_naming_nothing()
+    public function a_routing_keyword_is_detected()
     {
-        config([
-            'naturalquery.query_routing' => [],
-            'naturalquery.default_dataset' => 'bbb_regions',
-        ]);
+        config(['naturalquery.query_routing' => ['tenant sales' => 'rel_sales']]);
 
-        $seeds = $this->seeder()->seeds('please help me with something');
-
-        $this->assertContains('bbb_regions', $seeds);
+        $this->assertSame('rel_sales', $this->seeder()->detect('show me tenant sales for last month'));
     }
 
     /**
-     * Property 3, part B: EVERY matching query_routing keyword puts its
-     * target in scope — not merely the first, which is what detect() (the
-     * verbatim-moved single-guess method) is allowed to do.
+     * A single best guess, never more than one dataset — the whole reason
+     * NQ-001-v2 needed a second method (`seeds()`, now deleted) for the
+     * scope-widening half of the design.
      */
     #[Test]
-    public function every_matching_routing_keyword_seeds_its_own_target()
+    public function only_one_dataset_is_ever_returned_even_when_two_keywords_match()
     {
         config([
             'naturalquery.query_routing' => [
-                'gizmo' => 'aaa_customers',
-                'widget' => 'zzz_orders',
-            ],
-            'naturalquery.default_dataset' => null,
-        ]);
-
-        $seeds = $this->seeder()->seeds('report on gizmo and widget sales');
-
-        $this->assertContains('aaa_customers', $seeds, 'the "gizmo" routing rule was not honoured');
-        $this->assertContains('zzz_orders', $seeds, 'the "widget" routing rule was not honoured');
-    }
-
-    /**
-     * Contrast: detect() is the existing single-best-guess method (moved
-     * verbatim so both call sites in QueryOrchestrator stay byte-identical).
-     * On the SAME two-keyword question it returns only one dataset — the
-     * whole reason seeds() had to be written new rather than reused.
-     */
-    #[Test]
-    public function detect_returns_only_the_first_match_where_seeds_returns_all_of_them()
-    {
-        config([
-            'naturalquery.query_routing' => [
-                'gizmo' => 'aaa_customers',
-                'widget' => 'zzz_orders',
+                'gizmo' => 'rel_customers',
+                'widget' => 'rel_orders',
             ],
         ]);
 
-        $seeder = $this->seeder();
+        $result = $this->seeder()->detect('report on gizmo and widget sales');
 
-        $this->assertIsString($seeder->detect('report on gizmo and widget sales'));
-        $this->assertCount(
-            1,
-            array_filter([$seeder->detect('report on gizmo and widget sales')]),
-            'detect() is documented as a single best guess'
-        );
-        $this->assertGreaterThan(
-            1,
-            count($seeder->seeds('report on gizmo and widget sales')),
-            'seeds() must return every matching rule, not collapse to one'
-        );
+        $this->assertIsString($result);
+        $this->assertContains($result, ['rel_customers', 'rel_orders']);
     }
 
     /**
-     * Property 13 / I10: with no routing rule and no alias match available,
-     * two questions differing only in a domain noun the schema has never
-     * heard of must produce the SAME seed set. A synonym table or a
-     * column-name heuristic would make them differ; I10 forbids both.
+     * Property 13 / I10: with no routing rule and no alias match, two
+     * questions differing only in a domain noun the schema has never heard
+     * of must produce the SAME result — a synonym table or a column-name
+     * heuristic would make them differ, and I10 forbids both.
      */
     #[Test]
-    public function two_unmatched_domain_nouns_produce_the_same_seeds()
+    public function two_unmatched_domain_nouns_produce_the_same_result()
     {
-        config([
-            'naturalquery.query_routing' => [],
-            'naturalquery.default_dataset' => null,
-        ]);
+        config(['naturalquery.query_routing' => []]);
 
         $seeder = $this->seeder();
 
-        $walrus = $seeder->seeds('tell me about the walruses');
-        $giraffe = $seeder->seeds('tell me about the giraffes');
-
-        $this->assertSame($walrus, $giraffe);
+        $this->assertSame(
+            $seeder->detect('tell me about the walruses'),
+            $seeder->detect('tell me about the giraffes')
+        );
     }
 }

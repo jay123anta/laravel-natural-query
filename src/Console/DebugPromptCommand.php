@@ -4,9 +4,7 @@ namespace Jayanta\NaturalQuery\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Jayanta\NaturalQuery\Engine\DatasetSeeder;
 use Jayanta\NaturalQuery\Engine\PromptBuilder;
-use Jayanta\NaturalQuery\Engine\SchemaShortlister;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
@@ -34,9 +32,7 @@ class DebugPromptCommand extends Command
     public function handle(
         PromptBuilder $promptBuilder,
         SchemaRegistry $registry,
-        LlmProviderInterface $llm,
-        DatasetSeeder $seeder,
-        SchemaShortlister $shortlister
+        LlmProviderInterface $llm
     ): int {
         $query = $this->argument('query');
         $dataset = $this->option('dataset');
@@ -84,25 +80,8 @@ class DebugPromptCommand extends Command
             $prompt = $promptBuilder->buildSqlPrompt($dataset, $query);
             $this->comment("Prompt type: Single-dataset ({$dataset})");
         } else {
-            // NQ-001-v2: once scoping is live, "all datasets" is a lie the
-            // moment prompts.max_chars is set — this is the command the
-            // config comments send users to for exactly that preview, so it
-            // has to show what the ORCHESTRATOR would actually send, not
-            // the unbounded prompt.
-            $scope = config('naturalquery.prompts.max_chars') !== null
-                ? $shortlister->resolve($seeder->seeds($query))
-                : null;
-
-            $prompt = $promptBuilder->buildMultiDatasetPrompt($query, $scope);
-
-            if ($scope) {
-                $this->comment('Prompt type: Multi-dataset, scoped to: ' . implode(', ', $scope->keys()));
-                if ($scope->omitted()) {
-                    $this->line('  Omitted (prompts.max_chars is set): ' . implode(', ', $scope->omitted()));
-                }
-            } else {
-                $this->comment("Prompt type: Multi-dataset (all datasets)");
-            }
+            $prompt = $promptBuilder->buildMultiDatasetPrompt($query);
+            $this->comment("Prompt type: Multi-dataset (all datasets)");
         }
 
         $this->line("  Length: " . strlen($prompt) . " chars (" . str_word_count($prompt) . " words)");

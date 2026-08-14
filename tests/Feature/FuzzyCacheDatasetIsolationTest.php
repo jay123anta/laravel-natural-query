@@ -42,6 +42,16 @@ use PHPUnit\Framework\Attributes\Test;
  *   - Tier 2 fuzzy, different wording, no dataset hint  → test (a)
  *   - Tier 2 fuzzy, SAME dataset (must keep working)     → test (b)
  *   - Tier 1 exact, identical wording, changed dataset hint → test (c)
+ * NQ-003-FIX: both (a) and (c) were rewritten, because NQ-003's own fix for
+ * this file's original defect was itself unsafe — a silent retarget through
+ * `SqlBuilder` rather than a refusal — and the `_sql_result` branch that
+ * retarget lived in does not distinguish Tier 1 exact from Tier 2 fuzzy; it
+ * runs identically for both. (a) — `a_fuzzy_hit_must_not_replay_a_different_datasets_answer`
+ * — kept its name (still true: a mismatch no longer replays anything) but its
+ * body now expects a MISS, the same change made to (c) —
+ * `an_exact_tier1_candidate_with_a_changed_dataset_hint_is_a_cache_miss`,
+ * formerly `an_exact_tier1_hit_must_not_ignore_a_changed_dataset_hint`. See
+ * each test's docblock and `tests/Feature/CacheDatasetMismatchMissTest.php`.
  * NOT covered here: the conversation-turn path. `processWithIntent()`
  * explicitly disables cache USE while `$context['state']` is non-empty
  * (`if ($cached && !$inConversation)`), but `processWithSqlGeneration()`'s
@@ -51,14 +61,16 @@ use PHPUnit\Framework\Attributes\Test;
  * `find()`/the `_sql_result` branch itself dataset-aware closes it too; a
  * fix that only special-cases `findFuzzyMatch()` would not.
  *
- * No scoping feature is involved anywhere below — `naturalquery.prompts.
- * max_chars` is deliberately left unset, so `resolveScope()` returns null
- * (C1) and the per-question scope narrowing built for NQ-001 never runs.
- * That mechanism previously caught this exact scenario as a SIDE EFFECT
- * when it happened to be turned on — see the (now removed) fuzzy-cache case
- * in `PromptScopeGateTest`, which passed for that reason and not because
- * the cache itself was fixed. This file proves the cache is broken on its
- * own, with nothing else involved.
+ * No scoping feature is involved anywhere below. NQ-001-v2's per-question
+ * dataset scoping (`PromptScope`, `SchemaShortlister`, `QueryOrchestrator::
+ * resolveScope()`) was removed outright by NQ-001-REDUCE — the G1-round-3
+ * ruling struck it out entirely, keeping only `PromptBudget`'s bare
+ * `prompts.max_chars` size refusal. An earlier revision of that now-deleted
+ * scoping feature happened to catch this exact cross-dataset scenario as a
+ * SIDE EFFECT when it was turned on, in what was then `PromptScopeGateTest`
+ * (also since removed) — which passed for that reason, not because the
+ * cache itself was fixed. This file proves the cache is broken on its own,
+ * with nothing else involved.
  */
 class FuzzyCacheDatasetIsolationTest extends TestCase
 {
@@ -162,6 +174,17 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
      * enough to catch real paraphrases (the shipped config comments its own
      * "top 10" vs "bottom 10" = 0.65 warning), which is exactly why NQ-003's
      * fix direction rules out "raise the threshold" as an answer.
+     *
+     * NQ-003-FIX: this used to assert the fuzzy hit was retargeted for FREE
+     * (zero extra provider calls) onto the right number, because in this
+     * predicate-free fixture `SqlBuilder::buildQuery()`'s retarget happens to
+     * recompute a correct `SUM(revenue)` against nq_products. That is the
+     * same unsafe mechanism `CacheDatasetMismatchMissTest`'s Blocker A test
+     * shows dropping a WHERE clause elsewhere — the `_sql_result` branch does
+     * not know it is looking at a fuzzy candidate rather than an exact one,
+     * so it cannot be safe here and unsafe there. A dataset mismatch is now a
+     * MISS on every route into that branch, fuzzy included: one fresh
+     * provider call, never a replay and never a retarget.
      */
     #[Test]
     public function a_fuzzy_hit_must_not_replay_a_different_datasets_answer()
@@ -185,25 +208,25 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
 
         $second = $this->app->make(QueryOrchestrator::class)->query($q2);
 
-        // Pin #2: whatever the assertion below finds did not come from a
-        // fresh model call — it isolates the cache as the cause.
+        // The fuzzy candidate names nq_orders; the question actually asked
+        // resolves (via its own alias word "products") to nq_products. That
+        // mismatch must cost exactly one fresh provider call — not zero
+        // (replayed or retargeted for free), not two.
         $this->assertSame(
-            $callsAfterFirst,
+            $callsAfterFirst + 1,
             count($provider->methodsCalled()),
-            'a fresh provider call happened; the number below is no longer isolating the cache: '
+            'a fuzzy candidate naming a different dataset must MISS and cost exactly one fresh provider call: '
                 . json_encode($provider->calls)
         );
 
         $this->assertSame('success', $second['status'] ?? null, json_encode($second));
 
-        // THE RED ASSERTION. Today this is 350.0 — nq_orders' cached total,
-        // silently replayed for a question about nq_products, whose own
-        // total (30+45+15) is 90. Nothing in $second says the wrong dataset
-        // answered: status is 'success', not an error.
+        // nq_products' own total (30+45+15), obtained fresh — not nq_orders'
+        // 350 replayed, and not a retargeted-but-unverified recipe.
         $this->assertEquals(
             90.0,
             $this->total($second),
-            'a fuzzy cache hit replayed a different dataset\'s cached SQL. Got: ' . json_encode($second)
+            'a fuzzy cache hit must answer from the dataset actually asked about, freshly generated. Got: ' . json_encode($second)
         );
     }
 
@@ -253,22 +276,34 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
     }
 
     /**
-     * WHAT THIS TEST CATCHES: Tier 1 crosses datasets too, with NO fuzzy
-     * scoring involved. Tier 1 keys purely off `sha256(CONTRACT_VERSION .
-     * normalizeQuery($query))` — the same literal words always hash to the
-     * same row, and `$datasetHint` never enters that hash and is never
-     * passed to `QueryCacheInterface::find()` at all. A question with no
-     * dataset-identifying word of its own ("what is the total") depends
-     * entirely on `$datasetHint` for which table it means; asking the exact
-     * same words twice with two different hints must not silently answer
-     * the first call's dataset the second time.
+     * WHAT THIS TEST CATCHES (NQ-003-FIX): NQ-003's first fix closed the
+     * Tier 1 gap this test used to pin by RETARGETING a mismatched hit
+     * through `SqlBuilder::buildQuery()` instead of refusing it — zero
+     * provider calls, and (in this predicate-free fixture) numerically
+     * right by accident, because `buildQuery()` recomputes a fresh
+     * `SUM(revenue)` against whichever table it is pointed at rather than
+     * replaying stored numbers. That reconciliation is itself unsafe (see
+     * `CacheDatasetMismatchMissTest`'s Blocker A test, where the same
+     * mechanism silently drops a WHERE clause the cached recipe cannot
+     * carry) and NQ-003-FIX deletes it: a dataset mismatch on an
+     * exact-hash Tier 1 candidate is now a cache MISS, costing exactly one
+     * fresh provider call, never a silent retarget.
      *
-     * Deliberately generic wording isolates this from the fuzzy-matching
-     * gap pinned above — this is a second, independent route into the same
-     * class of wrong answer, not a restatement of test (a).
+     * Renamed from `an_exact_tier1_hit_must_not_ignore_a_changed_dataset_hint`
+     * — that name and its old assertions (a Tier 1 HIT, zero provider
+     * calls, AND the other dataset's number, all three at once) are only
+     * jointly satisfiable through the retarget this test now forbids.
+     *
+     * Tier 1 keys purely off `sha256(CONTRACT_VERSION .
+     * normalizeQuery($query))` — the same literal words always hash to the
+     * same row, and `$datasetHint` never enters that hash. A question with
+     * no dataset-identifying word of its own ("what is the total") depends
+     * entirely on `$datasetHint` for which table it means; asking the exact
+     * same words twice with two different hints must MISS, not silently
+     * answer (or silently retarget to) the first call's dataset.
      */
     #[Test]
-    public function an_exact_tier1_hit_must_not_ignore_a_changed_dataset_hint()
+    public function an_exact_tier1_candidate_with_a_changed_dataset_hint_is_a_cache_miss()
     {
         config(['naturalquery.cache.enabled' => true]);
         $this->artisan('migrate', ['--force' => true])->run();
@@ -284,26 +319,25 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
 
         $second = $this->app->make(QueryOrchestrator::class)->query($question, 'nq_products');
 
+        // THE RED ASSERTION. Today this is $callsAfterFirst (zero extra
+        // calls) because the mismatch is retargeted through SqlBuilder
+        // instead of missing — not reconciled for free, not two calls.
         $this->assertSame(
-            $callsAfterFirst,
+            $callsAfterFirst + 1,
             count($provider->methodsCalled()),
-            'a fresh provider call happened; the number below is no longer isolating the cache: '
+            'a dataset mismatch on an exact-hash Tier 1 candidate must MISS and cost exactly one fresh provider call, not be reconciled for free: '
                 . json_encode($provider->calls)
         );
-        $this->assertSame(
-            'tier1',
-            $second['metadata']['cache_match_type'] ?? null,
-            'expected this reproduction to go through the exact Tier 1 route, not fuzzy: ' . json_encode($second)
-        );
+
         $this->assertSame('success', $second['status'] ?? null, json_encode($second));
 
-        // THE RED ASSERTION. Today this is 350.0 — nq_orders' answer,
-        // replayed for a call whose OWN $datasetHint said nq_products
-        // (30+45+15=90).
+        // nq_products' own total (30+45+15), obtained from a fresh
+        // generation about the dataset actually asked about — not
+        // nq_orders' 350 replayed, and not a retargeted-but-unverified 90.
         $this->assertEquals(
             90.0,
             $this->total($second),
-            'an exact Tier 1 cache hit ignored a changed dataset hint and replayed the wrong dataset\'s answer. Got: '
+            'a dataset mismatch must answer from the dataset actually asked about, freshly generated. Got: '
                 . json_encode($second)
         );
     }
