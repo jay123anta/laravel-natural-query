@@ -1,5 +1,7 @@
 <?php
 
+use Jayanta\NaturalQuery\Support\EnvValue;
+
 return [
 
     /*
@@ -45,7 +47,7 @@ return [
                 // gemini-2.0-flash was RETIRED by Google (returns 404) — keep
                 // this default on a live model.
                 'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
                 // Gemini 2.5+ internal "thinking" budget. 0 (default) disables
                 // thinking — low-temperature SQL/intent extraction doesn't need
@@ -55,16 +57,16 @@ return [
                 'thinking_budget' => ((int) env('GEMINI_THINKING_BUDGET', 0)) === -1
                     ? null
                     : (int) env('GEMINI_THINKING_BUDGET', 0),
-                'max_output_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_output_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
             ],
             'openai' => [
                 'api_key' => env('OPENAI_API_KEY'),
                 'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
                 // Any OpenAI-compatible endpoint works here too.
                 'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 // Some self-hosted servers reject response_format — set false there.
                 'force_json' => true,
             ],
@@ -85,9 +87,9 @@ return [
                 'api_key' => env('DEEPSEEK_API_KEY'),
                 'model' => env('DEEPSEEK_MODEL', 'deepseek-chat'),
                 'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 'force_json' => true,
             ],
             'selfhosted' => [
@@ -96,9 +98,9 @@ return [
                 'api_key' => env('SELFHOSTED_LLM_API_KEY'),
                 'model' => env('SELFHOSTED_LLM_MODEL', 'qwen2.5-coder:14b'),
                 'base_url' => env('SELFHOSTED_LLM_URL', 'http://localhost:8000/v1'),
-                'timeout' => (int) env('NATURALQUERY_TIMEOUT', 60),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 60),
                 'max_retries' => 2,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 // Many self-hosted servers reject OpenAI's response_format param.
                 'force_json' => (bool) env('SELFHOSTED_LLM_FORCE_JSON', false),
             ],
@@ -106,27 +108,27 @@ return [
                 'api_key' => env('OPENROUTER_API_KEY'),
                 'model' => env('OPENROUTER_MODEL', 'x-ai/grok-4.5'),
                 'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 'force_json' => true,
             ],
             'groq' => [
                 'api_key' => env('GROQ_API_KEY'),
                 'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                 'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 'force_json' => true,
             ],
             'mistral' => [
                 'api_key' => env('MISTRAL_API_KEY'),
                 'model' => env('MISTRAL_MODEL', 'mistral-large-latest'),
                 'base_url' => env('MISTRAL_BASE_URL', 'https://api.mistral.ai/v1'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
-                'max_tokens' => (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
+                'max_tokens' => EnvValue::int('NATURALQUERY_MAX_OUTPUT_TOKENS', 2048),
                 'force_json' => true,
             ],
             'claude' => [
@@ -138,13 +140,13 @@ return [
                 //   curl https://api.anthropic.com/v1/models \
                 //     -H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01"
                 'model' => env('CLAUDE_MODEL', 'claude-sonnet-5'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 30),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 30),
                 'max_retries' => 3,
             ],
             'ollama' => [
                 'base_url' => env('OLLAMA_URL', 'http://localhost:11434'),
                 'model' => env('OLLAMA_MODEL', 'llama3'),
-                'timeout' => env('NATURALQUERY_TIMEOUT', 60),
+                'timeout' => EnvValue::int('NATURALQUERY_TIMEOUT', 60),
 
                 // How much context the model may READ, in tokens.
                 //
@@ -313,7 +315,7 @@ return [
         // Not named "budget" — that word already means milliseconds in
         // retry.total_budget_ms and a request count in
         // Http/Middleware/EnforceQueryBudget.
-        'max_chars' => env('NATURALQUERY_PROMPT_MAX_CHARS', null),
+        'max_chars' => EnvValue::int('NATURALQUERY_PROMPT_MAX_CHARS', null),
     ],
 
     // ==========================================================================
@@ -557,7 +559,7 @@ return [
         'enabled' => env('NATURALQUERY_CACHE_ENABLED', true),
 
         // Cache TTL in seconds (default: 24 hours)
-        'ttl' => env('NATURALQUERY_CACHE_TTL', 86400),
+        'ttl' => EnvValue::int('NATURALQUERY_CACHE_TTL', 86400),
 
         // Fuzzy match threshold (0.0 to 1.0) for reusing a cached intent.
         //
@@ -574,7 +576,7 @@ return [
         // also low enough to answer a question with its opposite, from cache,
         // with no API call to correct it. Raise it if you want fewer reuses;
         // set cache.enabled to false if you want none.
-        'similarity_threshold' => env('NATURALQUERY_CACHE_SIMILARITY', 0.85),
+        'similarity_threshold' => EnvValue::float('NATURALQUERY_CACHE_SIMILARITY', 0.85),
 
         // Tier 1 cache store (null = auto-detect from config/cache.php)
         'tier1_store' => env('NATURALQUERY_CACHE_STORE', null),
@@ -635,7 +637,7 @@ return [
         // deliberate choice rather than the default.
         //
         // 200/day is generous for a person and ruinous for a script.
-        'queries_per_day' => env('NATURALQUERY_QUERIES_PER_DAY', 200),
+        'queries_per_day' => EnvValue::int('NATURALQUERY_QUERIES_PER_DAY', 200),
     ],
 
     'routes' => [
