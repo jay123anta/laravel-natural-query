@@ -236,10 +236,26 @@ class QueryOrchestrator
             //
             // Both null is the one case that still serves: neither ask carried
             // dataset context, so there is nothing to disagree about.
-            if ($cachedResult && ($cachedResult['dataset'] ?? null) !== $askingDataset) {
-                Log::debug('[NaturalQuery:Cache] Discarded: entry belongs to another dataset', [
+            // Compared against the scope the CACHED question was asked under,
+            // not against the dataset its answer turned out to be about. Those
+            // are different values, and the first version of this guard used
+            // the second one — which is the only value the row had.
+            //
+            // The consequence was that a question naming no dataset never
+            // matched its own row: the asking side resolved to null, the row
+            // carried whatever dataset the model had chosen, and they could
+            // never agree. On a multi-dataset install that is most questions,
+            // so the cache was off for precisely the ones people repeat.
+            // Comparing scope to scope keeps the cross-dataset hit closed —
+            // an explicitly scoped row is still refused to an unscoped ask —
+            // without charging for it on every ordinary repeat.
+            $cachedScope = $cachedResult['intent']['_asking_scope'] ?? null;
+
+            if ($cachedResult && $cachedScope !== $askingDataset) {
+                Log::debug('[NaturalQuery:Cache] Discarded: entry was asked under another scope', [
                     'asking' => $askingDataset,
-                    'cached' => $cachedResult['dataset'] ?? null,
+                    'cached' => $cachedScope,
+                    'answers' => $cachedResult['dataset'] ?? null,
                 ]);
                 $cachedResult = null;
             }
@@ -408,23 +424,19 @@ class QueryOrchestrator
         // The row exists BECAUSE the question needed something this contract
         // cannot express. Rebuilding it through this contract must lose exactly
         // that. Leaving $intent null makes it an honest miss and costs one call.
+        //
+        // Eligibility itself is not re-checked here. query() already discarded
+        // any row asked under a different scope, and the check that used to sit
+        // on this line compared the asking scope against the row's ANSWER
+        // dataset — the same conflation, one level down, rejecting a row that
+        // had just been cleared on the correct grounds. NQ-003's original
+        // version of it was worse still: it reconciled the mismatch by
+        // overwriting $intent['dataset'], so an identical repeat could be
+        // answered from a table the model never chose. One authoritative guard,
+        // at the entry.
         if ($cached && !$inConversation && !isset($cached['intent']['_sql_result'])) {
-            // NQ-003-FIX: this recipe was cached for whatever dataset an
-            // EARLIER question resolved to. NQ-003 reconciled a mismatch by
-            // overwriting $intent['dataset'] with the dataset THIS question
-            // resolves to — cheap, but wrong: resolveAskingDataset() falls
-            // back to a bare keyword guess (DatasetSeeder::detect()) when no
-            // explicit hint or conversation state is available, so an
-            // identical repeat of a question could be silently answered
-            // from a different table than the one the model itself chose
-            // the first time. A mismatch is now a cache MISS, not a
-            // correction: one more provider call below, never a silent
-            // override.
-            $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
-            if (!$askingDataset || $askingDataset === ($cached['intent']['dataset'] ?? null)) {
-                $intent = $this->normalizeIntent($cached['intent']);
-                $this->markCacheHit($metadata, $cached);
-            }
+            $intent = $this->normalizeIntent($cached['intent']);
+            $this->markCacheHit($metadata, $cached);
         }
 
         if ($intent === null) {
@@ -434,7 +446,11 @@ class QueryOrchestrator
             );
 
             if (!$inConversation && ($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
-                $this->cache->store($query, $intent);
+                $this->rememberIntent(
+                    $query,
+                    $intent,
+                    $this->resolveAskingDataset($query, $datasetHint, $context)
+                );
             }
         }
 
@@ -1050,18 +1066,18 @@ class QueryOrchestrator
         // relative to the turns before it, and those are not in the key.
         $inConversation = !empty($context['state']);
 
+        // Eligibility was settled in query(), against the scope the cached
+        // question was asked under. The comparison that used to sit here
+        // measured the asking scope against the row's ANSWER dataset instead,
+        // and threw away rows that had just been cleared on the correct
+        // grounds — the same conflation as in processWithIntent, in the other
+        // reader. What is left is a shape check: this reader replays finished
+        // SQL, so it wants the rows that carry some.
         if ($cached && !$inConversation && isset($cached['intent']['_sql_result'])) {
             $sqlResult = $cached['intent']['_sql_result'];
-            $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
+            $this->markCacheHit($metadata, $cached);
 
-            if (!$askingDataset || $askingDataset === ($sqlResult['dataset'] ?? null)) {
-                $this->markCacheHit($metadata, $cached);
-
-                return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
-            }
-            // Mismatch: fall through to a fresh generation below rather than
-            // answer with the wrong dataset's SQL or a retargeted recipe that
-            // cannot carry whatever made this need SQL generation at all.
+            return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
         }
 
         // Step 1: Identify the dataset (priority: hint → routing → keywords → LLM intent)
@@ -1219,7 +1235,7 @@ class QueryOrchestrator
         // and it is the write, not the read, that does the damage: the row
         // outlives the conversation that created it.
         if (!$inConversation) {
-            $this->cache->store($query, [
+            $this->rememberIntent($query, [
                 'dataset' => $dataset,
                 'metric' => $queryResult['metric'],
                 'group_value' => $queryResult['group_value'],
@@ -1227,7 +1243,7 @@ class QueryOrchestrator
                 'order' => $queryResult['order'],
                 'query_type' => $queryResult['query_type'],
                 '_sql_result' => $queryResult,
-            ]);
+            ], $this->resolveAskingDataset($query, $datasetHint, $context));
         }
 
         // Validate and execute
@@ -1312,6 +1328,29 @@ class QueryOrchestrator
      * mid-conversation and neither told the caller, so the flag was true for
      * answers the provider had just generated and billed for.
      */
+    /**
+     * Write an intent to the cache, stamped with the scope it was asked under.
+     *
+     * The scope is a required parameter rather than something read from state,
+     * so a new store site cannot be added without deciding what it is. Every
+     * previous guard in this class was optional at the call site, and every
+     * one of them was then missed at least once.
+     *
+     * `_asking_scope` rides inside the intent blob deliberately. Passing it as
+     * an argument would mean widening QueryCacheInterface::store(), and adding
+     * a parameter to an interface method — even an optional one — is a fatal
+     * error at class load for every third-party implementation that already
+     * exists. That mistake was made once already on find(); the capability
+     * became ScopesCacheByDataset instead. A reserved key inside a payload the
+     * interface already carries costs nothing and breaks nobody, and
+     * normalizeIntent() drops unknown keys, so it never reaches SqlBuilder.
+     */
+    private function rememberIntent(string $query, array $intent, ?string $askingScope): void
+    {
+        $intent['_asking_scope'] = $askingScope;
+        $this->cache->store($query, $intent);
+    }
+
     private function markCacheHit(array &$metadata, array $cached): void
     {
         $metadata['cache_hit'] = true;

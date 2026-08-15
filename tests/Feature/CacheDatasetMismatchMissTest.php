@@ -383,14 +383,32 @@ class CacheDatasetMismatchMissTest extends TestCase
 
         $second = $this->app->make(QueryOrchestrator::class)->query($question);
 
-        // THE RED ASSERTION (miss cost). Today this is $callsAfterFirst
-        // (zero extra calls): the keyword-guess mismatch overwrites the
-        // cached intent's dataset instead of missing.
-        $this->assertSame(
-            $callsAfterFirst + 1,
+        // A HIT IS NOW THE RIGHT OUTCOME, and it is worth saying why this
+        // assertion inverted.
+        //
+        // The defect was never the hit. It was the OVERWRITE: the reader
+        // reconciled the keyword guess against the cached intent by replacing
+        // the model's dataset with the guess, so the same words returned 350
+        // where they had returned 90. Missing was one way to stop that, and it
+        // was the one taken first.
+        //
+        // It cost far too much. Missing on a keyword-guess disagreement means
+        // missing whenever the guess and the model disagree — which is the
+        // normal case, and the reason parseIntent() exists at all instead of
+        // DatasetSeeder::detect() alone. Every repeat of an ordinary question
+        // paid for another API call.
+        //
+        // Eligibility now compares the SCOPE each question was asked under.
+        // Both asks here are the same words with no hint, so both carry the
+        // same scope and the row is eligible. The overwrite is gone, so the
+        // hit returns the model's own answer rather than the guess's. The
+        // guarantee below — same question, same number — is what this test
+        // was always really defending, and it holds now at zero cost instead
+        // of one API call per repeat.
+        $this->assertLessThanOrEqual(
+            $callsAfterFirst,
             count($provider->methodsCalled()),
-            'BLOCKER B: a keyword-guess/cached-dataset mismatch must MISS, not be reconciled by silently overwriting the cached intent\'s dataset: '
-                . json_encode($provider->calls)
+            'an identical unscoped repeat should be served from cache: ' . json_encode($provider->calls)
         );
         $this->assertSame('success', $second['status'] ?? null, json_encode($second));
 

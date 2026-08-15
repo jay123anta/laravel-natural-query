@@ -148,11 +148,25 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
                 ->first();
 
             if ($existing) {
+                // Every derived column, not just the blob. They are projections
+                // OF the intent, and rewriting the intent while leaving them
+                // behind makes them describe an answer that is no longer
+                // stored. `dataset` is the one that matters: it is what
+                // naturalquery:cache-cleanup --dataset and the stats command
+                // read, so once the same wording was asked about a second
+                // dataset the documented remedy for a stale answer quietly
+                // deleted nothing.
                 DB::table($this->tableName)
                     ->where('id', $existing->id)
                     ->update([
                         'contract_version' => static::INTENT_CONTRACT_VERSION,
                         'intent' => json_encode($intent),
+                        'dataset' => $intent['dataset'] ?? null,
+                        'metric' => $intent['metric'] ?? null,
+                        'group_value' => $intent['group_value'] ?? null,
+                        'limit_value' => $intent['limit'] ?? null,
+                        'order_direction' => $intent['order'] ?? null,
+                        'query_type' => $intent['query_type'] ?? null,
                         'updated_at' => now(),
                     ]);
             } else {
@@ -333,8 +347,16 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * written by 1.0.0 still says "scheme". Served to 2.0.0 the dataset reads
      * null, and Tier 2 has no expiry, so every question asked before the
      * upgrade would have stayed broken until someone ran cache-cleanup.
+     *
+     * 4 — 2.1.0 added `_asking_scope`: the dataset the ASKING question was
+     * scoped to, which is not the same thing as the dataset the answer turned
+     * out to be about. A row written before this carries no scope at all, and
+     * reading a missing scope as "unscoped" would make every pre-upgrade row
+     * eligible for unscoped questions — which is exactly the cross-dataset
+     * hit this release exists to close. Missing it must mean unknown, and
+     * unknown must miss.
      */
-    protected const INTENT_CONTRACT_VERSION = 3;
+    protected const INTENT_CONTRACT_VERSION = 4;
 
     protected function generateHash(string $normalizedQuery): string
     {
