@@ -126,31 +126,74 @@ class DatasetRenameUpgradeTest extends TestCase
      *
      * Bumping the contract version makes those rows unreachable instead.
      */
+    /**
+     * The contract version has to hold on the FUZZY tier, which is the only
+     * place it can fail.
+     *
+     * The exact tiers get it for free: the version is folded into the hash, so
+     * a row from an older contract simply has a different key and cannot be
+     * addressed. Fuzzy matches by TEXT, scanning rows directly, and would
+     * happily return a v3 row to a v4 install if the filter were removed.
+     *
+     * This test previously asserted `$cache->find($question) === null` and had
+     * become VACUOUS: find() delegates to findForDataset($query, null), and
+     * the fuzzy tier returns early whenever the asking scope is null, so it
+     * returned null no matter what the contract filter did. It would have
+     * passed with the filter deleted, which is the worst state a regression
+     * test can be in — the exact anti-pattern AGENTS.md §10 opens with.
+     *
+     * So it now goes through the fuzzy tier deliberately, and asserts BOTH
+     * directions: an old row is refused, and an otherwise identical current
+     * row is found. Without the second half, green would still mean nothing.
+     */
     #[Test]
-    public function a_row_cached_by_the_previous_contract_is_not_served()
+    public function a_row_cached_by_the_previous_contract_is_not_served_by_the_fuzzy_tier()
     {
         $this->artisan('migrate', ['--force' => true])->run();
 
         $cache = app(TwoTierQueryCache::class);
-        $question = 'total revenue by region';
-        $normalized = $cache->normalizeQuery($question);
+        $cached = 'total revenue by region for the year';
+        $asked = 'the total revenue by region for the year please';
+        $scope = 'orders';
 
-        // Exactly how 1.0.0 built the key: version 2.
-        DB::table($this->cacheTable())->insert([
-            'query_hash' => hash('sha256', '2|' . $normalized),
-            'original_query' => $question,
-            'normalized_query' => $normalized,
-            'dataset' => 'orders',
-            'metric' => 'revenue',
-            'intent' => json_encode(['scheme' => 'orders', 'metric' => 'revenue']),
-            'hit_count' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $insert = function (string $question, int $version) use ($cache, $scope) {
+            $normalized = $cache->normalizeQuery($question);
+
+            DB::table($this->cacheTable())->insert([
+                'query_hash' => hash('sha256', $version . '|' . $scope . '|' . $normalized),
+                'contract_version' => $version,
+                'original_query' => $question,
+                'normalized_query' => $normalized,
+                'dataset' => $scope,
+                'metric' => 'revenue',
+                'intent' => json_encode([
+                    'dataset' => $scope,
+                    'metric' => 'revenue',
+                    '_asking_scope' => $scope,
+                ]),
+                'hit_count' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        };
+
+        // A row from the contract before this one.
+        $insert($cached, 3);
 
         $this->assertNull(
-            $cache->find($question),
-            'a 1.0.0 cache row was served to 2.0.0; its intent still says "scheme", so the dataset reads null'
+            $cache->findForDataset($asked, $scope),
+            'a row written under the previous intent contract was served by the fuzzy tier'
+        );
+
+        // PROOF THE TEST CAN FAIL: the same row under the current contract is
+        // close enough in wording to be found. If this half ever goes red, the
+        // half above has stopped meaning anything.
+        DB::table($this->cacheTable())->delete();
+        $insert($cached, 4);
+
+        $this->assertNotNull(
+            $cache->findForDataset($asked, $scope),
+            'the fuzzy tier no longer matches at all, so the refusal above proves nothing'
         );
     }
 }

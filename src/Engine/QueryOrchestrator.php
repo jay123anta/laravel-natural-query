@@ -426,8 +426,22 @@ class QueryOrchestrator
 
             return $result;
 
-        } catch (\Exception $e) {
-            Log::error('[NaturalQuery] Orchestrator error', ['error' => $e->getMessage()]);
+        // \Throwable, not \Exception. A TypeError extends \Error and so slipped
+        // straight past this, taking the whole error envelope with it: the
+        // caller got a framework 500 and a stack trace instead of a
+        // NaturalQuery error response, and the HTTP layer's error_code,
+        // retryable and Retry-After never happened.
+        //
+        // Reachable from ordinary data rather than from a bug in the caller —
+        // a cache row whose `intent` column is present but not an array
+        // reaches normalizeIntent(array $intent) and throws. Tier 2 rows have
+        // no expiry, so once one exists that question is a hard 500 forever.
+        } catch (\Throwable $e) {
+            Log::error('[NaturalQuery] Orchestrator error', [
+                'error' => $e->getMessage(),
+                'type' => get_class($e),
+            ]);
+
             return $this->formatter->formatError('An error occurred processing your query.', $metadata, ErrorCode::INTERNAL);
         }
     }
@@ -1590,6 +1604,19 @@ class QueryOrchestrator
             Log::info('[NaturalQuery] Retry: detected dataset from keywords', ['dataset' => $dataset]);
             // Use single-dataset SQL prompt — much more reliable
             $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $query);
+
+            // Measured like any other. This is the same builder the bounded
+            // path uses, and it was the one prompt in the package that went
+            // out unchecked — so an install that set prompts.max_chars
+            // precisely to stop oversized prompts being sent still sent one
+            // here, on the retry, where nobody was looking.
+            if ($refusal = $this->budget?->check($prompt, 1)) {
+                return array_merge(
+                    $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
+                    ['_unretriable' => true]
+                );
+            }
+
             $response = $this->llmProvider->generateSql($prompt);
 
             // The retry is the last thing that runs before the "could not
