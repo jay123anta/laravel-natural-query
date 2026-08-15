@@ -205,6 +205,33 @@ class QueryOrchestrator
                 if ($plan['success']) {
                     return $this->runSteps($naturalLanguageQuery, $plan, $datasetHint, $metadata, $startTime);
                 }
+
+                // A plan that could not be built is not a reason to stop — the
+                // question is still answerable the ordinary way, and falling
+                // through is the whole point of planning being an enhancement.
+                //
+                // Unless the provider asked us to stop. On a 429 the fall-through
+                // makes a second call to a service that has just reported it is
+                // over quota, which extends the very window it complained about
+                // and is the one thing docs/TROUBLESHOOTING.md promises the
+                // package does not do. The failure was reported and then
+                // discarded unread, so nothing here could tell the difference.
+                if (($plan['status'] ?? null) === 429) {
+                    return array_merge(
+                        $this->formatter->formatError(
+                            self::RATE_LIMIT_MESSAGE,
+                            $metadata,
+                            ErrorCode::RATE_LIMITED
+                        ),
+                        ['_rate_limited' => true]
+                    );
+                }
+
+                if (!empty($plan['error'])) {
+                    Log::info('[NaturalQuery] Planning failed; answering as a single query', [
+                        'error' => $plan['error'],
+                    ]);
+                }
             }
 
             // Check cache first (works for all modes).

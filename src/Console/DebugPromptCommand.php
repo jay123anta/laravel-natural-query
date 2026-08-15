@@ -4,6 +4,8 @@ namespace Jayanta\NaturalQuery\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Engine\DatasetSeeder;
+use Jayanta\NaturalQuery\Engine\PromptBudget;
 use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
@@ -32,7 +34,9 @@ class DebugPromptCommand extends Command
     public function handle(
         PromptBuilder $promptBuilder,
         SchemaRegistry $registry,
-        LlmProviderInterface $llm
+        LlmProviderInterface $llm,
+        DatasetSeeder $seeder,
+        PromptBudget $budget
     ): int {
         $query = $this->argument('query');
         $dataset = $this->option('dataset');
@@ -54,37 +58,53 @@ class DebugPromptCommand extends Command
             $dataset = config('naturalquery.default_dataset');
         }
 
+        // DatasetSeeder, not a second implementation of it. This command's
+        // entire value is that it decides what the engine decides; an
+        // open-coded str_contains() loop over keys and aliases misses
+        // query_routing rules and can land on a different dataset than the
+        // real question would, which sends the person debugging off in the
+        // wrong direction at exactly the moment they are relying on it.
         if (!$dataset) {
-            // Try keyword detection
-            $queryLower = strtolower($query);
-            foreach ($registry->all() as $key => $schemaData) {
-                if (str_contains($queryLower, strtolower($key))) {
-                    $dataset = $key;
-                    break;
-                }
-                foreach ($schemaData['aliases'] ?? [] as $alias) {
-                    if (str_contains($queryLower, strtolower($alias))) {
-                        $dataset = $key;
-                        break 2;
-                    }
-                }
-            }
+            $dataset = $seeder->detect($query);
         }
 
         $this->comment("Dataset detection:");
         $this->line("  Detected: " . ($dataset ?: 'NONE — will use multi-dataset prompt'));
         $this->newLine();
 
-        // Build prompt
-        if ($dataset && $registry->has($dataset)) {
+        // Same condition as QueryOrchestrator::processWithSqlGeneration(). The
+        // linked-schemas half used to be missing here, so on any install whose
+        // schemas declare relationships this printed the focused prompt while
+        // the engine sent the multi-dataset one — a question can legitimately
+        // span linked datasets, and only the multi-dataset prompt permits the
+        // join that answers it.
+        if ($dataset && $registry->has($dataset) && !$registry->hasLinkedSchemas()) {
             $prompt = $promptBuilder->buildSqlPrompt($dataset, $query);
+            $datasetsRendered = 1;
             $this->comment("Prompt type: Single-dataset ({$dataset})");
         } else {
             $prompt = $promptBuilder->buildMultiDatasetPrompt($query);
+            $datasetsRendered = count($registry->all());
             $this->comment("Prompt type: Multi-dataset (all datasets)");
+
+            if ($dataset && $registry->has($dataset) && $registry->hasLinkedSchemas()) {
+                $this->line("  (schemas are linked, so the engine sends the multi-dataset prompt");
+                $this->line("   even though '{$dataset}' was detected — a question may span them)");
+            }
         }
 
         $this->line("  Length: " . strlen($prompt) . " chars (" . str_word_count($prompt) . " words)");
+
+        // prompts.max_chars refuses a prompt BEFORE it is sent. Printing one
+        // that would never leave the machine, with no note saying so, is the
+        // same class of mistake as printing the wrong prompt: what is on
+        // screen is not what happens.
+        if ($refusal = $budget->check($prompt, $datasetsRendered)) {
+            $this->newLine();
+            $this->error("This prompt would be REFUSED, not sent:");
+            $this->line("  " . $refusal);
+        }
+
         $this->newLine();
 
         // Show prompt

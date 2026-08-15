@@ -93,11 +93,18 @@ class QueryPlanner
         if (!($response['success'] ?? false)) {
             // Planning is an enhancement, never a gate. A provider failure here
             // must leave the question answerable the ordinary way.
+            //
+            // With one exception, and the status is carried out so the caller
+            // can tell: a 429 means the provider has asked for fewer calls, and
+            // answering it by making another is the one response that makes
+            // things worse. The caller decides — this class just stops throwing
+            // the evidence away.
             return [
                 'success' => false,
                 'steps' => [],
                 'comparison' => false,
                 'error' => $response['error'] ?? 'Planning failed',
+                'status' => $response['status'] ?? null,
             ];
         }
 
