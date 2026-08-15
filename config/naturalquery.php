@@ -387,7 +387,10 @@ return [
         // Re-verify the fixed SQL? (adds another LLM call)
         'reverify_fixes' => false,
 
-        // Skip verification for cached queries (already proven correct)
+        // Skip verification for cached queries (already proven correct).
+        // Reads metadata.cache_hit, which is set only where a cached row is
+        // actually replayed — never merely because one was found and then
+        // declined. Freshly generated SQL is always verified.
         'skip_on_cache_hit' => true,
     ],
 

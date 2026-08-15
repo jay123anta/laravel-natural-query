@@ -244,11 +244,20 @@ class QueryOrchestrator
                 $cachedResult = null;
             }
 
-            if ($cachedResult && isset($cachedResult['intent'])) {
-                $cacheHit = true;
-                $metadata['cache_hit'] = true;
-                $metadata['cache_match_type'] = $cachedResult['cache_match_type'];
-            }
+            // Deliberately NOT flagging a hit here.
+            //
+            // Finding a row is not using one. Every reader below has its own
+            // reasons to refuse the row it was handed — mid-conversation,
+            // wrong dataset, wrong shape — and a flag set at the entry cannot
+            // know about any of them. It used to be set here, and so a
+            // conversation turn that both readers declined still reported
+            // itself as cached: the provider generated the SQL, the audit log
+            // recorded a cached answer, the QuestionAnswered event carried the
+            // wrong figure, and verification.skip_on_cache_hit read the flag
+            // and skipped QueryVerifier on brand-new SQL.
+            //
+            // markCacheHit() is now the only writer, and every caller of it is
+            // a line that has just committed to using the row.
 
             // Route to appropriate mode
             if ($queryMode === 'sql_generation') {
@@ -289,6 +298,10 @@ class QueryOrchestrator
                             'after' => $result['status'] ?? '?',
                         ]);
                         $metadata['query_mode'] = 'auto→sql_generation';
+                        // Intent mode may have used the cached row and then
+                        // failed downstream. Whatever it marked describes an
+                        // answer that is being thrown away.
+                        $metadata['cache_hit'] = false;
                         $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
 
                         // Keep the clarification if generation did no better —
@@ -319,8 +332,15 @@ class QueryOrchestrator
             ) {
                 // The failure so far is passed in, so the retry can decline to
                 // overwrite a provider fault with a claim about the question.
+                $metadata['cache_hit'] = false;
                 $result = $this->retryWithRefinedPrompt($naturalLanguageQuery, $datasetHint, $metadata, $result);
             }
+
+            // Read AFTER the readers have run, so it reflects what was used
+            // rather than what was available. This is the value the audit log,
+            // the QuestionAnswered event and verification.skip_on_cache_hit
+            // all consume.
+            $cacheHit = $metadata['cache_hit'] ?? false;
 
             // Remove internal flags
             unset($result['_fallback_eligible'], $result['_rate_limited'], $result['_unretriable']);
@@ -376,7 +396,19 @@ class QueryOrchestrator
         $inConversation = !empty($context['state']);
 
         $intent = null;
-        if ($cached && !$inConversation) {
+        // A SQL-generation recipe is not an intent, whatever the column it
+        // shares. processWithSqlGeneration() caches those rows with the
+        // finished SQL in `_sql_result`, and it replays that SQL verbatim.
+        // Handed the same row, this reader instead passes it to normalizeIntent()
+        // and SqlBuilder — and the intent contract has no slot for a WHERE
+        // predicate, so a cached "revenue for pending orders" came back as the
+        // revenue for every row: right shape, wrong number, status success,
+        // no provider call, and no TTL on tier-2 rows to make it stop.
+        //
+        // The row exists BECAUSE the question needed something this contract
+        // cannot express. Rebuilding it through this contract must lose exactly
+        // that. Leaving $intent null makes it an honest miss and costs one call.
+        if ($cached && !$inConversation && !isset($cached['intent']['_sql_result'])) {
             // NQ-003-FIX: this recipe was cached for whatever dataset an
             // EARLIER question resolved to. NQ-003 reconciled a mismatch by
             // overwriting $intent['dataset'] with the dataset THIS question
@@ -391,6 +423,7 @@ class QueryOrchestrator
             $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
             if (!$askingDataset || $askingDataset === ($cached['intent']['dataset'] ?? null)) {
                 $intent = $this->normalizeIntent($cached['intent']);
+                $this->markCacheHit($metadata, $cached);
             }
         }
 
@@ -1022,6 +1055,8 @@ class QueryOrchestrator
             $askingDataset = $this->resolveAskingDataset($query, $datasetHint, $context);
 
             if (!$askingDataset || $askingDataset === ($sqlResult['dataset'] ?? null)) {
+                $this->markCacheHit($metadata, $cached);
+
                 return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
             }
             // Mismatch: fall through to a fresh generation below rather than
@@ -1260,6 +1295,27 @@ class QueryOrchestrator
         }
 
         return $this->cache->find($query);
+    }
+
+    /**
+     * Record that this answer came from a cached row.
+     *
+     * Call it where a row is USED, never where one is found. Four things read
+     * this flag — the response metadata, auditLog(), the QuestionAnswered
+     * event, and verification.skip_on_cache_hit — and the last of those turns
+     * QueryVerifier off, so a false positive disables the self-check on exactly
+     * the SQL that was generated a moment earlier.
+     *
+     * It was previously set in query() the moment the cache returned anything,
+     * which is the fifth guard in this class to have been attached to the entry
+     * rather than to the thing it describes. Both readers refuse a row
+     * mid-conversation and neither told the caller, so the flag was true for
+     * answers the provider had just generated and billed for.
+     */
+    private function markCacheHit(array &$metadata, array $cached): void
+    {
+        $metadata['cache_hit'] = true;
+        $metadata['cache_match_type'] = $cached['cache_match_type'] ?? null;
     }
 
     protected function resolveAskingDataset(string $query, ?string $datasetHint, array $context = []): ?string
