@@ -203,7 +203,7 @@ class QueryOrchestrator
                 $plan = $this->planner->plan($naturalLanguageQuery);
 
                 if ($plan['success']) {
-                    return $this->runSteps($naturalLanguageQuery, $plan, $datasetHint, $metadata, $startTime);
+                    return $this->runSteps($naturalLanguageQuery, $plan, $datasetHint, $metadata, $startTime, $context);
                 }
 
                 // A plan that could not be built is not a reason to stop — the
@@ -659,15 +659,25 @@ class QueryOrchestrator
         array $plan,
         ?string $datasetHint,
         array $metadata,
-        float $startTime
+        float $startTime,
+        array $context = []
     ): array {
         $steps = [];
+        $rateLimited = false;
 
         $this->inStepExecution = true;
 
         try {
             foreach ($plan['steps'] as $i => $question) {
-                $result = $this->query($question, $datasetHint);
+                // $context, not nothing. Re-entering without it dropped the
+                // conversation at the door: the steps could not see the metric,
+                // period or filters established in earlier turns, and — because
+                // the cache guard is keyed on !empty($context['state']) — each
+                // step looked like a standalone question and WROTE itself to
+                // the shared, session-less cache. Another session asking those
+                // words then read this conversation's rows back, which is
+                // exactly what docs/CONVERSATIONS.md promises cannot happen.
+                $result = $this->query($question, $datasetHint, $context);
                 $succeeded = ($result['status'] ?? '') === 'success';
 
                 $steps[] = [
@@ -687,6 +697,20 @@ class QueryOrchestrator
                     'insights' => $result['insights'] ?? null,
                     'next_steps' => $result['next_steps'] ?? [],
                 ];
+
+                // A rate limit ends the run. Each step is a full query() and
+                // guards its own 429 correctly, but the loop then carried on
+                // and asked again — so one rate limit authorised N more calls
+                // against a provider that had just said stop, which is the
+                // one response that makes a quota problem worse.
+                //
+                // error_code survives query()'s tail (only the underscore
+                // flags are stripped), so the loop can see it; it simply never
+                // looked.
+                if (($result['error_code'] ?? null) === ErrorCode::RATE_LIMITED) {
+                    $rateLimited = true;
+                    break;
+                }
             }
         } finally {
             // Restored even if a step throws, or the next ordinary question
@@ -696,6 +720,27 @@ class QueryOrchestrator
 
         $synthesis = $this->synthesizer->synthesize($originalQuery, $steps, $plan['comparison'] ?? false);
         $successful = array_values(array_filter($steps, fn ($s) => $s['status'] === 'success'));
+
+        // A rate limit is reported as a rate limit, decomposed question or not.
+        //
+        // This envelope carried no error_code at all, and the controller reads
+        // `$result['error_code'] ?? null` — ErrorCode::httpStatus(null) is 500
+        // and isRetryable(null) is false. So the identical fault that returns
+        // 429 + Retry-After + retryable:true for a one-part question returned
+        // 500 + retryable:false for a two-part one: an explicit instruction to
+        // every SDK and queue worker NOT to back off, on the one fault where
+        // backing off is the entire remedy. docs/API.md tells clients to branch
+        // on error_code, and there was nothing to branch on.
+        //
+        // The bundled widget makes it worse still: it renders `data.error`,
+        // which this envelope does not set either, so the user saw "The query
+        // could not be processed" and no mention of a rate limit anywhere.
+        if ($rateLimited) {
+            return array_merge(
+                $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
+                ['_rate_limited' => true, 'steps' => $steps]
+            );
+        }
 
         $response = [
             'status' => empty($successful) ? 'error' : 'success',
@@ -1122,6 +1167,25 @@ class QueryOrchestrator
             // Fall back to LLM intent parsing (slower, requires API call)
             $datasetList = $this->registry->getDatasetListForLlm();
             $intent = $this->llmProvider->parseIntent($query, $datasetList);
+
+            // The response was read only for ['dataset'], and a failure has no
+            // dataset — so a 429 here read as "could not place the question"
+            // and generateSql was called a line later, against a provider that
+            // had just reported it was over quota. Same fall-through as the
+            // planner's, on the call beside it.
+            //
+            // Only the failures that must not be followed by another call.
+            // Widening this to every failure broke the fallback that makes
+            // this method worth reaching: a model that could not place the
+            // question is still perfectly able to answer the multi-dataset
+            // prompt below, and RateLimitHandlingTest exists to say so.
+            $mustStop = ($intent['status'] ?? null) === 429
+                || ($intent['refused_before_sending'] ?? false);
+
+            if (!($intent['success'] ?? true) && $mustStop) {
+                return $this->providerFailure($intent, $metadata);
+            }
+
             $dataset = $intent['dataset'] ?? null;
 
             if (!$dataset) {
