@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
+use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
 use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
@@ -81,6 +82,9 @@ class QueryOrchestrator
      * turn the recursion has no floor.
      */
     protected bool $inStepExecution = false;
+
+    /** Memoised reflection: see cacheOverridesFindOnly(). Null until first asked. */
+    private ?bool $cacheFindIsOverridden = null;
 
     /** SQL from the most recent execution, for the QuestionAnswered event. */
     protected ?string $lastSql = null;
@@ -1297,20 +1301,66 @@ class QueryOrchestrator
      */
     protected function findInCache(string $query, ?string $askingDataset): ?array
     {
-        if ($this->cache instanceof ScopesCacheByDataset) {
+        // findForDataset() is an OPTIMISATION, not the safety mechanism. It
+        // lets the bundled cache filter the fuzzy tier in SQL; eligibility
+        // itself is decided in query() against `_asking_scope`, which rides
+        // inside the intent blob that every implementation stores and returns.
+        // So a cache that cannot scope is safe to read, and the bypass that
+        // used to sit here — returning null whenever a dataset was known —
+        // was not protecting anything.
+        //
+        // It was, however, silently disabling every custom cache on the most
+        // common install shape: resolveAskingDataset() returns the sole key
+        // unconditionally when one dataset is registered, so the bypass fired
+        // on every question. store() still ran, so the adopter's table filled
+        // up and never returned a row.
+        //
+        // A subclass that overrides find() is the other half. Overriding
+        // find() is the obvious way to bolt a tenant or permission gate onto
+        // the bundled cache, and it inherits ScopesCacheByDataset, so calling
+        // findForDataset() would route around the gate without a word — a
+        // cross-tenant read that looks like a cache hit. Where the override
+        // exists and the scoped method has not been overridden with it, the
+        // override wins: one fuzzy tier is worth one API call, and a gate that
+        // does not run is worth considerably more.
+        if ($this->cache instanceof ScopesCacheByDataset && !$this->cacheOverridesFindOnly()) {
             return $this->cache->findForDataset($query, $askingDataset);
         }
 
-        if ($askingDataset !== null) {
-            Log::debug('[NaturalQuery:Cache] Bypassed: cache cannot scope by dataset', [
-                'cache' => get_class($this->cache),
-                'dataset' => $askingDataset,
-            ]);
+        return $this->cache->find($query);
+    }
 
-            return null;
+    /**
+     * Whether the injected cache overrides find() but inherits findForDataset().
+     *
+     * Reflection once per instance, memoised — the answer cannot change for a
+     * given object, and this runs on every question.
+     */
+    private function cacheOverridesFindOnly(): bool
+    {
+        if ($this->cacheFindIsOverridden !== null) {
+            return $this->cacheFindIsOverridden;
         }
 
-        return $this->cache->find($query);
+        $declaring = fn (string $method) => (new \ReflectionMethod($this->cache, $method))
+            ->getDeclaringClass()
+            ->getName();
+
+        $find = $declaring('find');
+        $scoped = $declaring('findForDataset');
+
+        // Both redeclared together means the author knew about both, so their
+        // scoped version is the one to call.
+        $overridesFindOnly = $find !== TwoTierQueryCache::class && $find !== $scoped;
+
+        if ($overridesFindOnly) {
+            Log::debug('[NaturalQuery:Cache] Using find(): the scoped lookup would skip this override', [
+                'cache' => get_class($this->cache),
+                'declares_find' => $find,
+            ]);
+        }
+
+        return $this->cacheFindIsOverridden = $overridesFindOnly;
     }
 
     /**

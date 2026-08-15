@@ -1,0 +1,36 @@
+<?php
+
+/**
+ * ONE dataset, on purpose.
+ *
+ * resolveAskingDataset() returns the sole registered key unconditionally when
+ * only one dataset exists, which is what made findInCache()'s old bypass fire
+ * on every question of a single-dataset install — the commonest shape there
+ * is. A custom QueryCacheInterface was therefore never read, while store()
+ * kept working, so the cache filled up and returned nothing.
+ *
+ * revenue rows (seeded in the test): 100 + 200 + 50 = 350.
+ */
+return [
+    'name' => 'Orders',
+    'description' => 'Order revenue',
+    'aliases' => ['orders'],
+    'connection' => null,
+    'llm_instructions' => '',
+    'tables' => [
+        'primary' => [
+            'name' => 'nq_orders',
+            'description' => 'Order revenue',
+            'group_column' => 'id',
+            'columns' => [
+                'revenue' => ['type' => 'decimal', 'description' => 'Revenue', 'aggregatable' => true, 'sortable' => true],
+            ],
+            'relationships' => [],
+        ],
+    ],
+    'computed_metrics' => [],
+    'example_queries' => [],
+    'max_limit' => 50,
+    'default_metric' => null,
+    'defaults' => ['order' => 'DESC', 'limit' => 10],
+];
