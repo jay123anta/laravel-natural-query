@@ -8,13 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **`prompts.max_chars`** bounds the multi-dataset SQL-generation prompt, in
-  characters. `null` (default) = unbounded, today's behaviour byte for byte
+- **`Contracts\ScopesCacheByDataset`** — a new optional capability interface. A
+  cache that implements it is asked `findForDataset($query, $datasetHint)` and
+  can filter its own fuzzy tier; one that does not is called through
+  `find()` exactly as before. Nothing existing has to change: it is a
+  capability check, not a widening of `QueryCacheInterface`, because adding
+  even an optional parameter to an interface method is a fatal error at class
+  load for every implementation already in the wild.
+
+- **`prompts.max_chars`** bounds the SQL-generation prompt, in characters —
+  the single-dataset and multi-dataset forms alike, whichever the question
+  builds. `null` (default) = unbounded, today's behaviour byte for byte
   — upgrading never changes anything unless you set this yourself. When a
   question's prompt would exceed it, the call is refused with an actionable
   message (bytes needed, bytes allowed, the config key to raise) BEFORE any
   request reaches the AI provider, rather than silently sending a truncated
   prompt.
+
+  **Intent mode is not bounded by this.** `query_mode: intent`, and the intent
+  half of `auto`, build their prompt in the provider and never consult
+  `PromptBudget`. Ollama has its own pre-flight guard (`num_ctx`), so a
+  self-hosted install is still protected there; a hosted provider will accept
+  an oversized intent prompt and truncate or bill for it. Setting `max_chars`
+  does not change that, and this is a known gap rather than an oversight in
+  the wording.
 
   This is a **size bound only** — it does not narrow which datasets are
   sent. An earlier iteration of this feature attempted to also shortlist the
@@ -35,6 +52,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merely asserted by a test.
 
 ### Fixed
+
+- **A cached answer could come from the wrong table.** The query cache is keyed
+  on the question's TEXT, and nothing else was checked before replaying a row.
+  So the same wording asked in two places — a dataset-scoped page and a general
+  one, two tenants, two schemas — was answered from whichever row was written
+  first: right shape, wrong table, `success`, no API call, and nothing in the
+  log to suggest anything had happened. Tier 2 rows have no TTL, so it did not
+  age out.
+
+  A row now records the SCOPE the question was asked under, and a row asked
+  under a different scope is a MISS, never a correction. An earlier version of
+  this fix retargeted the mismatch instead — overwriting the cached dataset
+  with the current one — which turned a wrong table into a wrong number,
+  because a re-pointed recipe silently loses whatever made the original
+  question need it.
+
+  Four routes had to be closed rather than one: the exact-hash tier, the fuzzy
+  tier, the conversation path, and the case where the asking scope cannot be
+  determined at all. Each earlier attempt closed the route it was written for
+  and left the next one open.
+
+- **The cache was off for most questions on a multi-dataset install.** A
+  question naming no dataset resolves to no scope, while its cached row
+  recorded the dataset the model had CHOSEN, which is never null — so the row
+  could never match the question that created it and every repeat paid for
+  another API call. The two values are now stored separately: `dataset` is what
+  the answer is about, and is what `naturalquery:cache-cleanup --dataset` and
+  the stats command read; the asker's scope is what decides eligibility.
+
+- **`naturalquery:cache-cleanup --dataset=X` deleted nothing.** `store()`
+  rewrote the intent blob and the contract version and left the derived columns
+  alone, so `dataset` kept its first value once the same wording was asked
+  about a second dataset. The documented remedy for a stale cached answer
+  quietly did not work. All derived columns now follow the intent.
+
+- **A conversation turn reported itself as cached.** `metadata.cache_hit` was
+  set the moment the cache returned a row, before either reader had decided
+  whether to use one — and both readers refuse a row mid-conversation. So a
+  turn the provider had just generated and billed for came back `cache_hit:
+  true`, and `verification.skip_on_cache_hit` (default true) read that flag and
+  skipped `QueryVerifier` on brand-new SQL. The audit log and the
+  `QuestionAnswered` event carried the same wrong value. The flag is now set
+  only where a row is actually replayed.
+
+- **A cached SQL recipe read back in intent mode lost its WHERE clause.**
+  SQL-generation rows carry the finished statement; intent mode rebuilt them
+  through `SqlBuilder`, whose contract has no slot for a predicate. A cached
+  "revenue for pending orders" came back as the revenue for every row. Those
+  rows exist precisely because the question needed something the intent
+  contract cannot express, so rebuilding one through that contract was always
+  going to drop exactly that. Intent mode now treats them as a miss.
+
+- **A replacement cache was never read.** `findInCache()` bypassed any
+  implementation that did not declare `ScopesCacheByDataset` whenever an asking
+  dataset was known — and on a single-dataset install that is every question.
+  `store()` kept working, so the adopter's cache filled up, returned nothing,
+  and said nothing.
+
+- **A tenant gate added by overriding `find()` never ran.** Subclassing the
+  bundled cache and overriding `find()` is the obvious way to add a tenant or
+  permission check; the subclass inherits `ScopesCacheByDataset`, so the engine
+  called `findForDataset()` and went straight past it — a cross-tenant read
+  that looks like a cache hit. Where `find()` is overridden and the scoped
+  method is not, `find()` now wins.
+
+- **Intent contract version raised to 4.** Rows written by 2.0.0 carry no
+  scope, and reading that absence as "unscoped" would reopen the cross-dataset
+  hit above. They are ignored rather than served. Expect one round of cache
+  misses after upgrading; no action is required and nothing needs clearing.
+
+- **A blank value in `.env` crashed every query.** `NATURALQUERY_PROMPT_MAX_CHARS=`
+  with nothing after it is the empty string, not an absent value: `env()`'s
+  default never fires and PHP 8 refuses a non-numeric string for a typed
+  parameter, so `PromptBudget` threw a `TypeError` while the container was
+  resolving `QueryOrchestrator` and the whole application 500'd.
+  `NATURALQUERY_TIMEOUT=` did the same to every provider request. All twenty
+  numeric settings now fall back to their documented default when the variable
+  is absent, empty, or not a number.
+
+  If you published `config/naturalquery.php` before this release, your copy
+  still reads these through bare `env()`. Re-publish it, or leave the variables
+  out of `.env` entirely rather than present-and-empty.
 
 - **The Ollama context guard was being undone by the retry path.** 2.0.0 added
   a refusal so an oversized prompt is never sent, because Ollama does not

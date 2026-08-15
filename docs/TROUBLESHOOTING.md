@@ -55,8 +55,11 @@ Check the provider's live model list and update e.g. `GEMINI_MODEL`, then run
 **"The AI service is receiving too many requests right now (rate limit)"** -
 the provider returned HTTP 429. Free-tier API keys (especially Gemini) have
 low per-minute and per-day quotas; wait a minute and retry, enable the query
-cache (`NATURALQUERY_CACHE_ENABLED=true`) so repeated questions skip the API
-entirely, or upgrade the key's quota. The package fails fast on 429 - it
+cache (`NATURALQUERY_CACHE_ENABLED=true`) so a repeat of a question already
+asked is answered without a call, or upgrade the key's quota. The cache helps
+with repeats only: a question asked for the first time, a follow-up inside a
+conversation, and the same wording asked under a different dataset scope all
+still call the provider. The package fails fast on 429 - it
 deliberately does not fall back or retry the whole query, since more calls
 would extend the rate-limit window.
 

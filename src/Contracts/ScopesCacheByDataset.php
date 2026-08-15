@@ -16,22 +16,33 @@ namespace Jayanta\NaturalQuery\Contracts;
  * a log, and the answer looks exactly like a correct one.
  *
  * The fix needs the asking dataset to reach the cache, and the obvious way
- * to do that — add a parameter to `find()` — cannot be done in a patch
- * release. PHP requires an implementing class to match the interface
- * signature, so adding even an optional parameter makes every third-party
- * cache fatal on load. `Contracts\ReportsUsage` solved the same problem the
- * same way when token reporting was added: a separate, optional interface,
- * checked with `instanceof`, degrading gracefully when absent.
+ * to do that — add a parameter to `find()` — cannot be done at all. PHP
+ * requires an implementing class to match the interface signature, so adding
+ * even an optional parameter makes every third-party cache fatal on load.
+ * `Contracts\ReportsUsage` solved the same problem the same way when token
+ * reporting was added: a separate, optional interface, checked with
+ * `instanceof`, degrading gracefully when absent.
  *
- * DEGRADING GRACEFULLY HERE MEANS SKIPPING THE CACHE, NOT IGNORING THE HINT
+ * THIS IS AN OPTIMISATION, NOT THE SAFETY MECHANISM
  *
- * A cache that does not implement this cannot be told the dataset, so when a
- * hint IS present the engine bypasses it rather than accepting a lookup that
- * cannot account for it. A miss costs one API call; a hit that answers about
- * the wrong table costs a wrong number, and AGENTS.md §0 ranks those nowhere
- * near each other. Custom caches keep working unchanged — they simply stop
- * being consulted on the questions where they could be wrong, until they opt
- * in by implementing this.
+ * Worth being exact about, because the first version of this got it wrong in
+ * an expensive way. Eligibility does not depend on this interface: every row
+ * records the scope its question was asked under, inside the intent blob that
+ * `store()` receives and `find()` returns, and QueryOrchestrator checks it on
+ * every hit regardless of which method produced the row. A cache that cannot
+ * scope is therefore no less safe than one that can.
+ *
+ * What this interface buys is narrowing — an implementation that knows the
+ * asking dataset can filter its own fuzzy tier instead of returning
+ * candidates the engine will discard.
+ *
+ * The engine used to BYPASS a cache that did not implement this whenever a
+ * dataset was known, on the theory that skipping cost one API call and a
+ * cross-dataset hit cost a wrong number. The theory was right and the
+ * conclusion was not: `resolveAskingDataset()` returns the sole registered
+ * key unconditionally on a single-dataset install, so the bypass fired on
+ * every question and every replacement cache silently did nothing at all,
+ * while `store()` kept filling it up.
  */
 interface ScopesCacheByDataset
 {

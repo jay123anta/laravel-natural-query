@@ -241,6 +241,7 @@ pass often measures the rate limit rather than the model - add
 | [docs/PROVIDERS.md](docs/PROVIDERS.md) | Every LLM driver, and adding your own |
 | [docs/WIDGET.md](docs/WIDGET.md) | The bundled UI and browser voice input |
 | [docs/SECURITY.md](docs/SECURITY.md) | The privacy wall, SQL validation, prompt-injection guard |
+| [docs/CACHING.md](docs/CACHING.md) | What is cached, when a row is reused, replacing the cache |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | What each error means and how to fix it |
 
 ## Commands

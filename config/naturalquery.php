@@ -282,13 +282,15 @@ return [
         // Override the system role / preamble
         'system_role' => null,
 
-        // Bound the multi-dataset SQL-generation prompt, in characters.
+        // Bound the SQL-generation prompt, in characters. Both forms of it:
+        // the focused single-dataset prompt and the multi-dataset one are
+        // measured the same way, whichever a given question builds.
         // null (default) = unbounded — every dataset always goes in the
         // prompt, exactly as before this setting existed. This is safe on
         // small schemas and is why upgrading never changes behaviour unless
         // you set this yourself.
         //
-        // This is a SIZE BOUND ONLY. When a question's multi-dataset prompt
+        // This is a SIZE BOUND ONLY. When a question's prompt
         // would exceed it, the call is refused with an actionable message
         // (bytes needed, bytes allowed, this config key) BEFORE any request
         // reaches the AI — never a narrower prompt built from fewer tables,
@@ -554,7 +556,18 @@ return [
     // ==========================================================================
     // QUERY CACHE (Two-Tier)
     // ==========================================================================
-    // Caches parsed intents to avoid repeated AI API calls for similar queries
+    // Caches what the AI worked out about a question — the parsed intent, or
+    // the generated SQL when the question needed SQL generation — so asking it
+    // again costs no API call. The SQL still runs every time, so the numbers
+    // are always current; it is the AI step that is skipped, not the query.
+    //
+    // A row is only reused for a question asked under the SAME dataset scope
+    // it was cached under. Identical wording asked from a dataset-scoped page
+    // and from a general one are different questions, and answering the second
+    // from the first's row would silently return another table's number.
+    // Conversation follow-ups are neither read from nor written to this cache:
+    // "only in West" means one thing after a revenue question and another
+    // after an order count, and the key carries no session.
     'cache' => [
         'enabled' => env('NATURALQUERY_CACHE_ENABLED', true),
 

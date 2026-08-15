@@ -1281,23 +1281,13 @@ class QueryOrchestrator
      * dataset and there is only one to choose from.
      */
     /**
-     * Look a question up in the cache, honouring the dataset it is about.
+     * Look a question up in the cache.
      *
-     * A cache that implements ScopesCacheByDataset is told which dataset the
-     * asking question resolves to. One that does not — a custom cache written
-     * against QueryCacheInterface before 2.0.1 — cannot be told, so it is
-     * BYPASSED whenever a dataset is known, rather than consulted with the
-     * hint dropped on the floor.
-     *
-     * That looks harsh on a third-party cache, and it is deliberate. The
-     * alternative is a lookup keyed on question text alone while the caller
-     * has said which dataset it means: "what is the total" asked on an orders
-     * page and on a products page are the same string and different questions,
-     * and the second one comes back with the first one's number. Skipping the
-     * cache costs one API call. Not skipping it costs a wrong answer that
-     * nothing downstream can detect. Custom caches keep working untouched on
-     * every question where no dataset is known, and opt back in fully by
-     * implementing the interface.
+     * Which method gets called is about capability, not about safety. A cache
+     * implementing ScopesCacheByDataset is told what the asking question
+     * resolves to and can narrow its own fuzzy search; one that does not is
+     * called through find(). Either way the row comes back to query(), which
+     * decides eligibility against the scope recorded on it.
      */
     protected function findInCache(string $query, ?string $askingDataset): ?array
     {

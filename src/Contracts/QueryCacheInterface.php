@@ -15,14 +15,31 @@ interface QueryCacheInterface
      * Find a cached result for a query.
      *
      * Deliberately unchanged since 1.0.0. Dataset-aware lookup arrived in
-     * 2.0.1 and lives in `ScopesCacheByDataset` instead of here, because
+     * 2.1.0 and lives in `ScopesCacheByDataset` instead of here, because
      * adding even an OPTIONAL parameter to an interface method is a fatal
      * error for every class already implementing the old signature — the
-     * app does not boot. A patch release cannot do that, and the package
+     * app does not boot. A minor release cannot do that, and the package
      * already had the right precedent in `ReportsUsage`.
      *
+     * THE SHAPE TO RETURN, which is what `store()` was given plus a little:
+     *
+     *   [
+     *     'cached'           => true,
+     *     'cache_match_type' => 'exact' | 'fuzzy',   // reported as metadata
+     *     'intent'           => [...],               // EXACTLY what store() received
+     *     'dataset'          => $intent['dataset'] ?? null,
+     *   ]
+     *
+     * `intent` must come back byte-identical. The engine reads reserved keys
+     * out of it that it never told you about — `_sql_result` decides which
+     * reader may replay the row, `_asking_scope` decides whether the row is
+     * eligible for the question being asked at all — and a row that has lost
+     * them is not refused, it is silently misread: a filtered total answered
+     * as an unfiltered one, or another dataset's number returned with
+     * `success` and no API call. Store the array whole and hand it back whole.
+     *
      * @param string $query The natural language query
-     * @return array|null Cached intent data, or null if not found
+     * @return array|null Cached intent data in the shape above, or null
      */
     public function find(string $query): ?array;
 
@@ -30,7 +47,7 @@ interface QueryCacheInterface
      * Store a query result in cache.
      *
      * @param string $query The original natural language query
-     * @param array $intent The parsed intent/result to cache
+     * @param array $intent The parsed intent/result to cache — opaque; keep it whole
      * @return bool Whether storing succeeded
      */
     public function store(string $query, array $intent): bool;
