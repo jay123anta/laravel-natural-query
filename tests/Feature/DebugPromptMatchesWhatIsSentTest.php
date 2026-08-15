@@ -61,11 +61,23 @@ class DebugPromptMatchesWhatIsSentTest extends TestCase
             ->assertExitCode(0);
     }
 
-    /** A prompt the engine would refuse must be shown as refused. */
+    /**
+     * A prompt the engine would refuse must be shown as refused.
+     *
+     * In sql_generation mode, because that is the only route prompts.max_chars
+     * is consulted on. This originally left query_mode at its default and so
+     * asserted the refusal appears in 'auto' — where the engine answers this
+     * question by intent parsing and never consults the bound at all. The
+     * assertion was passing on behaviour that told the user their question
+     * would fail when it would not.
+     */
     #[Test]
     public function it_says_when_the_prompt_would_be_refused_for_size()
     {
-        config(['naturalquery.prompts.max_chars' => 50]);
+        config([
+            'naturalquery.query_mode' => 'sql_generation',
+            'naturalquery.prompts.max_chars' => 50,
+        ]);
 
         $this->artisan('naturalquery:debug', ['query' => 'total revenue'])
             ->expectsOutputToContain('max_chars')

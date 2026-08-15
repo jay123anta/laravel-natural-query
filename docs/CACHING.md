@@ -122,17 +122,22 @@ action is required.
 php artisan naturalquery:cache-cleanup                     # not hit in 30 days AND under 2 hits
 php artisan naturalquery:cache-cleanup --days=7            # change the age
 php artisan naturalquery:cache-cleanup --min-hits=5        # keep only what gets reused often
-php artisan naturalquery:cache-cleanup --dataset=orders    # one dataset
+php artisan naturalquery:cache-cleanup --dataset=orders    # every row for that dataset
+php artisan naturalquery:cache-cleanup --dataset=orders --days=7   # narrowed
 php artisan naturalquery:cache-cleanup --all               # everything, after a confirmation
 ```
 
 A bare run is **not** a full clear: it applies both defaults (`--days=30`,
-`--min-hits=2`), so it removes entries that are both old and rarely used. Use
-`--all` to empty the cache.
+`--min-hits=2`), so it removes only entries that are both old and rarely used.
+Use `--all` to empty the cache.
 
-`--dataset` matches the `dataset` column — the dataset the answer is about —
-which is the right handle when a schema file changed and its cached answers are
-now wrong.
+Naming a dataset is a different request, and the defaults do **not** apply to
+it: `--dataset=orders` removes every row for that dataset, however fresh or
+popular. That is what the flag is for — a schema file changed and its cached
+answers are now wrong, which describes rows being hit daily, not rows that have
+gone quiet. Add `--days` or `--min-hits` explicitly to narrow a dataset purge.
+
+`--dataset` matches the `dataset` column, the dataset the answer is about.
 
 ## Replacing the cache
 

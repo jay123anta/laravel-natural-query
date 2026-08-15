@@ -5,6 +5,7 @@ namespace Jayanta\NaturalQuery\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Engine\DatasetSeeder;
+use Jayanta\NaturalQuery\Engine\IntentCoverage;
 use Jayanta\NaturalQuery\Engine\PromptBudget;
 use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
@@ -36,7 +37,8 @@ class DebugPromptCommand extends Command
         SchemaRegistry $registry,
         LlmProviderInterface $llm,
         DatasetSeeder $seeder,
-        PromptBudget $budget
+        PromptBudget $budget,
+        IntentCoverage $coverage
     ): int {
         $query = $this->argument('query');
         $dataset = $this->option('dataset');
@@ -95,11 +97,34 @@ class DebugPromptCommand extends Command
 
         $this->line("  Length: " . strlen($prompt) . " chars (" . str_word_count($prompt) . " words)");
 
-        // prompts.max_chars refuses a prompt BEFORE it is sent. Printing one
-        // that would never leave the machine, with no note saying so, is the
-        // same class of mistake as printing the wrong prompt: what is on
-        // screen is not what happens.
-        if ($refusal = $budget->check($prompt, $datasetsRendered)) {
+        // Which route the engine would actually take for this question. In the
+        // shipped default 'auto' it answers most questions by intent parsing,
+        // whose prompt is built inside the provider — so the SQL prompt below
+        // is not what gets sent, and saying nothing about that is the same
+        // mistake as printing the wrong prompt.
+        $mode = config('naturalquery.query_mode', 'auto');
+        $escalates = $mode === 'auto' ? $coverage->exceeds($query) : null;
+        $buildsThisPrompt = $mode === 'sql_generation' || ($mode === 'auto' && $escalates !== null);
+
+        $this->newLine();
+        if ($mode === 'intent') {
+            $this->warn("query_mode is 'intent': the engine does NOT build this prompt.");
+            $this->line("  Intent prompts are built per-provider and are not shown here.");
+        } elseif ($mode === 'auto' && !$buildsThisPrompt) {
+            $this->warn("query_mode is 'auto' and this question stays inside the intent contract,");
+            $this->line("  so the engine answers it by intent parsing and never builds the prompt below.");
+            $this->line("  It is shown as the prompt that WOULD be sent if the question escalated.");
+        } elseif ($mode === 'auto') {
+            $this->line("  auto mode escalates this question to SQL generation ({$escalates}).");
+        }
+
+        // prompts.max_chars refuses a prompt BEFORE it is sent — but only on
+        // the route that consults it. Announcing a refusal for a question the
+        // engine answers happily through intent parsing tells the user their
+        // question will fail when it will not.
+        $refusal = $buildsThisPrompt ? $budget->check($prompt, $datasetsRendered) : null;
+
+        if ($refusal) {
             $this->newLine();
             $this->error("This prompt would be REFUSED, not sent:");
             $this->line("  " . $refusal);
@@ -113,7 +138,16 @@ class DebugPromptCommand extends Command
         $this->comment("=== END PROMPT ===");
         $this->newLine();
 
-        // Execute if requested
+        // Execute if requested — but never a prompt just reported as refused.
+        // Sending it would make the line above false in the most direct way
+        // available, and the refusal exists because an oversized prompt comes
+        // back as a confident answer built on a truncated schema.
+        if ($this->option('execute') && $refusal) {
+            $this->error("Not sending: this prompt is over prompts.max_chars (see above).");
+
+            return self::SUCCESS;
+        }
+
         if ($this->option('execute')) {
             $this->comment("Sending to AI...");
             $response = $llm->generateSql($prompt);

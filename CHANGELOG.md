@@ -81,11 +81,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the answer is about, and is what `naturalquery:cache-cleanup --dataset` and
   the stats command read; the asker's scope is what decides eligibility.
 
-- **`naturalquery:cache-cleanup --dataset=X` deleted nothing.** `store()`
-  rewrote the intent blob and the contract version and left the derived columns
-  alone, so `dataset` kept its first value once the same wording was asked
-  about a second dataset. The documented remedy for a stale cached answer
-  quietly did not work. All derived columns now follow the intent.
+- **`naturalquery:cache-cleanup --dataset=X` deleted nothing.** Two independent
+  causes, both fixed.
+
+  `store()` rewrote the intent blob and the contract version and left the
+  derived columns alone, so `dataset` kept its first value once the same
+  wording was asked about a second dataset. All derived columns now follow the
+  intent.
+
+  And the command ANDed its `--days=30` and `--min-hits=2` defaults in behind
+  `--dataset`, so the flag could only ever remove rows that were simultaneously
+  stale and barely used — while the reason to reach for it, a schema file
+  changed and its cached answers are now wrong, describes rows being hit daily.
+  Naming a dataset now purges that dataset; pass `--days` or `--min-hits`
+  explicitly to narrow it. A bare run keeps both conservative defaults.
 
 - **A conversation turn reported itself as cached.** `metadata.cache_hit` was
   set the moment the cache returned a row, before either reader had decided
