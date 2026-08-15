@@ -92,7 +92,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     public function findForDataset(string $query, ?string $datasetHint = null): ?array
     {
         $normalized = $this->normalizeQuery($query);
-        $hash = $this->generateHash($normalized);
+        $hash = $this->generateHash($normalized, $datasetHint);
 
         // TIER 1: Fast cache lookup
         if ($this->useTier1) {
@@ -123,7 +123,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             return null;
         }
 
-        $fuzzyMatch = $this->findFuzzyMatch($normalized);
+        $fuzzyMatch = $this->findFuzzyMatch($normalized, $datasetHint);
         if ($fuzzyMatch) {
             $this->incrementHitCount($fuzzyMatch->id);
             Log::debug('[NaturalQuery:Cache] Tier 2 fuzzy hit', ['similarity' => $fuzzyMatch->similarity ?? 'N/A']);
@@ -141,7 +141,10 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     {
         try {
             $normalized = $this->normalizeQuery($query);
-            $hash = $this->generateHash($normalized);
+            // The scope this question was asked under, put there by
+            // QueryOrchestrator::rememberIntent(). Part of the row's identity,
+            // so a second scope adds a row instead of replacing the first.
+            $hash = $this->generateHash($normalized, $intent['_asking_scope'] ?? null);
 
             $existing = DB::table($this->tableName)
                 ->where('query_hash', $hash)
@@ -358,9 +361,23 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      */
     protected const INTENT_CONTRACT_VERSION = 4;
 
-    protected function generateHash(string $normalizedQuery): string
+    /**
+     * The row's identity: contract version, asking scope, and the words.
+     *
+     * The scope is part of the key because `query_hash` is UNIQUE and store()
+     * updates the row it finds. With the text alone as identity there is
+     * exactly one row per wording, so two dataset-scoped pages asking the same
+     * words took turns overwriting each other — miss, regenerate, overwrite,
+     * miss — and neither ever saw a hit again. Refusing to SHARE a row across
+     * scopes is the point; refusing to STORE both was an accident of the key.
+     *
+     * The contract version has been folded in here since 2.0.0 for the same
+     * reason: two rows that must not be confused should not address the same
+     * slot.
+     */
+    protected function generateHash(string $normalizedQuery, ?string $askingScope = null): string
     {
-        return hash('sha256', static::INTENT_CONTRACT_VERSION . '|' . $normalizedQuery);
+        return hash('sha256', static::INTENT_CONTRACT_VERSION . '|' . ($askingScope ?? '') . '|' . $normalizedQuery);
     }
 
     protected function getCacheStore()
@@ -408,7 +425,16 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * fuzzy tier serve the very same row a moment later — which quietly
      * defeated every previous bump too, not just this one.
      */
-    protected function findFuzzyMatch(string $normalizedQuery): ?object
+    /**
+     * The nearest row by wording, within the same asking scope.
+     *
+     * The exact tiers get their scope from the hash. This one matches by TEXT,
+     * so without the same filter it returns candidates from other scopes that
+     * the engine then discards — and it has already counted them as hits by
+     * then, so naturalquery:cache-stats reported reuse for rows that were
+     * never once served.
+     */
+    protected function findFuzzyMatch(string $normalizedQuery, ?string $askingScope = null): ?object
     {
         $words = explode(' ', $normalizedQuery);
         $significantWords = array_filter($words, fn($w) => strlen($w) > 3);
@@ -436,6 +462,11 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         $bestSimilarity = 0;
 
         foreach ($candidates as $candidate) {
+            $stored = json_decode($candidate->intent ?? '', true);
+            if (($stored['_asking_scope'] ?? null) !== $askingScope) {
+                continue;
+            }
+
             $similarity = $this->calculateSimilarity($normalizedQuery, $candidate->normalized_query);
             if ($similarity >= $this->similarityThreshold && $similarity > $bestSimilarity) {
                 $bestSimilarity = $similarity;

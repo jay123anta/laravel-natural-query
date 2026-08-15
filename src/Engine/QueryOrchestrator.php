@@ -241,7 +241,16 @@ class QueryOrchestrator
             // see resolveAskingDataset() and TwoTierQueryCache::findForDataset().
             $cacheHit = false;
             $askingDataset = $this->resolveAskingDataset($naturalLanguageQuery, $datasetHint, $context);
-            $cachedResult = $this->findInCache($naturalLanguageQuery, $askingDataset);
+
+            // Not looked up at all mid-conversation. Both readers refuse a row
+            // when conversation state is present, so the lookup was pure cost
+            // — and worse than free: TwoTierQueryCache counts a hit the moment
+            // it returns a row, so every follow-up incremented hit_count on a
+            // row it was never going to use, and naturalquery:cache-stats
+            // reported reuse that had not happened.
+            $cachedResult = empty($context['state'])
+                ? $this->findInCache($naturalLanguageQuery, $askingDataset)
+                : null;
 
             // An entry belonging to a different dataset is not a hit, and it is
             // discarded HERE — at the one place a cached result enters — rather
