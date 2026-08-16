@@ -166,6 +166,26 @@ understood to mean — which measure, which breakdown, which filters, which date
 Showing it is how a user catches a misreading instead of believing a total that
 answers a different question.
 
+`parsed_summary` is the same thing as one readable line, for when you want to
+put it on screen rather than branch on it:
+
+```json
+"parsed_summary": "Orders · revenue · by region · status is pending"
+```
+
+The bundled widget renders it under every answer. If you have built your own
+front end, this is the single most useful string in the response — roughly one
+question in five is misread on an uncurated schema, and a misreading that is
+displayed is a misreading the user can correct.
+
+On a conversation turn the equivalent field is `state_summary`, which also
+accounts for anything carried over from earlier turns. Prefer it when present.
+
+One limitation worth knowing: in `sql_generation` mode a filter lives inside
+the generated SQL rather than in a structured field, so the line names the
+dataset and measure but may not name the filter. `intent` mode, and the intent
+half of `auto`, carry filters explicitly and always name them.
+
 ### Multi-step answers
 
 A question needing several queries returns `type: "multi_step"`:

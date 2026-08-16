@@ -24,6 +24,9 @@ return [
             'group_column' => 'id',
             'columns' => [
                 'revenue' => ['type' => 'decimal', 'description' => 'Revenue', 'aggregatable' => true, 'sortable' => true],
+                // Something to narrow on, so a test can check that a filtered
+                // answer describes itself as filtered.
+                'status' => ['type' => 'varchar', 'description' => 'Order status', 'filterable' => true, 'groupable' => true],
             ],
             'relationships' => [],
         ],

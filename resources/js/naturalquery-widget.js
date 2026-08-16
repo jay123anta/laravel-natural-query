@@ -759,7 +759,14 @@
         // who can read "revenue · by customer · region is West" catches a
         // misread instead of trusting a number that answers something else,
         // and "no, I meant X" becomes a correction of something visible.
-        if (data.state_summary) {
+        // state_summary on a conversation turn; parsed_summary on an ordinary
+        // one. The second was added because this block only ever fired for
+        // conversations — so the line that lets a user catch a misreading was
+        // missing from the very first question anyone asks, which is exactly
+        // where a misreading is least expected and most damaging.
+        var understoodAs = data.state_summary || data.parsed_summary;
+
+        if (understoodAs) {
             var state = h('div', 'nq-state');
 
             // Whether this turn stands alone or carried the last one forward.
@@ -779,7 +786,7 @@
             }
 
             state.appendChild(h('span', 'nq-state-lbl', 'Reading this as'));
-            state.appendChild(h('span', 'nq-state-val', data.state_summary));
+            state.appendChild(h('span', 'nq-state-val', understoodAs));
             card.appendChild(state);
         }
 

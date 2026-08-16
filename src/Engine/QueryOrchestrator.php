@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Engine;
 
 use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
+use Jayanta\NaturalQuery\Conversation\QueryState;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
 use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
@@ -1921,6 +1922,28 @@ class QueryOrchestrator
             'dataset_name' => $queryResult['dataset_name'] ?? null,
             'metric_unit' => $queryResult['metric_unit'] ?? null,
         ]);
+
+        // How the question was understood, in one readable line:
+        //   "Orders · revenue · by region · status is pending"
+        //
+        // `parsed_query` has carried all of this since 1.0.0, as structure a
+        // client has to assemble itself — and the bundled widget did not, so
+        // the one thing that makes a misreading visible was visible only to
+        // people writing their own front end. A conversation turn got a
+        // summary from ConversationManager; an ordinary question, which is the
+        // first thing anyone asks, got nothing.
+        //
+        // Roughly one question in five is misread on an uncurated schema.
+        // Rendering the interpretation next to the number is the cheapest
+        // defence there is against the failure §0 names as the worst: not that
+        // the package is sometimes wrong, but that it is wrong without saying
+        // so. The same builder the conversation path uses, so the two lines
+        // cannot drift apart.
+        $summary = QueryState::fromIntent($queryResult)->summary($this->registry);
+
+        if ($summary !== '') {
+            $response['parsed_summary'] = $summary;
+        }
 
         // What to ask next. Derived from the schema, so it costs no API call.
         if ($this->suggester) {

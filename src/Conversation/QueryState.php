@@ -55,6 +55,12 @@ class QueryState
             'metric' => $intent['metric'] ?? null,
             'group_by' => $intent['group_by'] ?? null,
             'filter_column' => $intent['filter_column'] ?? null,
+            // Carried, because summary() reads this slot and every path that
+            // builds a state from an intent was leaving it empty — so a
+            // question that narrowed to one status described itself exactly
+            // like the unnarrowed total, and a follow-up inherited a filter
+            // the state had never recorded.
+            'filters' => $intent['filters'] ?? [],
             'group_value' => $intent['group_value'] ?? null,
             'date_from' => $intent['date_from'] ?? null,
             'date_to' => $intent['date_to'] ?? null,
