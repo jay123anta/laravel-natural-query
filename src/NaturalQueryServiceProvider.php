@@ -27,6 +27,7 @@ use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Console\InstallCommand;
 use Jayanta\NaturalQuery\Console\DiscoverSchemaCommand;
 use Jayanta\NaturalQuery\Console\CacheCleanupCommand;
+use Jayanta\NaturalQuery\Console\CacheStatsCommand;
 use Jayanta\NaturalQuery\Console\DebugPromptCommand;
 use Jayanta\NaturalQuery\Console\DoctorCommand;
 
@@ -180,6 +181,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
                 InstallCommand::class,
                 DiscoverSchemaCommand::class,
                 CacheCleanupCommand::class,
+                CacheStatsCommand::class,
                 DebugPromptCommand::class,
                 DoctorCommand::class,
             ]);

@@ -5,6 +5,48 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Every answer says how the question was understood.** `parsed_summary` is a
+  one-line rendering of `parsed_query` — *"Orders · revenue · by region ·
+  status is pending"* — and the bundled widget shows it under each answer.
+  Previously only conversation follow-ups got such a line, so the very first
+  question anyone asks displayed nothing. Roughly one question in five is
+  misread on an uncurated schema, and a misreading that is shown is one the
+  user can correct.
+
+  In `sql_generation` mode a filter lives inside the generated SQL rather than
+  in a structured field, so the line names the dataset and measure but may not
+  name the filter. `intent` mode always names it.
+
+- **`naturalquery:cache-stats`** — what the cache is actually doing: distinct
+  questions cached, answers reused, provider calls avoided, most-reused
+  questions. `--json` for monitoring. This matters more now that fuzzy matching
+  is off by default and rows are scoped, both of which lower hit rates on
+  purpose; without numbers an operator cannot tell "correctly conservative"
+  from "silently broken".
+
+- **`naturalquery:doctor` reports published-config drift.** Laravel merges
+  package config one level deep, so an app that published
+  `config/naturalquery.php` under an earlier version silently loses every key
+  added inside a block since. Doctor now names the missing settings. Two
+  settings hit this in 2.1.0 alone, and one of them fails towards a wrong
+  answer rather than an error.
+
+- **`naturalquery:doctor` flags small models.** Measured on this package's own
+  battery: Llama 3.1 8B scores 12/17, dropping filters and ignoring date
+  periods; 70B-class and current hosted models score 17/17. Someone running an
+  8B model locally and seeing wrong answers would otherwise blame the package.
+  The check matches explicit parameter counts only — not words like "mini",
+  which would catch capable hosted models this package has never measured.
+
+### Fixed
+- **`QueryState::fromIntent()` dropped the `filters` slot** although `summary()`
+  reads it, so every state built from an intent described a filtered question
+  exactly like an unfiltered one, and a new-query turn in a conversation lost
+  the filter it had just been given.
+
 ## [2.1.0] - 2026-08-16
 
 ### Added

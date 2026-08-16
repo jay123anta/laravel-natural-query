@@ -251,6 +251,7 @@ php artisan naturalquery:doctor      # diagnose setup problems, print the fix
 php artisan naturalquery:discover    # generate schema files from your database
 php artisan naturalquery:install     # publish config and migrations
 php artisan naturalquery:debug "…"   # show the exact prompt sent to the AI
+php artisan naturalquery:cache-stats    # is the cache earning its keep?
 php artisan naturalquery:cache-cleanup
 ```
 

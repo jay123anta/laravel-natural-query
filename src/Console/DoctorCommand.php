@@ -40,6 +40,7 @@ class DoctorCommand extends Command
         $this->line('  <fg=gray>Read-only checkup. No data is sent anywhere except the provider ping.</>');
 
         $this->checkConfiguration();
+        $this->checkPublishedConfigDrift();
         $this->checkProvider();
         $this->checkDatabase();
         $this->checkSchemas($registry);
@@ -147,6 +148,146 @@ class DoctorCommand extends Command
      * installed but cannot actually be used, because then the user believes
      * they have a layer they do not have.
      */
+    /**
+     * Settings this version ships that the app's published config does not have.
+     *
+     * Laravel merges package config ONE LEVEL deep. `config/naturalquery.php`
+     * is published by naturalquery:install, so an app that installed under an
+     * earlier version has a top-level block — `prompts`, `cache`, `llm` —
+     * that replaces the package's wholesale. Any key added inside that block
+     * since then does not exist for that app, and nothing says so: you set
+     * NATURALQUERY_PROMPT_MAX_CHARS, nothing happens, and there is no error to
+     * search for.
+     *
+     * Two settings hit this in 2.1.0 alone, and one of them
+     * (cache.similarity_threshold) fails towards a silent wrong answer rather
+     * than a crash. Worth a check of its own.
+     */
+    protected function checkPublishedConfigDrift(): void
+    {
+        $this->section('Published config');
+
+        $publishedPath = function_exists('config_path') ? config_path('naturalquery.php') : null;
+
+        if (!$publishedPath || !is_file($publishedPath)) {
+            $this->skip('Config not published — you are on the package defaults, which are always current.');
+
+            return;
+        }
+
+        $packagePath = __DIR__ . '/../../config/naturalquery.php';
+
+        if (!is_file($packagePath)) {
+            $this->skip('Package config not found; cannot compare.');
+
+            return;
+        }
+
+        $missing = $this->missingKeys(require $packagePath, require $publishedPath);
+
+        if (!$missing) {
+            $this->pass('Published config has every setting this version ships.');
+
+            return;
+        }
+
+        $shown = array_slice($missing, 0, 8);
+        $more = count($missing) - count($shown);
+
+        $this->warn_(
+            count($missing) . ' setting(s) added since your config was published are missing from it: '
+                . implode(', ', $shown) . ($more > 0 ? " (+{$more} more)" : ''),
+            'Laravel merges package config only one level deep, so these do not exist for your app and '
+                . 'setting their env vars will do nothing. Re-publish with '
+                . '`php artisan vendor:publish --tag=naturalquery-config --force` after diffing your '
+                . 'changes, or copy the missing keys across by hand.'
+        );
+    }
+
+    /**
+     * Dotted paths present in the package config and absent from the app's.
+     *
+     * Compared by KEY only. A published file is expected to hold different
+     * values — that is the point of publishing one — so a differing value is
+     * not drift. A missing key is.
+     *
+     * @param array<string, mixed> $package
+     * @param array<string, mixed> $published
+     * @return array<int, string>
+     */
+    protected function missingKeys(array $package, array $published, string $prefix = ''): array
+    {
+        $missing = [];
+
+        foreach ($package as $key => $value) {
+            if (is_int($key)) {
+                continue;
+            }
+
+            $path = $prefix === '' ? (string) $key : "{$prefix}.{$key}";
+
+            if (!array_key_exists($key, $published)) {
+                $missing[] = $path;
+
+                continue;
+            }
+
+            // Only descend through associative arrays. A list is a value.
+            if (is_array($value) && is_array($published[$key]) && !array_is_list($value)) {
+                $missing = array_merge($missing, $this->missingKeys($value, $published[$key], $path));
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Whether the configured model is one that answers reliably.
+     *
+     * Measured on this package's own conformance battery, not guessed: model
+     * SIZE matters far more than vendor. Gemini 2.5 Flash, Claude Sonnet 5,
+     * DeepSeek v4 Flash, Mistral Large and Llama 3.3 70B all score 17/17.
+     * Llama 3.1 8B scores 12/17 — it drops filters and ignores date periods,
+     * which produces confident numbers that answer a narrower question than
+     * the one asked.
+     *
+     * Someone running an 8B model locally and seeing wrong answers will
+     * conclude the package is broken. Naming the cause costs one line.
+     */
+    protected function checkModelCapability(): void
+    {
+        $driver = config('naturalquery.llm.driver');
+        $model = (string) config("naturalquery.llm.providers.{$driver}.model", '');
+
+        if ($model === '') {
+            return;
+        }
+
+        // An explicit parameter count of 12B or under, however the id spells
+        // it: llama3.1:8b, Llama-3-8B-Instruct, qwen2.5:7b.
+        //
+        // Deliberately NOT matching words like "mini", "small" or "tiny". They
+        // catch gpt-4o-mini, which is a capable hosted model this package has
+        // never measured — and warning about a model on no evidence is the
+        // same sin as the confident wrong answers §0 is about. The claim below
+        // is exactly as wide as the data behind it: small parameter counts,
+        // measured, scored badly.
+        if (!preg_match('/(?<![\d.])([0-9]|1[0-2])\s*b\b/i', $model)) {
+            $this->pass("Model '{$model}' is not in the parameter range that measured badly here.");
+
+            return;
+        }
+
+        $this->warn_(
+            "Model '{$model}' looks like a small model (12B or under), and those measured badly here.",
+            'Llama 3.1 8B scores 12/17 on this package\'s battery, dropping filters and ignoring date '
+                . 'periods — a confident number for a narrower question than the one asked. 70B-class '
+                . 'and current hosted models score 17/17. Use one of those wherever a wrong number '
+                . 'matters; if this model is deliberate, render the parsed_summary line so misreadings '
+                . 'are visible.'
+        );
+    }
+
     protected function checkOptionalAiGuard(): void
     {
         /** @var InputGuard $guard */
@@ -276,6 +417,10 @@ class DoctorCommand extends Command
     protected function checkProvider(): void
     {
         $this->section('AI provider');
+
+        // Before the --skip-api gate: this reads config and contacts nothing,
+        // and it is the check most likely to explain "the answers are wrong".
+        $this->checkModelCapability();
 
         if ($this->option('skip-api')) {
             $this->skip('Live provider check skipped (--skip-api)');
