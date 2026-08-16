@@ -1,0 +1,149 @@
+<?php
+
+namespace Jayanta\NaturalQuery\Tests\Feature;
+
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Engine\PromptBudget;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Support\EnvValue;
+use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
+use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
+
+/**
+ * The second review batch, pinned.
+ *
+ * Five defects, four of them introduced by the commits that fixed the FIRST
+ * review batch. That ratio is the point: every one of these was created while
+ * fixing something else, and none of them would have been caught by the suite
+ * as it stood.
+ */
+class BatchTwoReviewFixesTest extends TestCase
+{
+    protected function getEnvironmentSetUp($app): void
+    {
+        parent::getEnvironmentSetUp($app);
+        $app['config']->set('naturalquery.schema.config_path', __DIR__ . '/../Stubs/fuzzy-cache-isolation-schemas');
+        $app['config']->set('naturalquery.cache.enabled', true);
+    }
+
+    /**
+     * A single-character token is the whole difference between two questions.
+     *
+     * normalizeQuery() dropped every token of length <= 1, so "grade a" and
+     * "grade b" normalised identically, hashed identically, and shared one
+     * row. The second question got the first's number — right shape, wrong
+     * answer, nothing in the text to reveal it — and the scope guard cannot
+     * help, because both resolve to the same scope. Single-character values
+     * are ordinary: grade A, block B, zone 1.
+     */
+    #[Test]
+    public function a_single_character_value_still_reaches_the_cache_key()
+    {
+        $cache = $this->app->make(TwoTierQueryCache::class);
+
+        $this->assertNotSame(
+            $cache->normalizeQuery('revenue for region a'),
+            $cache->normalizeQuery('revenue for region b'),
+            'two questions differing only by a one-character value normalise to the same key, so the '
+                . 'second is answered from the first\'s cached row'
+        );
+    }
+
+    /**
+     * Clearing the cache has to clear the cache. Tier 1 is checked first, so a
+     * row deleted from the database keeps answering from memory for up to
+     * cache.ttl — 24 hours by default — while the operator has been told
+     * "Cleared all N cache entries". The forget loop only ran for --dataset.
+     */
+    #[Test]
+    public function clearing_everything_also_forgets_the_fast_tier()
+    {
+        $this->artisan('migrate', ['--force' => true])->run();
+        config(['naturalquery.cache.tier1_store' => 'array']);
+
+        $cache = $this->app->make(TwoTierQueryCache::class);
+        $question = 'total revenue for nq_orders';
+
+        $cache->store($question, ['dataset' => 'nq_orders', 'metric' => 'revenue', '_asking_scope' => 'nq_orders']);
+        $this->assertNotNull($cache->findForDataset($question, 'nq_orders'), 'precondition: it is cached');
+
+        $cache->clear();
+
+        $this->assertNull(
+            $cache->findForDataset($question, 'nq_orders'),
+            'the row was deleted from the database and kept answering from Tier 1, so a cleared cache '
+                . 'goes on serving the answers it was cleared to remove'
+        );
+    }
+
+    /**
+     * mergeConfigFrom is one level deep. An app that published the config
+     * before 2.1.0 has a `prompts` array with no `max_chars` in it, which
+     * replaces the package's wholesale — so the key does not exist and setting
+     * the env var did nothing, silently, on exactly the installs large enough
+     * to want it.
+     */
+    #[Test]
+    public function the_prompt_bound_is_reachable_when_a_published_config_predates_it()
+    {
+        $_ENV['NATURALQUERY_PROMPT_MAX_CHARS'] = $_SERVER['NATURALQUERY_PROMPT_MAX_CHARS'] = '4000';
+
+        // A pre-2.1.0 published `prompts` block: no max_chars key at all.
+        config(['naturalquery.prompts' => ['system_role' => null]]);
+        $this->app->forgetInstance(PromptBudget::class);
+
+        $budget = $this->app->make(PromptBudget::class);
+
+        $this->assertNotNull(
+            $budget->check(str_repeat('x', 8000), 3),
+            'NATURALQUERY_PROMPT_MAX_CHARS was set and ignored, because the published config has no such '
+                . 'key and mergeConfigFrom does not reach into it'
+        );
+
+        unset($_ENV['NATURALQUERY_PROMPT_MAX_CHARS'], $_SERVER['NATURALQUERY_PROMPT_MAX_CHARS']);
+    }
+
+    /** And an explicit config value still wins over the env fallback. */
+    #[Test]
+    public function a_published_max_chars_value_still_takes_precedence()
+    {
+        $_ENV['NATURALQUERY_PROMPT_MAX_CHARS'] = $_SERVER['NATURALQUERY_PROMPT_MAX_CHARS'] = '10';
+
+        config(['naturalquery.prompts' => ['max_chars' => null]]);
+        $this->app->forgetInstance(PromptBudget::class);
+
+        $this->assertNull(
+            $this->app->make(PromptBudget::class)->check(str_repeat('x', 8000), 3),
+            'an explicit null in the published config was overridden by the env fallback'
+        );
+
+        unset($_ENV['NATURALQUERY_PROMPT_MAX_CHARS'], $_SERVER['NATURALQUERY_PROMPT_MAX_CHARS']);
+    }
+
+    /**
+     * Internal flags never reach a client. The two rate-limit exits added for
+     * the planner and the step loop return before query()'s tail, which is
+     * where `_rate_limited` is stripped.
+     */
+    #[Test]
+    public function the_new_rate_limit_exits_do_not_leak_internal_flags()
+    {
+        config(['naturalquery.query_mode' => 'sql_generation', 'naturalquery.chat.multi_step' => true]);
+
+        $provider = new RecordingProvider();
+        $provider->sqlResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
+        $provider->intentResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
+        $this->app->instance(LlmProviderInterface::class, $provider);
+
+        $result = $this->app->make(QueryOrchestrator::class)
+            ->query('compare revenue for nq_orders with nq_products');
+
+        $this->assertArrayNotHasKey('_rate_limited', $result, json_encode($result));
+        $this->assertArrayNotHasKey('_unretriable', $result);
+        $this->assertArrayNotHasKey('_fallback_eligible', $result);
+    }
+}

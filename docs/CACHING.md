@@ -178,12 +178,17 @@ less safe — it just cannot narrow its own fuzzy search.
 
 ### Adding a tenant or permission gate
 
-Subclassing the bundled `TwoTierQueryCache` and overriding `find()` works: when
-`find()` is overridden and `findForDataset()` is not, the engine calls
-`find()`, so your gate runs. You give up the fuzzy tier, which needs the scope
-the other method carries.
+**Override both methods.** Overriding only `find()` is safe but expensive, and
+the cost is total rather than partial.
 
-To keep fuzzy matching, override **both**:
+When `find()` is overridden and `findForDataset()` is not, the engine calls
+`find()` so your gate still runs — that is the right trade (a skipped tenant
+gate is a cross-tenant read; a cold cache is only slow). But `find()` looks up
+with no dataset scope, while rows are stored under the scope their question was
+asked with, so **nothing matches** and the hit rate is zero, not merely reduced.
+The engine logs a warning naming your class when it detects this shape.
+
+So override both:
 
 ```php
 class TenantScopedCache extends TwoTierQueryCache

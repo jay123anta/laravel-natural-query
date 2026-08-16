@@ -118,7 +118,27 @@ class NaturalQueryServiceProvider extends ServiceProvider
         // answer call them again cleanly.
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\DatasetSeeder::class);
         $this->app->singleton(\Jayanta\NaturalQuery\Engine\PromptBudget::class, function ($app) {
-            return new \Jayanta\NaturalQuery\Engine\PromptBudget(config('naturalquery.prompts.max_chars'));
+            // The env var is consulted directly when the published config has
+            // no such key. mergeConfigFrom is ONE LEVEL deep, so an app that
+            // ran naturalquery:install before 2.1.0 has a published `prompts`
+            // array that replaces the package's wholesale — and `max_chars`,
+            // being new, simply does not exist in it. Reading only through
+            // config() meant the setting was unreachable on exactly the
+            // installs most likely to want it, with no error: you set
+            // NATURALQUERY_PROMPT_MAX_CHARS, nothing happened, and nothing
+            // said why.
+            //
+            // array_key_exists, not ??. A published config that sets max_chars
+            // to null is saying "unbounded" and must win; one that has no such
+            // key has not spoken, and that is the case the fallback is for.
+            // `??` cannot tell those apart and would override the first.
+            $prompts = config('naturalquery.prompts', []);
+
+            $max = array_key_exists('max_chars', $prompts)
+                ? $prompts['max_chars']
+                : \Jayanta\NaturalQuery\Support\EnvValue::int('NATURALQUERY_PROMPT_MAX_CHARS', null);
+
+            return new \Jayanta\NaturalQuery\Engine\PromptBudget($max);
         });
 
         $this->app->singleton(QueryOrchestrator::class);

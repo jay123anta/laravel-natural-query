@@ -217,14 +217,21 @@ class QueryOrchestrator
                 // package does not do. The failure was reported and then
                 // discarded unread, so nothing here could tell the difference.
                 if (($plan['status'] ?? null) === 429) {
-                    return array_merge(
-                        $this->formatter->formatError(
-                            self::RATE_LIMIT_MESSAGE,
-                            $metadata,
-                            ErrorCode::RATE_LIMITED
-                        ),
-                        ['_rate_limited' => true]
+                    // No `_rate_limited` flag. It exists to stop the refined
+                    // retry, and this returns from above that block, so here it
+                    // would only leak an internal name into the JSON body —
+                    // which query()'s tail strips and this exit skips.
+                    $limited = $this->formatter->formatError(
+                        self::RATE_LIMIT_MESSAGE,
+                        $metadata,
+                        ErrorCode::RATE_LIMITED
                     );
+
+                    if (!$this->inStepExecution) {
+                        $this->announceOutcome($naturalLanguageQuery, $limited, false, $startTime);
+                    }
+
+                    return $limited;
                 }
 
                 if (!empty($plan['error'])) {
@@ -759,10 +766,17 @@ class QueryOrchestrator
         // which this envelope does not set either, so the user saw "The query
         // could not be processed" and no mention of a rate limit anywhere.
         if ($rateLimited) {
-            return array_merge(
+            // Steps kept so the caller can see how far it got. No
+            // `_rate_limited` flag: this result is returned straight out of
+            // query() without passing the tail that strips internal names.
+            $limited = array_merge(
                 $this->formatter->formatError(self::RATE_LIMIT_MESSAGE, $metadata, ErrorCode::RATE_LIMITED),
-                ['_rate_limited' => true, 'steps' => $steps]
+                ['steps' => $steps]
             );
+
+            $this->announceOutcome($originalQuery, $limited, false, $startTime);
+
+            return $limited;
         }
 
         $response = [
@@ -1458,10 +1472,20 @@ class QueryOrchestrator
         $overridesFindOnly = $find !== TwoTierQueryCache::class && $find !== $scoped;
 
         if ($overridesFindOnly) {
-            Log::debug('[NaturalQuery:Cache] Using find(): the scoped lookup would skip this override', [
-                'cache' => get_class($this->cache),
-                'declares_find' => $find,
-            ]);
+            // Warning, not debug. This choice keeps the adopter's gate running
+            // and costs them EVERY cache hit, not just the fuzzy tier: find()
+            // looks up with no scope, while rows are stored under the scope
+            // their question was asked with, so the exact tier cannot match
+            // either. That is the right way round — a 0% hit rate is a
+            // performance loss and a skipped tenant gate is a cross-tenant
+            // read — but it is far too expensive to discover from a debug log.
+            Log::warning(
+                '[NaturalQuery:Cache] ' . get_class($this->cache) . ' overrides find() but not '
+                . 'findForDataset(). find() is being called so the override still runs, which means NO '
+                . 'cache hits at all: lookups carry no dataset scope while stored rows do. Override '
+                . 'findForDataset() as well (see docs/CACHING.md) to keep both the gate and the cache.',
+                ['cache' => get_class($this->cache), 'declares_find' => $find]
+            );
         }
 
         return $this->cacheFindIsOverridden = $overridesFindOnly;

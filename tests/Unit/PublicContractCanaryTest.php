@@ -109,6 +109,26 @@ class PublicContractCanaryTest extends TestCase
      * says so. That happened here during this very change, and it presented as
      * an unrelated logic regression.
      */
+    /**
+     * The PROTECTED extension points, which this canary was not watching.
+     *
+     * docs/CACHING.md tells adopters to subclass TwoTierQueryCache, so its
+     * protected methods are published surface. 2.1.0 widened two of them and
+     * fatally broke every existing subclass that had overridden either.
+     * Instantiating a subclass frozen at the old signatures is the assertion —
+     * a signature mismatch fails at class load, before any test body runs.
+     */
+    #[Test]
+    public function a_subclass_frozen_at_the_previous_protected_signatures_still_loads()
+    {
+        $this->assertInstanceOf(
+            TwoTierQueryCache::class,
+            new LegacySubclassedCache(),
+            'a cache subclass written against the previous release no longer loads, so any application '
+                . 'that added a tenant or permission gate this way is dead on upgrade'
+        );
+    }
+
     #[Test]
     public function the_bundled_cache_is_recognised_as_scope_capable()
     {
@@ -256,5 +276,36 @@ class LegacyThirdPartyProvider implements LlmProviderInterface
     public function getName(): string
     {
         return 'legacy-third-party';
+    }
+}
+
+/**
+ * A cache subclass frozen at 2.0.0's PROTECTED signatures.
+ *
+ * The canary above watches the interfaces in src/Contracts/. That was not
+ * enough: docs/CACHING.md tells adopters to subclass TwoTierQueryCache, which
+ * makes its protected methods a published extension point too — and 2.1.0
+ * widened two of them, generateHash() and findFuzzyMatch(), while adding the
+ * asking scope. PHP requires an override to stay signature-compatible, so
+ * every subclass in the wild that had overridden either was a fatal error at
+ * class load. The application does not boot.
+ *
+ * Exactly the break this file exists to prevent, one visibility level below
+ * where it was looking, made twice in the same commit, by the same author who
+ * had already made it once on QueryCacheInterface::find() and written it into
+ * AGENTS.md as an anti-pattern.
+ *
+ * Loading this class is the assertion.
+ */
+class LegacySubclassedCache extends \Jayanta\NaturalQuery\Cache\TwoTierQueryCache
+{
+    protected function generateHash(string $normalizedQuery): string
+    {
+        return parent::generateHash($normalizedQuery);
+    }
+
+    protected function findFuzzyMatch(string $normalizedQuery): ?object
+    {
+        return parent::findFuzzyMatch($normalizedQuery);
     }
 }

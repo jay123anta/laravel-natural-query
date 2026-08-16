@@ -47,6 +47,17 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     protected ?string $tier1Store;
     protected string $tableName;
 
+    /**
+     * The scope of the lookup in progress, for findFuzzyMatch().
+     *
+     * Set by findForDataset() immediately before the fuzzy tier runs.
+     * Per-call state on a shared object is not free, and it is here only
+     * because findFuzzyMatch() is a protected extension point whose
+     * signature cannot change without fataling adopter subclasses. The
+     * window is synchronous and one method wide.
+     */
+    protected ?string $askingScopeForLookup = null;
+
     public function __construct()
     {
         $this->cacheTtlSeconds = (int) config('naturalquery.cache.ttl', 86400);
@@ -92,7 +103,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     public function findForDataset(string $query, ?string $datasetHint = null): ?array
     {
         $normalized = $this->normalizeQuery($query);
-        $hash = $this->generateHash($normalized, $datasetHint);
+        $hash = $this->generateHash($this->scopedKey($normalized, $datasetHint));
 
         // TIER 1: Fast cache lookup
         if ($this->useTier1) {
@@ -116,14 +127,20 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             return $result;
         }
 
-        // TIER 2: Fuzzy match — refused outright when nothing places the
-        // asking question on any dataset (see docblock above).
-        if ($datasetHint === null) {
-            Log::debug('[NaturalQuery:Cache] Fuzzy tier skipped: asking dataset unresolved');
-            return null;
-        }
-
-        $fuzzyMatch = $this->findFuzzyMatch($normalized, $datasetHint);
+        // TIER 2: Fuzzy match, within the same asking scope.
+        //
+        // It used to return null here whenever the scope was unresolved,
+        // because fuzzy matches by TEXT and a row it returned could belong to
+        // any dataset. The per-candidate scope filter inside findFuzzyMatch()
+        // now handles that directly, INCLUDING the null case: an unscoped
+        // question matches only rows that were themselves cached unscoped.
+        //
+        // Keeping the early return on top of that filter cost every fuzzy hit
+        // for every unscoped question — the general chat box on a
+        // multi-dataset install, which is the shape most adopters ship — while
+        // protecting against nothing the filter does not already cover.
+        $this->askingScopeForLookup = $datasetHint;
+        $fuzzyMatch = $this->findFuzzyMatch($normalized);
         if ($fuzzyMatch) {
             $this->incrementHitCount($fuzzyMatch->id);
             Log::debug('[NaturalQuery:Cache] Tier 2 fuzzy hit', ['similarity' => $fuzzyMatch->similarity ?? 'N/A']);
@@ -144,7 +161,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             // The scope this question was asked under, put there by
             // QueryOrchestrator::rememberIntent(). Part of the row's identity,
             // so a second scope adds a row instead of replacing the first.
-            $hash = $this->generateHash($normalized, $intent['_asking_scope'] ?? null);
+            $hash = $this->generateHash($this->scopedKey($normalized, $intent['_asking_scope'] ?? null));
 
             $existing = DB::table($this->tableName)
                 ->where('query_hash', $hash)
@@ -276,13 +293,6 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             $query = DB::table($this->tableName);
 
             if ($dataset) {
-                // Clear Tier 1 entries for this dataset
-                if ($this->useTier1) {
-                    $hashes = DB::table($this->tableName)->where('dataset', $dataset)->pluck('query_hash');
-                    foreach ($hashes as $hash) {
-                        $this->getCacheStore()->forget($this->tier1Prefix . $hash);
-                    }
-                }
                 $query->where('dataset', $dataset);
             }
 
@@ -292,6 +302,25 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 
             if ($minHits > 0) {
                 $query->where('hit_count', '<', $minHits);
+            }
+
+            // Tier 1 first, and for EVERY filter, not just --dataset.
+            //
+            // Tier 1 is checked before Tier 2, so a row deleted from the
+            // database keeps answering from memory for up to cache.ttl —
+            // 24 hours by default. The forget loop used to live inside
+            // `if ($dataset)`, so `--all`, a bare run, `--days` and
+            // `--min-hits` all deleted the durable copy and left the fast one
+            // serving: the operator saw "Cleared all N cache entries" and the
+            // stale answers carried on. docs/CACHING.md says --all empties the
+            // cache, and it has to mean both tiers.
+            //
+            // Collected before the delete, because afterwards there is nothing
+            // left to read the hashes from.
+            if ($this->useTier1) {
+                foreach ((clone $query)->pluck('query_hash') as $hash) {
+                    $this->getCacheStore()->forget($this->tier1Prefix . $hash);
+                }
             }
 
             $deleted = $query->delete();
@@ -322,8 +351,20 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         $query = preg_replace('/[^\w\s\-]/', '', $query);
         $words = preg_split('/\s+/', $query);
 
+        // Filler words go; single characters stay.
+        //
+        // Dropping tokens of length 1 deleted the only thing distinguishing
+        // some questions from each other. "revenue for region a" and "revenue
+        // for region b" normalised identically, hashed identically, and shared
+        // one row — so the second returned the first's number, with the right
+        // shape and nothing in the answer text to reveal it. The scope guard
+        // cannot help: both questions resolve to the same scope.
+        //
+        // Single-character values are ordinary in real schemas — grade A,
+        // block B, class C, zone 1 — and a token that changes the answer
+        // belongs in the key.
         $words = array_filter($words, function ($word) {
-            return !in_array($word, $this->fillerWords) && strlen($word) > 1;
+            return $word !== '' && !in_array($word, $this->fillerWords);
         });
 
         $words = array_map(function ($word) {
@@ -362,22 +403,36 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     protected const INTENT_CONTRACT_VERSION = 4;
 
     /**
-     * The row's identity: contract version, asking scope, and the words.
+     * The words a row is keyed by, with the asking scope folded in.
      *
-     * The scope is part of the key because `query_hash` is UNIQUE and store()
-     * updates the row it finds. With the text alone as identity there is
+     * The scope has to reach the key because `query_hash` is UNIQUE and
+     * store() updates the row it finds. Keyed on the text alone there is
      * exactly one row per wording, so two dataset-scoped pages asking the same
      * words took turns overwriting each other — miss, regenerate, overwrite,
-     * miss — and neither ever saw a hit again. Refusing to SHARE a row across
+     * miss — and neither saw a hit again. Refusing to SHARE a row across
      * scopes is the point; refusing to STORE both was an accident of the key.
      *
-     * The contract version has been folded in here since 2.0.0 for the same
-     * reason: two rows that must not be confused should not address the same
-     * slot.
+     * It goes in HERE, in the string, rather than as a parameter on
+     * generateHash(). generateHash() is `protected` on a class docs/CACHING.md
+     * tells adopters to subclass, so adding even an optional parameter to it
+     * is a fatal error at class load for anyone who overrode it — the same
+     * break this release already made once on QueryCacheInterface::find(),
+     * recorded as an anti-pattern, and then made twice more here. A subclass
+     * that overrides generateHash() still receives a string and still works.
      */
-    protected function generateHash(string $normalizedQuery, ?string $askingScope = null): string
+    protected function scopedKey(string $normalizedQuery, ?string $askingScope): string
     {
-        return hash('sha256', static::INTENT_CONTRACT_VERSION . '|' . ($askingScope ?? '') . '|' . $normalizedQuery);
+        return ($askingScope ?? '') . '|' . $normalizedQuery;
+    }
+
+    /**
+     * The row's identity: contract version and the (scoped) words.
+     *
+     * SIGNATURE FROZEN. Overridden by adopter subclasses; see scopedKey().
+     */
+    protected function generateHash(string $normalizedQuery): string
+    {
+        return hash('sha256', static::INTENT_CONTRACT_VERSION . '|' . $normalizedQuery);
     }
 
     protected function getCacheStore()
@@ -434,8 +489,14 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * then, so naturalquery:cache-stats reported reuse for rows that were
      * never once served.
      */
-    protected function findFuzzyMatch(string $normalizedQuery, ?string $askingScope = null): ?object
+    protected function findFuzzyMatch(string $normalizedQuery): ?object
     {
+        // Read from the property rather than taken as a parameter, for the
+        // same reason as generateHash(): this method is protected on a class
+        // adopters are told to subclass, and widening it fatals anyone who
+        // overrode the old signature at class load.
+        $askingScope = $this->askingScopeForLookup;
+
         $words = explode(' ', $normalizedQuery);
         $significantWords = array_filter($words, fn($w) => strlen($w) > 3);
 

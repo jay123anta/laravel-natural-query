@@ -115,7 +115,32 @@ queries makes it smaller and the answers better, since the model has fewer
 wrong columns to pick from.
 
 An empty `OLLAMA_NUM_CTX=` is treated as unset rather than zero, so it will not
-refuse everything.
+refuse everything. The same is true of every numeric setting: a variable
+present in `.env` with nothing after it falls back to its documented default
+instead of crashing.
+
+**"This question needs N characters of schema context, but
+naturalquery.prompts.max_chars allows only M"** - you set a prompt ceiling and
+this question exceeds it. Raise it, describe fewer tables, or use
+`query_mode: intent` for the affected questions:
+
+```env
+NATURALQUERY_PROMPT_MAX_CHARS=48000
+```
+
+It is a size bound only - the package will not quietly send a narrower prompt
+built from fewer tables, because guessing which of your tables a question does
+not need is how a correctly-grouped answer silently loses its grouping. It
+applies to SQL generation; intent mode builds its prompt inside the provider
+and is not measured by it.
+
+If you set `NATURALQUERY_PROMPT_MAX_CHARS` and nothing changes, check whether
+you published `config/naturalquery.php` before 2.1.0. Laravel merges package
+config only one level deep, so a published `prompts` block from an earlier
+version replaces the package's wholesale and the new key is not in it. The env
+var is honoured as a fallback in that case, but re-publishing the config
+(`php artisan vendor:publish --tag=naturalquery-config --force`, after diffing
+your changes) is the durable fix.
 
 ## Check your setup before anything else
 
