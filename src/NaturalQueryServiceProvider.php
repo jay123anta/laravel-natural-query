@@ -26,6 +26,7 @@ use Jayanta\NaturalQuery\Feedback\FeedbackStore;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Console\InstallCommand;
 use Jayanta\NaturalQuery\Console\DiscoverSchemaCommand;
+use Jayanta\NaturalQuery\Console\AuditSchemaCommand;
 use Jayanta\NaturalQuery\Console\CacheCleanupCommand;
 use Jayanta\NaturalQuery\Console\CacheStatsCommand;
 use Jayanta\NaturalQuery\Console\DebugPromptCommand;
@@ -180,6 +181,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
             $this->commands([
                 InstallCommand::class,
                 DiscoverSchemaCommand::class,
+                AuditSchemaCommand::class,
                 CacheCleanupCommand::class,
                 CacheStatsCommand::class,
                 DebugPromptCommand::class,

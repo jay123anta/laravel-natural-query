@@ -23,7 +23,11 @@ return [
             'description' => 'Order revenue',
             'group_column' => 'id',
             'columns' => [
-                'revenue' => ['type' => 'decimal', 'description' => 'Revenue', 'aggregatable' => true, 'sortable' => true],
+                // Unit included: this stub stands in for a CURATED schema, and
+                // naturalquery:audit-schema reports an aggregatable column with
+                // no unit — correctly, since the answer would render 1500 bare
+                // with nothing saying whether that is currency or a count.
+                'revenue' => ['type' => 'decimal', 'description' => 'Revenue', 'unit' => '₹', 'aggregatable' => true, 'sortable' => true],
                 // Something to narrow on, so a test can check that a filtered
                 // answer describes itself as filtered.
                 'status' => ['type' => 'varchar', 'description' => 'Order status', 'filterable' => true, 'groupable' => true],

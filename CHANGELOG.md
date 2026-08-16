@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in a structured field, so the line names the dataset and measure but may not
   name the filter. `intent` mode always names it.
 
+- **`naturalquery:audit-schema`** — the curation coach. Roughly one question in
+  five is misread on an uncurated schema, and the same questions land
+  near-perfectly once a handful of sentences are written; until now nobody
+  could see *which* sentences were missing. It reports only what introspection
+  genuinely cannot recover:
+
+  - a term two datasets both claim (`"amount" could mean nq_orders.amount or
+    nq_invoices.amount`) — the ambiguity that returns a plausible wrong number
+    rather than an error
+  - columns with no description, where the model has only the name to go on
+  - datasets with no aliases, which users will never address by key
+  - aggregatable columns with no unit, so `1500` renders bare
+  - infrastructure tables (`sessions`, `jobs`, `audit_log`) still registered
+
+  `--dataset=` to narrow, `--json` for CI. Exits 0 even with findings — an
+  unaudited schema is not a broken install.
+
 - **`naturalquery:cache-stats`** — what the cache is actually doing: distinct
   questions cached, answers reused, provider calls avoided, most-reused
   questions. `--json` for monitoring. This matters more now that fuzzy matching
