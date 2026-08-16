@@ -112,7 +112,11 @@ class BatchTwoMinorsTest extends TestCase
         // makes the test about the similarity arithmetic instead of about the
         // shortlist. Lowered so the only thing that can decide the outcome is
         // whether the wanted row survived the candidate query.
-        config(['naturalquery.cache.similarity_threshold' => 0.5]);
+        config([
+            'naturalquery.cache.similarity_threshold' => 0.5,
+            // Fuzzy matching is opt-in since 2.1.0; this test is about it.
+            'naturalquery.cache.fuzzy_matching' => true,
+        ]);
 
         $cache = $this->app->make(TwoTierQueryCache::class);
         $table = config('naturalquery.cache.table_name', 'naturalquery_cache');

@@ -1449,7 +1449,7 @@ class QueryOrchestrator
         // and it is the write, not the read, that does the damage: the row
         // outlives the conversation that created it.
         if (!$inConversation) {
-            $this->rememberIntent($query, [
+            $rememberIfItWorks = fn () => $this->rememberIntent($query, [
                 'dataset' => $dataset,
                 'metric' => $queryResult['metric'],
                 'group_value' => $queryResult['group_value'],
@@ -1460,8 +1460,24 @@ class QueryOrchestrator
             ], $this->resolveAskingDataset($query, $datasetHint, $context));
         }
 
-        // Validate and execute
-        return $this->validateAndExecute($queryResult, $dataset, $metadata);
+        // Validate and execute — THEN cache, and only what worked.
+        //
+        // The store used to run first, so SQL that SqlValidator rejected, or
+        // that the database refused, was written to a cache with no expiry and
+        // replayed on every later ask of that wording. The provider was never
+        // consulted again, so the one bad generation became permanent: the
+        // user was told their question could not be understood, forever, and
+        // rewording it slightly was the only escape.
+        //
+        // Identical in shape to the recipe defect this release opened with —
+        // a row cached in a state nothing downstream re-checks.
+        $result = $this->validateAndExecute($queryResult, $dataset, $metadata);
+
+        if (isset($rememberIfItWorks) && ($result['status'] ?? '') === 'success') {
+            $rememberIfItWorks();
+        }
+
+        return $result;
     }
 
     /**

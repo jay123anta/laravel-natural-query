@@ -191,6 +191,8 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
     {
         config([
             'naturalquery.cache.enabled' => true,
+            // Fuzzy matching is opt-in since 2.1.0; this file tests that tier.
+            'naturalquery.cache.fuzzy_matching' => true,
             'naturalquery.cache.similarity_threshold' => 0.55,
         ]);
         $this->artisan('migrate', ['--force' => true])->run();
@@ -245,6 +247,8 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
     {
         config([
             'naturalquery.cache.enabled' => true,
+            // Fuzzy matching is opt-in since 2.1.0; this file tests that tier.
+            'naturalquery.cache.fuzzy_matching' => true,
             'naturalquery.cache.similarity_threshold' => 0.55,
         ]);
         $this->artisan('migrate', ['--force' => true])->run();

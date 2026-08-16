@@ -131,6 +131,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hit above. They are ignored rather than served. Expect one round of cache
   misses after upgrading; no action is required and nothing needs clearing.
 
+- **A rate limit was reported as a rate limit on some paths and not others.**
+  `error_code: rate_limited` maps to HTTP 429, `retryable: true` and a
+  `Retry-After` header. Four paths never set it. A 429 while identifying the
+  dataset was read as "could not place the question" and followed immediately
+  by another call; a 429 inside a decomposed question let the remaining steps
+  run, then returned an envelope with no `error_code` at all — so the
+  controller answered **HTTP 500 with `retryable: false`**, telling every SDK
+  and queue worker not to back off, on the one fault where backing off is the
+  entire remedy. The bundled widget renders `data.error`, absent from that
+  envelope too, so the user saw "The query could not be processed" with no
+  mention of a rate limit. A 429 during planning did the same and then made a
+  second call. All four now report it, and a limited run stops rather than
+  continuing to ask.
+
+- **Follow-up steps escaped the conversation.** A decomposed question re-entered
+  the engine without its conversation context, so the steps could not see the
+  metric, period or filters established earlier — and, because the cache guard
+  keys on conversation state, each step wrote itself to the shared,
+  session-less query cache. Another session asking those words read them back.
+
+- **Fuzzy cache matching is now OFF by default** (`cache.fuzzy_matching`).
+  Queries are normalised before comparison — sorted, de-duplicated, synonyms
+  folded, filler words dropped — so any pair this tier judges already differs
+  in meaning-bearing tokens, and the score is dominated by the tokens they
+  share. Swapping one value in a long question scored 0.858 and 0.875 against
+  a 0.85 threshold: the more precisely a question was stated, the likelier it
+  was to be answered with a different one. No threshold setting fixes that.
+  Re-enable with `NATURALQUERY_CACHE_FUZZY=true` if you accept the trade.
+
+- **Generated SQL was cached before it was validated.** A statement rejected by
+  `SqlValidator`, or refused by the database, was written to a cache with no
+  expiry and replayed on every later ask of that wording — the provider never
+  consulted again, so one bad generation made that question permanently
+  unanswerable. Only SQL that validated and executed is cached now.
+
 - **A question narrowed by a single character was answered from the
   un-narrowed one.** The cache key dropped every one-character token, so
   "total revenue for A" and "total revenue" shared a row: asking about one

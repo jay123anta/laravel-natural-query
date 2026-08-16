@@ -303,14 +303,20 @@ return [
         // cannot be told apart from one that is genuinely irrelevant without
         // guessing at your domain, which this package will not do).
         //
-        // Only the SQL-generation prompt PromptBuilder builds is bounded.
-        // 'intent' mode's prompt is built separately, per-provider, from a
-        // compact dataset list — it never goes through this check and is not
-        // affected by this setting at all, whatever you set it to. In 'auto'
-        // mode (the default), a question answered via intent parsing —
-        // ordinarily most of them — is likewise unaffected; the bound only
-        // engages once 'auto' escalates to SQL generation, exactly as under
-        // an explicit query_mode of 'sql_generation'.
+        // Every SQL-generation prompt PromptBuilder builds is bounded, and
+        // only those. The INTENT prompt is built separately, per-provider,
+        // from a compact dataset list, and never goes through this check.
+        //
+        // That does not make intent mode wholly immune, and the distinction is
+        // worth stating precisely because two earlier versions of this comment
+        // got it wrong. A question that fails in intent mode is retried with a
+        // refined SQL prompt, and THAT prompt is measured — so on a schema
+        // large enough to exceed the bound, an intent-mode failure can surface
+        // as a refusal naming this key rather than as the original failure.
+        // Same in 'auto' (the default) once it escalates to SQL generation.
+        //
+        // What holds unconditionally: a question ANSWERED by intent parsing
+        // never consults this setting, whatever you set it to.
         //
         // Not named "budget" — that word already means milliseconds in
         // retry.total_budget_ms and a request count in
@@ -588,6 +594,29 @@ return [
         // with no API call to correct it. Raise it if you want fewer reuses;
         // set cache.enabled to false if you want none.
         'similarity_threshold' => is_numeric(env('NATURALQUERY_CACHE_SIMILARITY')) ? (float) env('NATURALQUERY_CACHE_SIMILARITY') : 0.85,
+
+        // Reuse a cached answer for a question that is merely SIMILAR, rather
+        // than identical. OFF by default since 2.1.0, and the reason is
+        // structural rather than a threshold that wants tuning.
+        //
+        // Queries are normalised before comparison — lowercased, filler words
+        // dropped, synonyms folded, de-duplicated, sorted — so two that come
+        // out equal are already an exact hit. Every pair this ever judges
+        // therefore differs in real, meaning-bearing tokens, and the score is
+        // dominated by the tokens they SHARE. Swap one value and measure:
+        //
+        //   revenue for grade a / b                                    0.673
+        //   total revenue for grade a / b                              0.741
+        //   total revenue by region for pending orders in grade a / b  0.858  <-- reused
+        //   ...and category...in 2025 for grade a / b                  0.875  <-- reused
+        //
+        // The more precisely someone states a question, the likelier this is
+        // to answer it with a different one. No threshold fixes that: 0.875
+        // is already above any value that leaves the feature doing anything.
+        //
+        // Turn it on if repeated near-identical wording is costing you real
+        // money and you accept the trade. Read docs/CACHING.md first.
+        'fuzzy_matching' => env('NATURALQUERY_CACHE_FUZZY', false),
 
         // Tier 1 cache store (null = auto-detect from config/cache.php)
         'tier1_store' => env('NATURALQUERY_CACHE_STORE', null),

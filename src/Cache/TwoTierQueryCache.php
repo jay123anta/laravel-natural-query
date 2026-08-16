@@ -74,10 +74,39 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      */
     protected ?string $askingScopeForLookup = null;
 
+    /** Opt-in; see findFuzzyMatch() for why it defaults off. */
+    protected bool $fuzzyEnabled;
+
+    /**
+     * A numeric setting, or the documented default when it is unusable.
+     *
+     * Deliberately not Support\EnvValue: this reads through config(), so it
+     * also covers a published config that hard-codes a bad value, and it
+     * cannot be shadowed by a stale published file the way the config's own
+     * guards can.
+     */
+    private function numeric(string $key, int|float $default): int|float
+    {
+        $raw = config($key, $default);
+
+        return is_numeric($raw) ? $raw + 0 : $default;
+    }
+
     public function __construct()
     {
-        $this->cacheTtlSeconds = (int) config('naturalquery.cache.ttl', 86400);
-        $this->similarityThreshold = (float) config('naturalquery.cache.similarity_threshold', 0.85);
+        // Guarded HERE, not only in the shipped config file.
+        //
+        // The config's own `is_numeric(env(...))` expressions protect a fresh
+        // install, and Laravel's one-level merge means an app that published
+        // config/naturalquery.php before 2.1.0 never evaluates them — its
+        // older `cache` block replaces the package's wholesale. A blank
+        // `NATURALQUERY_CACHE_SIMILARITY=` then arrives here as the empty
+        // string, `(float) ''` is 0.0, and every fuzzy candidate clears the
+        // threshold. That is the opposite of the blank-env failure this
+        // release fixed elsewhere: not a crash, a silent wrong number.
+        $this->cacheTtlSeconds = $this->numeric('naturalquery.cache.ttl', 86400);
+        $this->similarityThreshold = (float) $this->numeric('naturalquery.cache.similarity_threshold', 0.85);
+        $this->fuzzyEnabled = (bool) config('naturalquery.cache.fuzzy_matching', false);
         $this->tier1Prefix = config('naturalquery.cache.tier1_prefix', 'naturalquery:');
         $this->tableName = config('naturalquery.cache.table_name', 'naturalquery_cache');
 
@@ -181,6 +210,12 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // for every unscoped question — the general chat box on a
         // multi-dataset install, which is the shape most adopters ship — while
         // protecting against nothing the filter does not already cover.
+        if (!$this->fuzzyEnabled) {
+            Log::debug('[NaturalQuery:Cache] Miss (fuzzy matching is off)');
+
+            return null;
+        }
+
         $this->askingScopeForLookup = $datasetHint;
         $fuzzyMatch = $this->findFuzzyMatch($normalized);
         if ($fuzzyMatch) {
@@ -524,6 +559,34 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      */
     /**
      * The nearest row by wording, within the same asking scope.
+     *
+     * OFF BY DEFAULT SINCE 2.1.0, and the reason is structural rather than a
+     * threshold that needs tuning.
+     *
+     * normalizeQuery() lowercases, drops filler words, folds synonyms,
+     * de-duplicates and SORTS. Two normalized strings that are equal are
+     * already an exact-tier hit. So every string pair this tier ever sees
+     * differs in real, meaning-bearing tokens — and the score is dominated by
+     * the tokens they SHARE, which means it rises as the questions get longer
+     * and more specific. Measured on the shipped implementation, one value
+     * token swapped:
+     *
+     *   revenue for grade a / b                                   0.673  safe
+     *   total revenue for grade a / b                             0.741  safe
+     *   total revenue by region for pending orders in grade a / b 0.858  HIT
+     *   ...and category...in 2025 for grade a / b                 0.875  HIT
+     *
+     * The more precisely a user states their question, the likelier this tier
+     * is to answer it with a different one. That is backwards, and no
+     * threshold fixes it: 0.875 is already above any value that leaves the
+     * tier useful. The config has warned since 2.0.0 that "top 10 customers"
+     * and "bottom 10 customers" score 0.65, which is the same defect at a
+     * shorter length.
+     *
+     * It survives as an opt-in because it does what it was built for on
+     * genuine re-runs and typos, and some installs value the saved calls more
+     * than the risk. Enable with cache.fuzzy_matching, and read
+     * docs/CACHING.md first.
      *
      * The exact tiers get their scope from the hash. This one matches by TEXT,
      * so without the same filter it returns candidates from other scopes that

@@ -41,20 +41,42 @@ by hash. It is checked first and honours `cache.ttl`.
   dropped, synonyms folded, words sorted). "Show me the top 5 customers" and
   "top 5 customers" are the same key.
 - **fuzzy** — `0.6 × Jaccard + 0.4 × Levenshtein`, above
-  `cache.similarity_threshold` (default `0.85`).
+  `cache.similarity_threshold` (default `0.85`). **Off by default** since
+  2.1.0 — see below.
 
 Tier 2 rows do not expire. Use `naturalquery:cache-cleanup` to age them out.
 
-### Do not lower the fuzzy threshold
+### Fuzzy matching is opt-in, and why
+
+```env
+NATURALQUERY_CACHE_FUZZY=true    # default false
+```
 
 It is a **lexical** comparison — shared words and edit distance. It does not
-understand meaning. Measured on this implementation, "top 10 customers by
-revenue" and **"bottom 10 customers by revenue"** score `0.65`, which is higher
-than most genuine paraphrases score against each other. Any threshold low
-enough to catch the paraphrases you want is also low enough to answer a
-question with its opposite, from cache, with no API call to correct it.
+understand meaning.
 
-Raise it for fewer reuses; set `cache.enabled` to `false` for none.
+The deeper problem is not the threshold. Queries are normalised before
+comparison: lowercased, filler words dropped, synonyms folded, de-duplicated
+and **sorted**. Two that come out equal are already an exact hit. So every pair
+this tier ever judges differs in real, meaning-bearing tokens — and the score
+is dominated by the tokens they *share*. Swap a single value and measure:
+
+| Question pair, one value swapped | Score |
+|---|---|
+| `revenue for grade a` / `grade b` | 0.673 |
+| `total revenue for grade a` / `grade b` | 0.741 |
+| `total revenue by region for pending orders in grade a` / `grade b` | **0.858** |
+| `…by region and category…in 2025 for grade a` / `grade b` | **0.875** |
+
+The more precisely someone states their question, the likelier this tier is to
+answer it with a different one. That is backwards, and no threshold fixes it:
+0.875 is already above any value that leaves the feature doing anything. The
+same defect at shorter length is why "top 10 customers by revenue" and
+**"bottom 10 customers by revenue"** score `0.65`.
+
+Turn it on if repeated near-identical wording is costing real money and you
+accept that trade. Raise the threshold for fewer reuses; set `cache.enabled`
+to `false` to switch off caching entirely.
 
 ## Scope: when a row may be reused
 
@@ -150,10 +172,28 @@ $this->app->bind(
 );
 ```
 
-Four methods: `find`, `store`, `getStatistics`, `clear`. Store the intent array
-you are given **verbatim** and return it unchanged — the engine reads reserved
-keys out of it (`_sql_result`, `_asking_scope`) and drops anything it does not
-recognise, so you never need to know what is in there.
+Four methods: `find`, `store`, `getStatistics`, `clear`.
+
+`store($query, $intent)` hands you an array. Keep it **verbatim** — the engine
+reads reserved keys back out of it (`_sql_result` decides which reader may
+replay the row, `_asking_scope` decides whether the row is eligible at all) and
+ignores anything it does not recognise, so you never need to know what is
+inside. A row that has lost those keys is not refused, it is misread.
+
+`find($query)` returns that array **wrapped**, or `null`:
+
+```php
+return [
+    'cached'           => true,
+    'cache_match_type' => 'exact',              // or 'fuzzy'; reported as metadata
+    'intent'           => $storedIntentArray,   // byte-identical to what store() got
+    'dataset'          => $storedIntentArray['dataset'] ?? null,
+];
+```
+
+Returning the bare intent array instead of the wrapper is the easy mistake and
+it fails silently: the engine looks for `['intent']`, finds nothing usable, and
+treats every lookup as a miss. The cache fills up and never serves anything.
 
 ### Optional: `ScopesCacheByDataset`
 
