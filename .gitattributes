@@ -9,3 +9,9 @@
 /phpunit.xml        export-ignore
 /package.json       export-ignore
 /package-lock.json  export-ignore
+
+# README media. It has to be committed so GitHub and Packagist can render it
+# from a raw URL, but a multi-megabyte GIF has no business inside every
+# `composer require` — it would be downloaded into vendor/ by every adopter,
+# forever, to be looked at by nobody.
+/art                export-ignore
