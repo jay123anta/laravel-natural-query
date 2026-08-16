@@ -217,7 +217,19 @@ class QueryOrchestrator
                 // package does not do. The failure was reported and then
                 // discarded unread, so nothing here could tell the difference.
                 if (($plan['refused_before_sending'] ?? false)) {
-                    return $this->providerFailure($plan, $metadata);
+                    // Same treatment as the 429 branch below it, which this
+                    // was added one line away from and did not copy: strip the
+                    // internal flag providerFailure() sets for the retry logic,
+                    // and announce, because this exit skips query()'s tail
+                    // where both normally happen.
+                    $refused = $this->providerFailure($plan, $metadata);
+                    unset($refused['_unretriable'], $refused['_rate_limited'], $refused['_fallback_eligible']);
+
+                    if (!$this->inStepExecution) {
+                        $this->announceOutcome($naturalLanguageQuery, $refused, false, $startTime);
+                    }
+
+                    return $refused;
                 }
 
                 if (($plan['status'] ?? null) === 429) {
@@ -300,12 +312,33 @@ class QueryOrchestrator
             // Comparing scope to scope keeps the cross-dataset hit closed —
             // an explicitly scoped row is still refused to an unscoped ask —
             // without charging for it on every ordinary repeat.
-            $cachedScope = $cachedResult['intent']['_asking_scope'] ?? null;
+            // FAILS CLOSED. A missing scope is UNKNOWN, not "unscoped".
+            //
+            // `?? null` read both the same way, and the difference matters
+            // because `_asking_scope` rides inside an opaque blob that a
+            // third-party QueryCacheInterface was never asked to round-trip.
+            // An implementation that drops keys it does not recognise — which
+            // the 2.0.0 contract permitted — handed back rows with no scope,
+            // every one of which then looked eligible for any unscoped
+            // question. The cross-dataset hit this release exists to close,
+            // reopened for exactly the adopters who wrote their own cache.
+            //
+            // The same test also catches a blob that is not an array at all.
+            // Those used to reach normalizeIntent(array $intent) and throw; the
+            // \Throwable catch added earlier turned the crash into an error
+            // response, which was still wrong — Tier 2 rows never expire, so
+            // that question stayed permanently unanswerable with no remedy in
+            // the message. An unreadable row is a MISS. The question is
+            // answered, the row is rewritten on the way past, and it costs one
+            // API call.
+            $blob = $cachedResult['intent'] ?? null;
+            $scopeIsKnown = is_array($blob) && array_key_exists('_asking_scope', $blob);
+            $cachedScope = $scopeIsKnown ? $blob['_asking_scope'] : null;
 
-            if ($cachedResult && $cachedScope !== $askingDataset) {
-                Log::debug('[NaturalQuery:Cache] Discarded: entry was asked under another scope', [
+            if ($cachedResult && (!$scopeIsKnown || $cachedScope !== $askingDataset)) {
+                Log::debug('[NaturalQuery:Cache] Discarded: unusable or asked under another scope', [
                     'asking' => $askingDataset,
-                    'cached' => $cachedScope,
+                    'cached' => $scopeIsKnown ? $cachedScope : '(no scope recorded)',
                     'answers' => $cachedResult['dataset'] ?? null,
                 ]);
                 $cachedResult = null;
@@ -843,6 +876,27 @@ class QueryOrchestrator
         if (config('naturalquery.response.include_speech_text', true)) {
             $response['speech_text'] = $synthesis['answer'];
         }
+
+        // The fields query()'s tail adds to every other answer, which this
+        // path returns straight past. A decomposed answer was arriving with no
+        // `provider`, no `cache_hit` and no `usage` — and docs/API.md documents
+        // usage as accumulating specifically across "the steps of a decomposed
+        // question", which is the one shape where it was absent.
+        //
+        // cache_hit is false by construction: each step consults the cache on
+        // its own, and this envelope is assembled fresh every time.
+        $response['metadata'] = array_merge($response['metadata'], [
+            'cache_hit' => false,
+            'provider' => $this->llmProvider->getName(),
+        ]);
+
+        if ($usage = $this->usageForThisQuestion()) {
+            $response['metadata']['usage'] = $usage;
+        }
+
+        // And the event. A listener counting cost or logging answers saw every
+        // single-part question and no decomposed one.
+        $this->announceOutcome($originalQuery, $response, false, $startTime);
 
         return $response;
     }

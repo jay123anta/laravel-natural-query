@@ -131,6 +131,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hit above. They are ignored rather than served. Expect one round of cache
   misses after upgrading; no action is required and nothing needs clearing.
 
+- **A question narrowed by a single character was answered from the
+  un-narrowed one.** The cache key dropped every one-character token, so
+  "total revenue for A" and "total revenue" shared a row: asking about one
+  region returned the grand total, and asking for the total after that
+  returned the region — `cache_hit: true`, no provider call, nothing in the
+  answer to show it. Single-character values are ordinary — grade A, block B,
+  zone 1 — and a token that changes the answer belongs in the key. `a` and `i`
+  have also been removed from the filler-word list for the same reason; two
+  phrasings differing only by an article now cost one extra API call, which is
+  the correct trade against a wrong number.
+
 - **A blank value in `.env` crashed every query.** `NATURALQUERY_PROMPT_MAX_CHARS=`
   with nothing after it is the empty string, not an absent value: `env()`'s
   default never fires and PHP 8 refuses a non-numeric string for a typed

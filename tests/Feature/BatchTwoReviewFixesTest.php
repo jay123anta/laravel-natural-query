@@ -45,11 +45,72 @@ class BatchTwoReviewFixesTest extends TestCase
     {
         $cache = $this->app->make(TwoTierQueryCache::class);
 
+        // EVERY single character, not a pair.
+        //
+        // The first version of this test asserted only that "region a" and
+        // "region b" differ. They do — and 'a' was still being stripped as a
+        // filler word while 'b' was not, so the assertion passed on the one
+        // letter that worked. Two of the thirty-six then collapsed into the
+        // un-narrowed question: "total revenue for A" and "total revenue"
+        // shared a row, and asking for one region returned the grand total.
+        //
+        // The guard held on the path it was written for, in the test written
+        // to prove the guard held. Enumerating the whole set is the only
+        // version of this test worth having.
+        $bare = $cache->normalizeQuery('revenue for zone');
+        $collapsed = [];
+
+        foreach (array_merge(range('a', 'z'), range('0', '9')) as $token) {
+            if ($cache->normalizeQuery("revenue for zone {$token}") === $bare) {
+                $collapsed[] = $token;
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $collapsed,
+            'these one-character values vanish from the cache key, so a question narrowed by one is '
+                . 'answered from the un-narrowed question\'s row — and the reverse: ' . implode(', ', $collapsed)
+        );
+
+        // And distinct from each other, not merely present.
         $this->assertNotSame(
-            $cache->normalizeQuery('revenue for region a'),
-            $cache->normalizeQuery('revenue for region b'),
-            'two questions differing only by a one-character value normalise to the same key, so the '
-                . 'second is answered from the first\'s cached row'
+            $cache->normalizeQuery('revenue for zone a'),
+            $cache->normalizeQuery('revenue for zone i'),
+            'two different one-character values share a cache key'
+        );
+    }
+
+    /**
+     * The PUBLISHED config must not reference package code.
+     *
+     * naturalquery:install publishes config/naturalquery.php into the app, and
+     * a published file outlives the package: `composer remove` it, or roll
+     * back to a version where the class does not exist, and Laravel loads that
+     * config on every boot. A `use Jayanta\NaturalQuery\...` in there means the
+     * application cannot start — and cannot run the artisan command that would
+     * remove the file either. There is no way out except editing it by hand.
+     *
+     * The EnvValue helper introduced in this release was referenced from 20
+     * lines of it. The helper stays for package code; the config does the same
+     * job inline.
+     */
+    #[Test]
+    public function the_published_config_does_not_depend_on_package_classes()
+    {
+        $source = file_get_contents(__DIR__ . '/../../config/naturalquery.php');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/^\s*use\s+Jayanta\\\\NaturalQuery/m',
+            $source,
+            'the published config imports a package class, so removing or downgrading the package leaves '
+                . 'the application unable to boot and unable to run artisan to fix itself'
+        );
+
+        $this->assertStringNotContainsString(
+            'Jayanta\\NaturalQuery',
+            $source,
+            'the published config names a package class'
         );
     }
 

@@ -23,10 +23,26 @@ use Illuminate\Support\Facades\Cache;
  */
 class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 {
+    /**
+     * Words that carry no meaning for matching, so two phrasings of the same
+     * question share a row.
+     *
+     * 'a' and 'i' are NOT here, and their absence is deliberate. Both are
+     * ordinary English filler, and both are also ordinary VALUES — region A,
+     * grade A, zone I, block I. Stripping them made "total revenue for A" and
+     * "total revenue" the same key, so asking about one region returned the
+     * grand total, from cache, with no provider call and nothing in the answer
+     * to show it. The reverse held too.
+     *
+     * Keeping them costs a cache miss when two phrasings differ only by an
+     * article — "give me a total" against "give me total". That is one API
+     * call. Dropping them costs a confidently wrong number, and §0 does not
+     * rank those anywhere near each other.
+     */
     protected array $fillerWords = [
         'show', 'me', 'the', 'please', 'can', 'you', 'what', 'is', 'are',
-        'give', 'tell', 'find', 'get', 'display', 'list', 'i', 'want',
-        'to', 'see', 'know', 'about', 'for', 'of', 'in', 'a', 'an',
+        'give', 'tell', 'find', 'get', 'display', 'list', 'want',
+        'to', 'see', 'know', 'about', 'for', 'of', 'in', 'an',
         'how', 'many', 'much', 'which', 'could', 'would', 'like',
     ];
 

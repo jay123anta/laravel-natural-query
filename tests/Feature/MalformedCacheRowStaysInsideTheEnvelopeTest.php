@@ -87,13 +87,27 @@ class MalformedCacheRowStaysInsideTheEnvelopeTest extends TestCase
 
         $result = $orchestrator->query($question);
 
+        // A MISS, not an error. This assertion was originally 'error' with
+        // error_code internal_error, and that was an improvement on the
+        // uncaught TypeError it replaced but still the wrong answer: Tier 2
+        // rows have no expiry and the failing row was never rewritten, so the
+        // question stayed permanently unanswerable, for everyone, with a
+        // message naming nothing anyone could act on.
+        //
+        // A row the engine cannot read is a row the engine does not have. It
+        // costs one API call, the answer is correct, and the bad row is
+        // overwritten on the way past. The \Throwable catch stays as a
+        // backstop for everything else.
         $this->assertIsArray($result);
-        $this->assertSame('error', $result['status'] ?? null, json_encode($result));
         $this->assertSame(
-            ErrorCode::INTERNAL,
-            $result['error_code'] ?? null,
-            'a malformed cache row escaped the error envelope as an uncaught TypeError, so the caller got '
-                . 'a framework 500 with no error_code, no retryable flag and no event: ' . json_encode($result)
+            'success',
+            $result['status'] ?? null,
+            'an unreadable cache row still breaks its question instead of being ignored: ' . json_encode($result)
         );
+        $this->assertFalse($result['metadata']['cache_hit'] ?? true);
+
+        // And it does not stay broken: the next ask is served normally.
+        $again = $orchestrator->query($question);
+        $this->assertSame('success', $again['status'] ?? null, json_encode($again));
     }
 }
