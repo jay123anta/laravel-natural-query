@@ -107,9 +107,12 @@ $result = NaturalQuery::query('total revenue by region last month');
 }
 ```
 
-**Show `parsed_query` to your users.** It states which measure, breakdown,
-filters and dates were actually used - the difference between someone catching
-a misreading and believing a number that answers a different question.
+**Show users how the question was read.** Every answer also carries
+`parsed_summary` - the same information as one line, `"Orders · revenue · by
+region · status is pending"` - and the bundled widget puts it under each
+answer. It is the difference between someone catching a misreading and
+believing a number that answers a different question. Use `parsed_query` when
+you want the structure instead.
 
 Or over HTTP, which is what the widget uses:
 
@@ -247,14 +250,19 @@ pass often measures the rate limit rather than the model - add
 ## Commands
 
 ```bash
-php artisan naturalquery:doctor      # diagnose setup problems, print the fix
-php artisan naturalquery:discover    # generate schema files from your database
-php artisan naturalquery:audit-schema # what the AI still has to guess — run this second
-php artisan naturalquery:install     # publish config and migrations
-php artisan naturalquery:debug "…"   # show the exact prompt sent to the AI
+php artisan naturalquery:install        # publish config and migrations
+php artisan naturalquery:discover       # write schema files from your database
+php artisan naturalquery:audit-schema   # what the AI still has to guess — do this next
+php artisan naturalquery:doctor         # diagnose setup problems, print the fix
+php artisan naturalquery:benchmark      # how accurate is it on YOUR schema?
+php artisan naturalquery:debug "…"      # the exact prompt, and which route it takes
 php artisan naturalquery:cache-stats    # is the cache earning its keep?
-php artisan naturalquery:cache-cleanup
+php artisan naturalquery:cache-cleanup  # prune it
 ```
+
+`discover` → `audit-schema` → write the descriptions it asks for → `benchmark`
+is the loop that moves accuracy. The audit says what the model is guessing; the
+benchmark tells you what fixing that was worth, on your own data.
 
 ## Contributing
 

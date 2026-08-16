@@ -2,6 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Tests\Benchmark;
 
+use Jayanta\NaturalQuery\Benchmark\ResultComparator;
+
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -408,34 +410,12 @@ class ExecutionAccuracyTest extends TestCase
      */
     private function normalize(array $rows, bool $ordered): array
     {
-        $out = [];
-
-        foreach ($rows as $row) {
-            $values = [];
-
-            foreach ((array) $row as $value) {
-                if ($value === null) {
-                    continue;
-                }
-                $values[] = is_numeric($value)
-                    ? (string) round((float) $value, 2)
-                    : strtolower(trim((string) $value));
-            }
-
-            sort($values);
-            $out[] = implode('|', $values);
-        }
-
-        if (!$ordered) {
-            sort($out);
-        }
-
-        return $out;
+        return (new ResultComparator())->normalize($rows, $ordered);
     }
 
     private function preview(array $normalized): string
     {
-        return '[' . implode(' ; ', array_slice($normalized, 0, 3)) . (count($normalized) > 3 ? ' …' : '') . ']';
+        return (new ResultComparator())->preview($normalized);
     }
 
     private function report(array $results): void

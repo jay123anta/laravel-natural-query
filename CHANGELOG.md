@@ -20,6 +20,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in a structured field, so the line names the dataset and measure but may not
   name the filter. `intent` mode always names it.
 
+- **`naturalquery:benchmark`** — measure accuracy on **your** schema. The
+  package quotes a figure about itself; nobody should take that on trust for
+  their own data. Supply a file of questions with the SQL you would have
+  written by hand, and both queries run against your database with the result
+  sets compared — aliases and column order ignored, row order ignored unless
+  the question asked for a ranking.
+
+  The point is the before-and-after: run it, run `audit-schema`, write the
+  descriptions, run it again. The difference is what curation bought you, in a
+  number you produced yourself. A wrong answer reports what the question was
+  *read as*, which is usually where the misreading is.
+
+  `--min=` for a CI gate, `--dataset=` to narrow, `--json` to chart it. Costs
+  real provider calls and confirms before spending them. Reference SQL must be
+  `SELECT`/`WITH` — a benchmark file gets copied between projects and a stray
+  `UPDATE` would otherwise run unremarked. Example at
+  `stubs/benchmark-example.php`.
+
+  Grading uses the same `Benchmark\ResultComparator` as the package's own
+  benchmark, so the two numbers mean the same thing.
+
 - **`naturalquery:audit-schema`** — the curation coach. Roughly one question in
   five is misread on an uncurated schema, and the same questions land
   near-perfectly once a handful of sentences are written; until now nobody
