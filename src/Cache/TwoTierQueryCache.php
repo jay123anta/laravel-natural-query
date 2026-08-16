@@ -102,6 +102,32 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 
     public function findForDataset(string $query, ?string $datasetHint = null): ?array
     {
+        // A cache that cannot be read is a cache miss, not a failed question.
+        //
+        // cache.enabled defaults to true, so an install that has not run
+        // `php artisan migrate` yet queries a table that does not exist. The
+        // QueryException travelled up to QueryOrchestrator's catch and every
+        // single question came back "An error occurred processing your query."
+        // — no mention of a cache, a table, or a migration. That is the first
+        // thing a new adopter sees, on the stacks Rule 0 names by name.
+        //
+        // Degrading to a miss costs one API call and keeps the package working;
+        // the log says exactly which command fixes it.
+        try {
+            return $this->lookup($query, $datasetHint);
+        } catch (\Illuminate\Database\QueryException $e) {
+            Log::warning(
+                '[NaturalQuery:Cache] Cache table unreadable, continuing without it. '
+                . "Run `php artisan migrate` to create `{$this->tableName}`.",
+                ['error' => $e->getMessage()]
+            );
+
+            return null;
+        }
+    }
+
+    private function lookup(string $query, ?string $datasetHint): ?array
+    {
         $normalized = $this->normalizeQuery($query);
         $hash = $this->generateHash($this->scopedKey($normalized, $datasetHint));
 
@@ -511,8 +537,14 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
                     $query->orWhere('normalized_query', 'LIKE', "%{$word}%");
                 }
             })
+            // The scope filter below runs in PHP, because the scope lives
+            // inside the intent JSON and cannot be indexed portably. So the
+            // shortlist has to be wide enough that the right-scope candidates
+            // are not crowded out of it: ordered by hit_count, 50 rows on a
+            // busy multi-dataset install can be entirely other scopes, and the
+            // fuzzy tier would silently stop working for the newer one.
             ->orderBy('hit_count', 'desc')
-            ->limit(50)
+            ->limit(200)
             ->get();
 
         if ($candidates->isEmpty()) {

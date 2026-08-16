@@ -216,6 +216,10 @@ class QueryOrchestrator
                 // and is the one thing docs/TROUBLESHOOTING.md promises the
                 // package does not do. The failure was reported and then
                 // discarded unread, so nothing here could tell the difference.
+                if (($plan['refused_before_sending'] ?? false)) {
+                    return $this->providerFailure($plan, $metadata);
+                }
+
                 if (($plan['status'] ?? null) === 429) {
                     // No `_rate_limited` flag. It exists to stop the refined
                     // retry, and this returns from above that block, so here it
@@ -336,7 +340,20 @@ class QueryOrchestrator
                 // succeeded at a narrower one. "Customers with more than 10
                 // orders" quietly became "customers", ranked. Deciding up front
                 // costs nothing — both modes are a single API call.
-                $beyond = $this->coverage ? $this->coverage->exceeds($naturalLanguageQuery) : null;
+                // A cached SQL recipe settles it before the coverage check
+                // does. Only processWithSqlGeneration can replay one; intent
+                // mode declines it, pays for a parseIntent, and — because both
+                // readers store under the same key — then OVERWRITES the recipe
+                // with an intent row. The next repeat finds an intent row,
+                // clarifies, falls back, regenerates, and overwrites the intent
+                // row with a recipe again. The cache oscillated between one and
+                // three provider calls per repeat of the same question, forever,
+                // where zero is available.
+                //
+                // The row's own shape says which reader wrote it, so use it.
+                $beyond = isset($cachedResult['intent']['_sql_result'])
+                    ? 'a cached SQL result'
+                    : ($this->coverage ? $this->coverage->exceeds($naturalLanguageQuery) : null);
 
                 if ($beyond) {
                     Log::info('[NaturalQuery] Question needs SQL beyond the intent contract', [
@@ -506,7 +523,18 @@ class QueryOrchestrator
                 $this->llmProvider->parseIntent($this->withState($query, $context), $datasetList)
             );
 
-            if (!$inConversation && ($intent['success'] ?? false) && !($intent['needs_clarification'] ?? false)) {
+            // Never overwrite a SQL recipe with an intent. Both readers store
+            // under the same key, and the recipe is the row that can actually
+            // answer this question — it exists because the intent contract
+            // could not. Clobbering it throws away the better answer and
+            // guarantees the next repeat pays to rebuild it.
+            $wouldClobberARecipe = isset($cached['intent']['_sql_result']);
+
+            if (!$inConversation
+                && !$wouldClobberARecipe
+                && ($intent['success'] ?? false)
+                && !($intent['needs_clarification'] ?? false)
+            ) {
                 $this->rememberIntent(
                     $query,
                     $intent,
@@ -1458,6 +1486,22 @@ class QueryOrchestrator
     {
         if ($this->cacheFindIsOverridden !== null) {
             return $this->cacheFindIsOverridden;
+        }
+
+        // Only meaningful for subclasses of the bundled cache. The question
+        // this answers — "did the author gate find() and not realise
+        // findForDataset() bypasses it?" — presupposes inheriting both from
+        // TwoTierQueryCache.
+        //
+        // Applied to any implementation, the comparison misfires: a cache that
+        // declares ScopesCacheByDataset on a concrete class while inheriting
+        // find() from its OWN abstract base has find() declared somewhere that
+        // is neither TwoTierQueryCache nor the class declaring findForDataset,
+        // so it was read as a find()-only gate and its findForDataset() was
+        // never called. It had implemented the capability interface precisely
+        // to be asked.
+        if (!$this->cache instanceof TwoTierQueryCache) {
+            return $this->cacheFindIsOverridden = false;
         }
 
         $declaring = fn (string $method) => (new \ReflectionMethod($this->cache, $method))

@@ -105,6 +105,13 @@ class QueryPlanner
                 'comparison' => false,
                 'error' => $response['error'] ?? 'Planning failed',
                 'status' => $response['status'] ?? null,
+                // Carried for the same reason as the status, and missed for
+                // the same reason it was: a provider that refused before
+                // sending anything did not fail to answer, it declined to be
+                // asked. Falling through then answers a two-part question as
+                // a one-part one, using a smaller prompt that clears the very
+                // guard that refused.
+                'refused_before_sending' => $response['refused_before_sending'] ?? false,
             ];
         }
 
