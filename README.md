@@ -3,6 +3,10 @@
 **Let people ask your database questions in English — by voice or by typing —
 without your data ever leaving your server.**
 
+<p align="center">
+  <img src="docs/demo.gif" alt="Asking a database a question in English — the model receives only table and column names" width="100%">
+</p>
+
 <!-- All five badges on ONE physical line, deliberately. Split across lines
      they render as one row on GitHub and as five stacked rows on Packagist,
      which uses a different Markdown renderer that treats a single newline as
