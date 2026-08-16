@@ -1,14 +1,13 @@
 # Laravel NaturalQuery
 
-**Let people ask your database questions in English - by voice or by typing -
+**Let people ask your database questions in English — by voice or by typing —
 without your data ever leaving your server.**
 
-[![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-
-[![Packagist](https://img.shields.io/packagist/v/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
-[![Downloads](https://img.shields.io/packagist/dt/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
-[![PHP](https://img.shields.io/packagist/dependency-v/jayanta/laravel-natural-query/php.svg)](https://packagist.org/packages/jayanta/laravel-natural-query)
+<!-- All five badges on ONE physical line, deliberately. Split across lines
+     they render as one row on GitHub and as five stacked rows on Packagist,
+     which uses a different Markdown renderer that treats a single newline as
+     a break. One line renders identically everywhere. Do not reflow. -->
+[![Packagist](https://img.shields.io/packagist/v/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query) [![Downloads](https://img.shields.io/packagist/dt/jayanta/laravel-natural-query.svg)](https://packagist.org/packages/jayanta/laravel-natural-query) [![Tests](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml/badge.svg)](https://github.com/jay123anta/laravel-natural-query/actions/workflows/tests.yml) [![PHP](https://img.shields.io/packagist/dependency-v/jayanta/laravel-natural-query/php.svg)](https://packagist.org/packages/jayanta/laravel-natural-query) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 The AI is sent your **schema structure only** - table names, column names,
 types, and the words your users use for them. It returns SQL. Your server
