@@ -88,6 +88,34 @@ class AuditSchemaTest extends TestCase
         $this->assertStringContainsString('discover_exclude', $out);
     }
 
+    /**
+     * The gap whose absence produces a wrong NUMBER rather than a vague answer.
+     *
+     * A status column holding "cancelled" and no required_filter means the
+     * model decides whether those rows count towards a total — and a total
+     * that quietly includes cancelled orders looks exactly like a correct one.
+     * The audit cannot know the rule; it can recognise the shape of a column
+     * that usually needs one.
+     */
+    #[Test]
+    public function it_asks_for_a_rule_when_a_column_holds_excludable_values()
+    {
+        $out = $this->audit();
+
+        $this->assertStringContainsString('required_filter', $out);
+        $this->assertStringContainsString('cancelled', $out);
+        $this->assertStringContainsString('status_cd', $out);
+    }
+
+    /** And says nothing once the rule exists. */
+    #[Test]
+    public function it_stays_quiet_when_the_rule_is_already_written()
+    {
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/required-filter-schemas']);
+
+        $this->assertStringNotContainsString('required_filter', $this->audit());
+    }
+
     /** A curated schema must come back clean, or the report is noise. */
     #[Test]
     public function a_curated_schema_reports_nothing()

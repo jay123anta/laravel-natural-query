@@ -41,7 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Grading uses the same `Benchmark\ResultComparator` as the package's own
   benchmark, so the two numbers mean the same thing.
 
-- **`naturalquery:audit-schema`** — the curation coach. Roughly one question in
+- **`naturalquery:audit-schema`** — the curation coach. It also asks for a
+  `required_filter` when a filterable column declares values like `cancelled`,
+  `void` or `deleted` and the table has no rule — the one gap whose absence
+  produces a wrong number rather than a vague answer. Roughly one question in
   five is misread on an uncurated schema, and the same questions land
   near-perfectly once a handful of sentences are written; until now nobody
   could see *which* sentences were missing. It reports only what introspection
@@ -80,6 +83,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which would catch capable hosted models this package has never measured.
 
 ### Fixed
+- **`required_filter` was enforced on one route and merely suggested on the
+  other.** It is how you state a rule the schema cannot imply — cancelled
+  orders never count towards a total. `intent` mode appended it to the SQL so
+  the model could not omit it; `sql_generation` put a line in the prompt and
+  hoped. A model that skipped that line returned every cancelled row in the
+  total, reported success, and nothing downstream re-checked — on the one
+  setting whose whole purpose is that the answer is wrong without it.
+
+  Generated SQL is now checked for the filter and **refused** if it is missing,
+  on both the first generation and the refinement retry. Refused rather than
+  patched: splicing a filter into arbitrary model SQL means a regex on the
+  first `WHERE`, which on a query with a subquery in the `FROM` clause narrows
+  the wrong thing, silently. The check is literal, so an equivalent filter
+  written differently (`status NOT IN ('cancelled')`) is refused too — a false
+  refusal costs an error message, a loose check costs a wrong number.
+
+  `required_filter` is also now documented, in `docs/SCHEMA.md`. It had existed
+  since 1.0.0 as a commented-out line in a stub file and appeared in no
+  documentation at all — the most correctness-critical setting in the package
+  was the hardest one to find.
+
 - **`QueryState::fromIntent()` dropped the `filters` slot** although `summary()`
   reads it, so every state built from an intent described a filtered question
   exactly like an unfiltered one, and a new-query turn in a conversation lost

@@ -1388,8 +1388,31 @@ class QueryOrchestrator
             $sql = $this->replaceComputedMetrics($sql, $dataset);
         }
 
-        // Build query result
+        // A required_filter is a RULE, not a hint, and this route was treating
+        // it as a hint.
+        //
+        // PromptBuilder writes "REQUIRED FILTER (always include in WHERE)" into
+        // the prompt and hopes; SqlBuilder, on the intent route, appends it to
+        // the SQL so the model cannot omit it. Same setting, guaranteed on one
+        // path and requested on the other — and the whole reason someone writes
+        // one is that the answer is WRONG without it. A model that skipped the
+        // line returned every cancelled order in the total, reported success,
+        // and nothing downstream re-checked.
         $schemaData = $dataset ? $this->registry->get($dataset) : null;
+
+        // _unretriable, because the retry regenerates from the same prompt with
+        // the same REQUIRED FILTER line the model has just ignored. Without
+        // this the refusal simply bounced into retryWithRefinedPrompt, which
+        // produced the same unfiltered SQL and returned it as a success — the
+        // first version of this fix did exactly that and the test stayed red.
+        if ($refusal = $this->requiredFilterMissing($sql, $schemaData)) {
+            return array_merge(
+                $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
+                ['_unretriable' => true]
+            );
+        }
+
+        // Build query result
         $queryResult = [
             'success' => true,
             'sql' => $sql,
@@ -1638,6 +1661,58 @@ class QueryOrchestrator
      * interface already carries costs nothing and breaks nobody, and
      * normalizeIntent() drops unknown keys, so it never reaches SqlBuilder.
      */
+    /**
+     * Why generated SQL cannot be trusted for this dataset, or null.
+     *
+     * REFUSES rather than injects, deliberately. SqlBuilder can splice the
+     * filter into its own SQL because it wrote that SQL and knows its shape.
+     * Model-generated SQL is arbitrary — a derived table, a CTE, a subquery in
+     * the FROM clause — and the splice is a regex on the first WHERE, which on
+     * `SELECT … FROM (SELECT … WHERE x) sub` lands inside the subquery and
+     * narrows the wrong thing. Silently. That is a worse failure than the one
+     * being fixed, and "reconcile rather than refuse" is the exact habit this
+     * release spent four review rounds removing.
+     *
+     * The comparison is deliberately literal — whitespace collapsed and `<>`
+     * folded to `!=`, nothing more. A model writing an EQUIVALENT filter in
+     * different words (`status NOT IN ('cancelled')`) is refused even though
+     * its SQL was correct. That is a false refusal, it costs an error message
+     * on a good answer, and it is still the right trade: the alternative is
+     * accepting text that merely mentions the column, which passes
+     * `GROUP BY status` and hands back the unfiltered total.
+     */
+    private function requiredFilterMissing(string $sql, ?array $schemaData): ?string
+    {
+        $required = $schemaData['tables']['primary']['required_filter'] ?? null;
+
+        if (!$required) {
+            return null;
+        }
+
+        $normalise = static fn (string $s) => strtolower(preg_replace(
+            ['/\s+/', '/<>/'],
+            [' ', '!='],
+            trim($s)
+        ) ?? '');
+
+        if (str_contains($normalise($sql), $normalise($required))) {
+            return null;
+        }
+
+        Log::warning('[NaturalQuery] Generated SQL omitted a required filter', [
+            'dataset' => $schemaData['name'] ?? null,
+            'required_filter' => $required,
+        ]);
+
+        return sprintf(
+            'This dataset has a required filter (%s) that the generated query did not apply, so the '
+            . 'answer would have counted rows your schema says must never be counted. Ask again, or use '
+            . 'query_mode "intent" for this question — that route applies the filter itself instead of '
+            . 'asking the model to.',
+            $required
+        );
+    }
+
     private function rememberIntent(string $query, array $intent, ?string $askingScope): void
     {
         $intent['_asking_scope'] = $askingScope;
@@ -1780,6 +1855,20 @@ class QueryOrchestrator
 
             $data = $response['data'];
             $schemaData = $this->registry->get($dataset);
+
+            // The second place generated SQL enters the engine, and therefore
+            // the second place a required_filter can be dropped. Guarding only
+            // the first one would have left the rule unenforced here — which is
+            // precisely how this defect existed in the first place, and how the
+            // first attempt at fixing it still failed: the refusal below sent
+            // the question into this retry, which re-generated the same
+            // unfiltered SQL and returned it as a success.
+            if ($refusal = $this->requiredFilterMissing($data['sql'], $schemaData)) {
+                return array_merge(
+                    $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
+                    ['_unretriable' => true]
+                );
+            }
 
             $queryResult = [
                 'success' => true,

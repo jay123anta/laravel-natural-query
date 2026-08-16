@@ -233,6 +233,65 @@ More examples = fewer AI errors. Cover every query pattern:
 ],
 ```
 
+## Rules the schema cannot imply
+
+Some things are true of your data and written down nowhere in it. The commonest
+is that certain rows must never count:
+
+```php
+'tables' => [
+    'primary' => [
+        'name' => 'orders',
+        'required_filter' => "status != 'cancelled'",
+        // …
+    ],
+],
+```
+
+Nothing in a column's name, type or foreign keys says whether a cancelled order
+belongs in a total. Only you know. Without the rule the model decides, and a
+total that quietly includes cancelled orders looks exactly like a correct one —
+no error, no warning, just a number that is too big.
+
+**It is enforced, not suggested.** In `intent` mode `SqlBuilder` appends the
+filter to the SQL, so it cannot be omitted. In `sql_generation` mode the filter
+is put in the prompt *and* the returned SQL is checked for it — a query that
+omits it is refused rather than executed. You will get an error saying which
+filter was missing, which is the correct outcome: the alternative is a wrong
+number reported as a success.
+
+One consequence worth knowing. The check is literal — whitespace is collapsed
+and `<>` is folded to `!=`, nothing more. A model that writes an equivalent
+filter in different words (`status NOT IN ('cancelled')`) is refused even
+though its SQL was right. That is a deliberate trade: a false refusal costs an
+error on a good answer, while a looser check that merely looked for the column
+name would pass `GROUP BY status` and hand back the unfiltered total.
+
+Other uses of the same setting:
+
+```php
+// Time-series tables where only the latest snapshot is meaningful
+'required_filter' => "as_of_date = (SELECT MAX(as_of_date) FROM stock_levels)",
+
+// Soft deletes, if you are not using Eloquent's global scope here
+'required_filter' => 'deleted_at IS NULL',
+
+// Multi-tenant tables — but see the note below
+'required_filter' => 'tenant_id = 42',
+```
+
+**Not a security boundary.** It is a correctness rule expressed in your schema
+file, applied to questions this package answers. It is not row-level security
+and does not protect anything from code that queries the database directly. For
+tenancy, use a database user, a global scope, or a policy — and treat
+`required_filter` as the thing that keeps *answers* right, not the thing that
+keeps *data* private.
+
+`php artisan naturalquery:audit-schema` flags a filterable column whose declared
+values include things like `cancelled`, `void` or `deleted` when the table has
+no `required_filter`, so you get asked the question rather than having to
+remember it.
+
 ## Working with many tables
 
 A realistic Laravel application has dozens of tables, and the first question

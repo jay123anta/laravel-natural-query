@@ -21,7 +21,10 @@ return [
             'group_column' => 'id',
             'columns' => [
                 'amount' => ['type' => 'decimal', 'description' => '', 'aggregatable' => true, 'sortable' => true],
-                'status_cd' => ['type' => 'varchar', 'description' => '', 'filterable' => true],
+                // Values declared, none described, and no required_filter: the
+                // exact shape where a total silently counts rows it should not.
+                'status_cd' => ['type' => 'varchar', 'description' => '', 'filterable' => true,
+                    'values' => ['paid', 'pending', 'cancelled']],
             ],
             'relationships' => [],
         ],

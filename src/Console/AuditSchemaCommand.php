@@ -138,6 +138,34 @@ class AuditSchemaCommand extends Command
                 . 'described one is not.');
         }
 
+        // A rule the schema cannot imply, and the only kind of gap here whose
+        // absence produces a WRONG NUMBER rather than a vague answer.
+        //
+        // A `status` column holding "cancelled" is the classic case: nothing in
+        // the type, the name or the foreign keys says whether those rows count
+        // towards a total, so the model includes them, and the total is wrong
+        // in a way nobody notices. Only a person knows. This cannot detect the
+        // rule — it detects the SHAPE of a column that usually needs one.
+        $noRule = trim((string) ($schema['tables']['primary']['required_filter'] ?? '')) === '';
+
+        foreach ($noRule ? $columns : [] as $name => $column) {
+            $excluding = $this->exclusionValues($column);
+
+            if (!$excluding) {
+                continue;
+            }
+
+            $this->add($key, 'required-filter',
+                "`{$name}` holds " . implode('/', $excluding) . ' and this dataset has no required_filter',
+                "Should those rows count towards totals? If not, say so once and every query obeys: "
+                . "'required_filter' => \"{$name} != '{$excluding[0]}'\" in the table block. Intent mode "
+                . 'appends it to the SQL; SQL generation refuses an answer that omits it. Without a rule '
+                . 'the model decides, and a total that quietly includes cancelled rows looks exactly like '
+                . 'a correct one.');
+
+            break; // One prompt per dataset is enough; the point is made.
+        }
+
         if ($unitless) {
             $this->add($key, 'units', 'Measures with no unit: ' . implode(', ', $unitless),
                 'Answers render the number bare, so 1500 could be currency, kilograms or a count. '
@@ -195,6 +223,35 @@ class AuditSchemaCommand extends Command
                     . "'system_instructions': \"{$term} means SUM(" . reset($owners) . '), never the '
                     . 'others." This is the single highest-value sentence you can add.');
         }
+    }
+
+    /**
+     * Values in a column that usually mean "do not count this row".
+     *
+     * Read from the schema file's own `values` list, not guessed from the
+     * database — this command contacts nothing and reads no data, and a column
+     * whose permitted values someone has already written down is the only
+     * place this can be known from structure alone.
+     *
+     * @param array<string, mixed> $column
+     * @return array<int, string>
+     */
+    private function exclusionValues(array $column): array
+    {
+        static $suspect = [
+            'cancelled', 'canceled', 'void', 'voided', 'deleted', 'draft',
+            'refunded', 'reversed', 'rejected', 'archived', 'test',
+        ];
+
+        $found = [];
+
+        foreach ((array) ($column['values'] ?? []) as $value) {
+            if (in_array(strtolower(trim((string) $value)), $suspect, true)) {
+                $found[] = (string) $value;
+            }
+        }
+
+        return $found;
     }
 
     private function isInfrastructure(string $table): bool
