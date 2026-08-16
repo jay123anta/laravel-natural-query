@@ -100,6 +100,7 @@ $result = NaturalQuery::query('total revenue by region last month');
   "answer": "Revenue by region: West 2,028,763; East 1,878,404",
   "speech_text": "Revenue by region. West, 2 million…",   // phrased to be read aloud
   "rows": [ { "region": "West", "revenue": "2028763.00" } ],
+  "parsed_summary": "Orders · revenue · by region · 2026-07-01 to 2026-07-31",
   "parsed_query": {
     "metric": "revenue", "group_by": "region",
     "filters": [], "period": "2026-07-01 to 2026-07-31"
@@ -196,7 +197,22 @@ which is why the schema files matter more than anything else you will do.
 The honest framing is **a fast analyst for datasets you have curated**, not an
 oracle for arbitrary databases. Every mitigation here follows from that: SQL is
 SELECT-only and restricted to your tables, `doctor` catches schema drift, and
-every answer shows the query it understood.
+every answer states how it read the question.
+
+**You do not have to take that on trust for your own data.** Two commands close
+the loop:
+
+```bash
+php artisan naturalquery:audit-schema   # what the model is still guessing
+php artisan naturalquery:benchmark      # how often it is right, on your schema
+```
+
+The audit names the things introspection cannot recover - a column nobody
+described, two columns that could both be "revenue", a table your users call
+something else. The benchmark runs your own questions against SQL you wrote by
+hand and compares the results. Curate what the audit found, run the benchmark
+again, and the difference is a number you produced rather than one this README
+asserts.
 
 ### Provider conformance
 
