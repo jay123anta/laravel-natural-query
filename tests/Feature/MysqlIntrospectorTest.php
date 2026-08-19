@@ -96,7 +96,7 @@ class MysqlIntrospectorTest extends TestCase
     {
         config(['naturalquery.sql.database_connection' => self::CONNECTION]);
 
-        return new MysqlIntrospector();
+        return new MysqlIntrospector;
     }
 
     #[Test]

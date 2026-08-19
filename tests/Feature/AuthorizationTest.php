@@ -4,6 +4,8 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Auth\GenericUser;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
+use Jayanta\NaturalQuery\Http\Middleware\Authorize;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -176,13 +178,13 @@ class AuthorizationTest extends TestCase
     #[Test]
     public function the_check_is_appended_by_the_package_not_supplied_by_config()
     {
-        $middleware = \Illuminate\Support\Facades\Route::getRoutes()
+        $middleware = Route::getRoutes()
             ->getByName('naturalquery.text')
             ->gatherMiddleware();
 
-        $this->assertContains(\Jayanta\NaturalQuery\Http\Middleware\Authorize::class, $middleware);
+        $this->assertContains(Authorize::class, $middleware);
         $this->assertNotContains(
-            \Jayanta\NaturalQuery\Http\Middleware\Authorize::class,
+            Authorize::class,
             config('naturalquery.routes.middleware'),
             'if it came from the config, emptying the config would remove it'
         );

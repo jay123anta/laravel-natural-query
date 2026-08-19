@@ -30,11 +30,13 @@ class CacheCleanupCommand extends Command
         if ($this->option('all')) {
             if (!$this->confirm('This will remove ALL cache entries. Continue?')) {
                 $this->info('Cancelled.');
+
                 return self::SUCCESS;
             }
 
             $deleted = $cache->clear();
             $this->info("Cleared all {$deleted} cache entries.");
+
             return self::SUCCESS;
         }
 
@@ -61,8 +63,8 @@ class CacheCleanupCommand extends Command
         if ($dataset) {
             $this->line("  Dataset: {$dataset}");
         }
-        $this->line($days > 0 ? "  Older than: {$days} days" : "  Age: any");
-        $this->line($minHits > 0 ? "  Fewer hits than: {$minHits}" : "  Hits: any");
+        $this->line($days > 0 ? "  Older than: {$days} days" : '  Age: any');
+        $this->line($minHits > 0 ? "  Fewer hits than: {$minHits}" : '  Hits: any');
 
         $deleted = $cache->clear($dataset, $days, $minHits);
 
@@ -70,8 +72,8 @@ class CacheCleanupCommand extends Command
 
         // Show remaining stats
         $stats = $cache->getStatistics();
-        $this->line("Remaining entries: " . ($stats['total_entries'] ?? 0));
-        $this->line("Total hits: " . ($stats['total_hits'] ?? 0));
+        $this->line('Remaining entries: ' . ($stats['total_entries'] ?? 0));
+        $this->line('Total hits: ' . ($stats['total_hits'] ?? 0));
 
         return self::SUCCESS;
     }

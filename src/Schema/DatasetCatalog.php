@@ -27,12 +27,12 @@ class DatasetCatalog
     /**
      * Render one line per dataset.
      *
-     * @param array<int, array<string, mixed>> $datasetList as returned by
-     *        SchemaRegistry::getDatasetListForLlm() — each entry carries
-     *        key, name, aliases, metrics, dimensions, default_dimension.
-     * @param array<int, string>|null $onlyKeys restrict the index to these
-     *        dataset keys, in $datasetList's own order; null renders all of
-     *        them.
+     * @param  array<int, array<string, mixed>>  $datasetList  as returned by
+     *                                                         SchemaRegistry::getDatasetListForLlm() — each entry carries
+     *                                                         key, name, aliases, metrics, dimensions, default_dimension.
+     * @param  array<int, string>|null  $onlyKeys  restrict the index to these
+     *                                             dataset keys, in $datasetList's own order; null renders all of
+     *                                             them.
      */
     public static function render(array $datasetList, ?array $onlyKeys = null): string
     {
@@ -54,7 +54,7 @@ class DatasetCatalog
      * know that "by region" is a breakdown this dataset supports, and the
      * request is silently answered with the default grouping instead.
      *
-     * @param array<string, mixed> $dataset
+     * @param  array<string, mixed>  $dataset
      */
     protected static function line(array $dataset): string
     {

@@ -9,12 +9,13 @@ use PHPUnit\Framework\Attributes\Test;
 class SqlValidatorTest extends TestCase
 {
     private SqlValidator $validator;
+
     private array $allowedTables = ['public.orders', 'public.customers'];
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->validator = new SqlValidator();
+        $this->validator = new SqlValidator;
     }
 
     #[Test]
@@ -117,8 +118,8 @@ class SqlValidatorTest extends TestCase
     public function it_blocks_sql_injection_patterns()
     {
         $patterns = [
-            "SELECT * FROM public.orders WHERE id = 1 OR 1=1 LIMIT 10",
-            "SELECT * FROM public.orders; -- LIMIT 10",
+            'SELECT * FROM public.orders WHERE id = 1 OR 1=1 LIMIT 10',
+            'SELECT * FROM public.orders; -- LIMIT 10',
             "SELECT * FROM public.orders WHERE name = '' OR '' = '' LIMIT 10",
         ];
 
@@ -157,7 +158,7 @@ class SqlValidatorTest extends TestCase
     #[Test]
     public function it_blocks_stacked_queries()
     {
-        $sql = "SELECT * FROM public.orders LIMIT 10; SELECT * FROM secret";
+        $sql = 'SELECT * FROM public.orders LIMIT 10; SELECT * FROM secret';
         $result = $this->validator->validate($sql, $this->allowedTables);
         $this->assertFalse($result['valid']);
     }

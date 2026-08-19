@@ -42,7 +42,7 @@ class InputGuard
     /**
      * Validate and sanitize user input.
      *
-     * @param string $query Raw user query
+     * @param  string  $query  Raw user query
      * @return array {safe: bool, query: string (sanitized), blocked_reason: string|null}
      */
     public function validate(string $query): array
@@ -59,7 +59,7 @@ class InputGuard
         }
 
         if (strlen(trim($query)) < 3) {
-            return $this->block("Query too short.", $original);
+            return $this->block('Query too short.', $original);
         }
 
         // Step 3: Use ai-guard if installed (deeper scoring-based detection)
@@ -70,7 +70,8 @@ class InputGuard
                 'confidence_score' => $aiGuardResult['confidence_score'],
                 'query' => substr($original, 0, 200),
             ]);
-            return $this->block("Query blocked: " . $aiGuardResult['threat_type'], $original);
+
+            return $this->block('Query blocked: ' . $aiGuardResult['threat_type'], $original);
         }
 
         // Step 4: Built-in prompt injection detection (fallback / additional layer)
@@ -80,7 +81,8 @@ class InputGuard
                 'pattern' => $injectionResult,
                 'query' => substr($original, 0, 200),
             ]);
-            return $this->block("Query contains disallowed patterns.", $original);
+
+            return $this->block('Query contains disallowed patterns.', $original);
         }
 
         // Step 4: Detect SQL injection in query text
@@ -90,7 +92,8 @@ class InputGuard
                 'pattern' => $sqlInjectionResult,
                 'query' => substr($original, 0, 200),
             ]);
-            return $this->block("Query contains disallowed SQL patterns.", $original);
+
+            return $this->block('Query contains disallowed SQL patterns.', $original);
         }
 
         // Step 5: Detect data exfiltration attempts
@@ -100,7 +103,8 @@ class InputGuard
                 'pattern' => $exfilResult,
                 'query' => substr($original, 0, 200),
             ]);
-            return $this->block("Query contains disallowed patterns.", $original);
+
+            return $this->block('Query contains disallowed patterns.', $original);
         }
 
         return ['safe' => true, 'query' => $query, 'blocked_reason' => null];
@@ -330,6 +334,7 @@ class InputGuard
             $threshold = (int) config('ai-guard.confidence_threshold', 70);
             if ($threat['confidence_score'] < $threshold) {
                 $this->logAiGuardDetection("below ai-guard threshold ({$threshold})", $threat, $query);
+
                 return null;
             }
 
@@ -337,6 +342,7 @@ class InputGuard
             $mode = (string) config('ai-guard.mode', 'log_only');
             if ($enforce !== 'always' && $mode !== 'block') {
                 $this->logAiGuardDetection("not enforced (ai-guard mode: {$mode})", $threat, $query);
+
                 return null;
             }
 

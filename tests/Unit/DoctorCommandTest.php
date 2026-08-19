@@ -4,7 +4,10 @@ namespace Jayanta\NaturalQuery\Tests\Unit;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Console\DoctorCommand;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -100,7 +103,7 @@ class DoctorCommandTest extends TestCase
     public function it_flags_foreign_keys_pointing_at_tables_that_were_never_described()
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/subset-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         Schema::create('sub_orders', function ($table) {
             $table->id();
@@ -148,7 +151,7 @@ class DoctorCommandTest extends TestCase
     private function useCompetingMeasureSchemas(): void
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/related-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
     }
 
     #[Test]
@@ -306,10 +309,18 @@ class DoctorCommandTest extends TestCase
         config(['naturalquery.ssl_verify' => true]);
 
         $this->swap(
-            \Jayanta\NaturalQuery\Console\DoctorCommand::class,
-            new class extends \Jayanta\NaturalQuery\Console\DoctorCommand {
-                protected function phpCaBundle(): ?string { return null; }
-                protected function bundleOnDisk(): ?string { return 'C:/xampp/apache/bin/curl-ca-bundle.crt'; }
+            DoctorCommand::class,
+            new class extends DoctorCommand
+            {
+                protected function phpCaBundle(): ?string
+                {
+                    return null;
+                }
+
+                protected function bundleOnDisk(): ?string
+                {
+                    return 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+                }
             }
         );
 
@@ -335,9 +346,13 @@ class DoctorCommandTest extends TestCase
         config(['naturalquery.ssl_verify' => true]);
 
         $this->swap(
-            \Jayanta\NaturalQuery\Console\DoctorCommand::class,
-            new class extends \Jayanta\NaturalQuery\Console\DoctorCommand {
-                protected function phpCaBundle(): ?string { return '/etc/ssl/certs/ca-certificates.crt'; }
+            DoctorCommand::class,
+            new class extends DoctorCommand
+            {
+                protected function phpCaBundle(): ?string
+                {
+                    return '/etc/ssl/certs/ca-certificates.crt';
+                }
             }
         );
 
@@ -371,7 +386,7 @@ class DoctorCommandTest extends TestCase
         copy(__DIR__ . '/../../stubs/schema-example.php', $dir . '/example.php');
 
         config(['naturalquery.schema.config_path' => $dir]);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         return $dir;
     }
@@ -414,7 +429,7 @@ class DoctorCommandTest extends TestCase
     {
         $dir = $this->useShippedTemplate();
         copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         Schema::create('orders', function ($table) {
             $table->id();
@@ -451,10 +466,10 @@ class DoctorCommandTest extends TestCase
     {
         $dir = $this->useShippedTemplate();
         copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         try {
-            $registry = $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+            $registry = $this->app->make(SchemaRegistry::class);
             $keys = array_column($registry->getAvailableDatasets(), 'key');
 
             $this->assertNotContains('example', $keys, 'the model can still pick the template');
@@ -475,7 +490,7 @@ class DoctorCommandTest extends TestCase
     {
         $dir = $this->useShippedTemplate();
         copy(__DIR__ . '/../Stubs/schemas/test_orders.php', $dir . '/test_orders.php');
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
         config(['naturalquery.system_instructions' => '']);
 
         try {
@@ -492,6 +507,7 @@ class DoctorCommandTest extends TestCase
             @rmdir($dir);
         }
     }
+
     /**
      * A self-hosted model is not an exception to be special-cased.
      *
@@ -513,7 +529,7 @@ class DoctorCommandTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('selfHostedUrls')]
+    #[DataProvider('selfHostedUrls')]
     #[Test]
     public function a_self_hosted_model_is_not_nagged_for_an_api_key(string $baseUrl)
     {

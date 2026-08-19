@@ -18,8 +18,8 @@ namespace Jayanta\NaturalQuery\Events;
 class QuestionAnswered
 {
     /**
-     * @param array<string, mixed> $parsedQuery How the question was understood
-     * @param array<string, int>   $usage       Token counts, empty if unreported
+     * @param  array<string, mixed>  $parsedQuery  How the question was understood
+     * @param  array<string, int>  $usage  Token counts, empty if unreported
      */
     public function __construct(
         public readonly string $question,
@@ -37,6 +37,5 @@ class QuestionAnswered
         public readonly float $durationMs,
         public readonly string $provider,
         public readonly array $usage = [],
-    ) {
-    }
+    ) {}
 }

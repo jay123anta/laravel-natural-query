@@ -30,7 +30,7 @@ class ResultComparator
      * Numbers are rounded to two places so a float that differs in the
      * fifteenth decimal does not read as a different total.
      *
-     * @param array<int, mixed> $rows
+     * @param  array<int, mixed>  $rows
      * @return array<int, string>
      */
     public function normalize(array $rows, bool $ordered): array
@@ -62,8 +62,8 @@ class ResultComparator
     }
 
     /**
-     * @param array<int, mixed> $expected Rows from the reference query
-     * @param array<int, mixed> $actual   Rows the package produced
+     * @param  array<int, mixed>  $expected  Rows from the reference query
+     * @param  array<int, mixed>  $actual  Rows the package produced
      */
     public function matches(array $expected, array $actual, bool $ordered = false): bool
     {
@@ -73,7 +73,7 @@ class ResultComparator
     /**
      * A short, readable form of a normalized set, for a failure message.
      *
-     * @param array<int, string> $normalized
+     * @param  array<int, string>  $normalized
      */
     public function preview(array $normalized): string
     {

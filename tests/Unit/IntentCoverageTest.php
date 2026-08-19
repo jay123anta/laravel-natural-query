@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
 use Jayanta\NaturalQuery\Engine\IntentCoverage;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -196,15 +197,15 @@ class IntentCoverageTest extends TestCase
     public function an_aggregate_the_contract_cannot_express_escalates()
     {
         // No computed metrics here, so nothing provides an average.
-        config(["naturalquery.schema.config_path" => __DIR__ . "/../Stubs/groupby-schemas"]);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
+        $this->app->forgetInstance(SchemaRegistry::class);
         $this->app->forgetInstance(IntentCoverage::class);
 
-        foreach (["average revenue", "what is the average revenue", "minimum revenue"] as $query) {
+        foreach (['average revenue', 'what is the average revenue', 'minimum revenue'] as $query) {
             $this->assertSame(
-                "non_sum_aggregate",
+                'non_sum_aggregate',
                 $this->coverage()->exceeds($query),
-                "{} would have been summed"
+                '{} would have been summed'
             );
         }
     }
@@ -219,8 +220,8 @@ class IntentCoverageTest extends TestCase
     public function an_aggregate_the_schema_defines_stays_in_intent_mode()
     {
         // The default stub declares avg_amount with the alias "average".
-        $this->assertNull($this->coverage()->exceeds("average order value"));
-        $this->assertNull($this->coverage()->exceeds("what is the average"));
+        $this->assertNull($this->coverage()->exceeds('average order value'));
+        $this->assertNull($this->coverage()->exceeds('what is the average'));
     }
 
     /**
@@ -230,12 +231,12 @@ class IntentCoverageTest extends TestCase
     #[Test]
     public function sums_and_counts_are_never_escalated_as_aggregates()
     {
-        config(["naturalquery.schema.config_path" => __DIR__ . "/../Stubs/groupby-schemas"]);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
+        $this->app->forgetInstance(SchemaRegistry::class);
         $this->app->forgetInstance(IntentCoverage::class);
 
-        foreach (["total revenue", "how many orders", "sum of revenue", "revenue by region"] as $query) {
-            $this->assertNotSame("non_sum_aggregate", $this->coverage()->exceeds($query), $query);
+        foreach (['total revenue', 'how many orders', 'sum of revenue', 'revenue by region'] as $query) {
+            $this->assertNotSame('non_sum_aggregate', $this->coverage()->exceeds($query), $query);
         }
     }
 }

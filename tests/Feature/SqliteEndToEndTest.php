@@ -135,7 +135,7 @@ class SqliteEndToEndTest extends TestCase
     #[Test]
     public function a_table_with_no_dates_says_so_rather_than_guessing()
     {
-        \Illuminate\Support\Facades\Schema::create('shop_regions', function ($t) {
+        Schema::create('shop_regions', function ($t) {
             $t->id();
             $t->string('name');
         });

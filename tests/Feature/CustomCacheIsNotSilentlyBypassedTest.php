@@ -68,7 +68,7 @@ class CustomCacheIsNotSilentlyBypassedTest extends TestCase
 
     private function stubProvider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'nq_orders',
@@ -93,7 +93,7 @@ class CustomCacheIsNotSilentlyBypassedTest extends TestCase
         $this->seedOrders();
         $provider = $this->stubProvider();
 
-        $cache = new RecordingCache();
+        $cache = new RecordingCache;
         $this->app->instance(QueryCacheInterface::class, $cache);
         $this->app->forgetInstance(QueryOrchestrator::class);
 
@@ -127,7 +127,7 @@ class CustomCacheIsNotSilentlyBypassedTest extends TestCase
         $this->seedOrders();
         $this->stubProvider();
 
-        $cache = new GatedCache();
+        $cache = new GatedCache;
         $this->app->instance(QueryCacheInterface::class, $cache);
         $this->app->forgetInstance(QueryOrchestrator::class);
 
@@ -148,6 +148,7 @@ class CustomCacheIsNotSilentlyBypassedTest extends TestCase
 class RecordingCache implements QueryCacheInterface
 {
     public array $stored = [];
+
     public int $findCalls = 0;
 
     public function find(string $query): ?array

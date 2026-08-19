@@ -2,10 +2,11 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Engine\QueryPlanner;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -52,7 +53,7 @@ class MultiStepOrchestrationTest extends TestCase
     /** Plans on request, and resolves each step to a region filter. */
     private function scriptedProvider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
 
         $provider->sqlResponse = fn ($prompt) => [
             'success' => true,
@@ -76,7 +77,7 @@ class MultiStepOrchestrationTest extends TestCase
 
         $this->app->instance(LlmProviderInterface::class, $provider);
         $this->app->forgetInstance(QueryOrchestrator::class);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Engine\QueryPlanner::class);
+        $this->app->forgetInstance(QueryPlanner::class);
 
         return $provider;
     }

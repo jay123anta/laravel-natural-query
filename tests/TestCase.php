@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Tests;
 
-use Orchestra\Testbench\TestCase as BaseTestCase;
 use Jayanta\NaturalQuery\NaturalQueryServiceProvider;
+use Orchestra\Testbench\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {

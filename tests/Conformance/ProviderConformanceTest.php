@@ -5,8 +5,14 @@ namespace Jayanta\NaturalQuery\Tests\Conformance;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
+use Jayanta\NaturalQuery\Engine\IntentCoverage;
+use Jayanta\NaturalQuery\Engine\NextStepSuggester;
+use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Engine\QueryPlanner;
+use Jayanta\NaturalQuery\Engine\SqlBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -44,6 +50,7 @@ use PHPUnit\Framework\Attributes\Test;
 class ProviderConformanceTest extends TestCase
 {
     private string $driver;
+
     private array $results = [];
 
     /**
@@ -131,12 +138,12 @@ class ProviderConformanceTest extends TestCase
             SchemaRegistry::class,
             QueryOrchestrator::class,
             ConversationManager::class,
-            \Jayanta\NaturalQuery\Engine\SqlBuilder::class,
-            \Jayanta\NaturalQuery\Engine\PromptBuilder::class,
-            \Jayanta\NaturalQuery\Engine\QueryPlanner::class,
-            \Jayanta\NaturalQuery\Engine\NextStepSuggester::class,
-            \Jayanta\NaturalQuery\Engine\IntentCoverage::class,
-            \Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class,
+            SqlBuilder::class,
+            PromptBuilder::class,
+            QueryPlanner::class,
+            NextStepSuggester::class,
+            IntentCoverage::class,
+            SchemaIntrospectorInterface::class,
         ] as $service) {
             $this->app->forgetInstance($service);
         }
@@ -210,7 +217,7 @@ class ProviderConformanceTest extends TestCase
     {
         if ($this->results) {
             $failed = array_filter($this->results, fn ($r) => !$r['passed']);
-            $lines = ["", "  CONFORMANCE — " . strtoupper($this->driver ?? '?'), ""];
+            $lines = ['', '  CONFORMANCE — ' . strtoupper($this->driver ?? '?'), ''];
 
             foreach ($this->results as $r) {
                 $lines[] = sprintf('  %-5s %-46s %s', $r['passed'] ? 'ok' : 'FAIL', $r['case'], $r['detail']);

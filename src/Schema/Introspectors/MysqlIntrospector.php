@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Schema\Introspectors;
 
-use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 
 /**
  * MySQL/MariaDB Schema Introspector
@@ -36,7 +36,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
             ORDER BY TABLE_SCHEMA, TABLE_NAME
         ", $schemas);
 
-        return array_map(fn($t) => [
+        return array_map(fn ($t) => [
             'name' => $t->name,
             'short_name' => $t->short_name,
             'schema' => $t->schema,
@@ -97,7 +97,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
                 AND REFERENCED_TABLE_NAME IS NOT NULL
         ", [$schema, $table]);
 
-        return array_map(fn($fk) => (array) $fk, $fks);
+        return array_map(fn ($fk) => (array) $fk, $fks);
     }
 
     public function getIndexes(string $tableName, ?string $connection = null): array
@@ -117,7 +117,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
             ORDER BY INDEX_NAME
         ", [$schema, $table]);
 
-        return array_map(fn($idx) => [
+        return array_map(fn ($idx) => [
             'name' => $idx->name,
             'columns' => explode(',', $idx->columns),
             'is_unique' => (bool) $idx->is_unique,
@@ -140,7 +140,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
             ORDER BY SCHEMA_NAME
         ");
 
-        return array_map(fn($s) => $s->SCHEMA_NAME, $schemas);
+        return array_map(fn ($s) => $s->SCHEMA_NAME, $schemas);
     }
 
     public function getDialect(?string $connection = null): string
@@ -160,6 +160,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
         }
 
         $database = $conn ? $conn->getDatabaseName() : config('database.connections.mysql.database');
+
         return [$database, $tableName];
     }
 

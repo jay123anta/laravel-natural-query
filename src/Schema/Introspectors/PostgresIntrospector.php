@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Schema\Introspectors;
 
-use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 
 /**
  * PostgreSQL Schema Introspector
@@ -148,7 +148,7 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
             ORDER BY tc.constraint_name, kcu.ordinal_position
         ", [$schema, $table]);
 
-        return array_map(fn($fk) => (array) $fk, $fks);
+        return array_map(fn ($fk) => (array) $fk, $fks);
     }
 
     public function getIndexes(string $tableName, ?string $connection = null): array
@@ -198,7 +198,7 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
             ORDER BY schema_name
         ");
 
-        return array_map(fn($s) => $s->schema_name, $schemas);
+        return array_map(fn ($s) => $s->schema_name, $schemas);
     }
 
     public function getDialect(?string $connection = null): string
@@ -216,6 +216,7 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
         if (str_contains($tableName, '.')) {
             return explode('.', $tableName, 2);
         }
+
         return ['public', $tableName];
     }
 

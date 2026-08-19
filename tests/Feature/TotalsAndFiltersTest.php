@@ -58,7 +58,7 @@ class TotalsAndFiltersTest extends TestCase
     /** @param array<string, mixed> $intent */
     private function answer(array $intent): array
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = array_merge([
             'success' => true,
             'dataset' => 'gb_sales',
@@ -159,7 +159,7 @@ class TotalsAndFiltersTest extends TestCase
     #[Test]
     public function a_filter_on_the_grouping_column_is_applied_not_skipped()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',
@@ -191,7 +191,7 @@ class TotalsAndFiltersTest extends TestCase
     #[Test]
     public function that_filter_is_reported_in_the_parsed_query()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',
@@ -215,7 +215,7 @@ class TotalsAndFiltersTest extends TestCase
     #[Test]
     public function a_breakdown_that_was_asked_for_is_still_a_breakdown()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',

@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Jayanta\NaturalQuery\Conversation\QueryState;
 use Jayanta\NaturalQuery\Conversation\TurnClassifier;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -78,7 +79,7 @@ class ConversationDatasetDetectionTest extends TestCase
     public function it_handles_an_application_with_no_schemas_at_all()
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/does-not-exist']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
         $this->app->forgetInstance(TurnClassifier::class);
 
         $this->assertSame(TurnClassifier::REFINEMENT, $this->classify('anything'));

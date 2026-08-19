@@ -27,6 +27,5 @@ class UnsafeSqlRejected
         public readonly string $reason,
 
         public readonly string $provider,
-    ) {
-    }
+    ) {}
 }

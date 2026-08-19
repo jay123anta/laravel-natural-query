@@ -61,9 +61,9 @@ class UnfamiliarSchemaTest extends TestCase
             ['bin_code' => 'B-07', 'units_held' => 75],
         ]);
 
-        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector());
+        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector);
 
-        $this->provider = new RecordingProvider();
+        $this->provider = new RecordingProvider;
         $this->provider->intentResponse = [
             'success' => true,
             'dataset' => 'warehouse_stock',

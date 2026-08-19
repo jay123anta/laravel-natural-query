@@ -4,6 +4,8 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Engine\IntentCoverage;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -48,7 +50,7 @@ class DebugAndCleanupTellTheTruthTest extends TestCase
             'naturalquery.prompts.max_chars' => 50,
         ]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $this->app->instance(LlmProviderInterface::class, $provider);
 
         $this->artisan('naturalquery:debug', ['query' => 'total revenue', '--execute' => true])
@@ -74,7 +76,7 @@ class DebugAndCleanupTellTheTruthTest extends TestCase
             'naturalquery.prompts.max_chars' => 50,
         ]);
 
-        $coverage = $this->app->make(\Jayanta\NaturalQuery\Engine\IntentCoverage::class);
+        $coverage = $this->app->make(IntentCoverage::class);
         $question = 'total revenue';
         $this->assertNull(
             $coverage->exceeds($question),
@@ -93,7 +95,7 @@ class DebugAndCleanupTellTheTruthTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
 
         $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
-        $cache = $this->app->make(\Jayanta\NaturalQuery\Contracts\QueryCacheInterface::class);
+        $cache = $this->app->make(QueryCacheInterface::class);
 
         $cache->store('the usual summary', ['dataset' => 'nq_orders', 'metric' => 'revenue']);
 
@@ -120,7 +122,7 @@ class DebugAndCleanupTellTheTruthTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
 
         $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
-        $cache = $this->app->make(\Jayanta\NaturalQuery\Contracts\QueryCacheInterface::class);
+        $cache = $this->app->make(QueryCacheInterface::class);
 
         $cache->store('busy question', ['dataset' => 'nq_orders', 'metric' => 'revenue']);
         DB::table($table)->update(['hit_count' => 25, 'last_hit_at' => now()]);

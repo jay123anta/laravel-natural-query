@@ -46,7 +46,7 @@ class PlanningRateLimitDoesNotFallThroughTest extends TestCase
     #[Test]
     public function a_429_while_planning_is_reported_rather_than_retried_as_a_single_query()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
         $provider->intentResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
         $this->app->instance(LlmProviderInterface::class, $provider);
@@ -76,7 +76,7 @@ class PlanningRateLimitDoesNotFallThroughTest extends TestCase
     #[Test]
     public function an_ordinary_planning_failure_still_falls_back_to_a_single_query()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $calls = 0;
         $provider->sqlResponse = function () use (&$calls) {
             $calls++;

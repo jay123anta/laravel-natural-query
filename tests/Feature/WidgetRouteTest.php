@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -103,6 +104,6 @@ class WidgetRouteTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("cannot introspect the 'sqlite' database driver");
 
-        $this->app->make(\Jayanta\NaturalQuery\Engine\QueryOrchestrator::class);
+        $this->app->make(QueryOrchestrator::class);
     }
 }

@@ -42,7 +42,7 @@ class FeedbackLoopTest extends TestCase
         // The package ships the feedback table; load it the way an app would.
         $this->artisan('migrate', ['--force' => true])->run();
 
-        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector());
+        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector);
     }
 
     private function store(): FeedbackStore

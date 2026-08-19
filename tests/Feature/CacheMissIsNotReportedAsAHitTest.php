@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -58,7 +59,7 @@ class CacheMissIsNotReportedAsAHitTest extends TestCase
     /** Answers whichever dataset the prompt it is given names. */
     private function provider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = function (string $prompt) {
             $table = str_contains($prompt, 'nq_products') ? 'nq_products' : 'nq_orders';
 
@@ -71,7 +72,7 @@ class CacheMissIsNotReportedAsAHitTest extends TestCase
                 ],
             ];
         };
-        $this->app->instance(\Jayanta\NaturalQuery\Contracts\LlmProviderInterface::class, $provider);
+        $this->app->instance(LlmProviderInterface::class, $provider);
 
         return $provider;
     }

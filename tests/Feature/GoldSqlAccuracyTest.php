@@ -72,7 +72,7 @@ class GoldSqlAccuracyTest extends TestCase
     {
         $built = $this->app->make(SqlBuilder::class)->buildQuery($intent + ['dataset' => 'tf_sales']);
 
-        $this->assertTrue($built['success'], "build failed: " . ($built['error'] ?? '') . " — {$because}");
+        $this->assertTrue($built['success'], 'build failed: ' . ($built['error'] ?? '') . " — {$because}");
 
         $actual = DB::select($built['sql'], $built['bindings'] ?? []);
         $gold = DB::select($goldSql);

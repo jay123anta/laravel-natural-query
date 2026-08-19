@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 class SchemaRegistry
 {
     protected string $configPath;
+
     protected ?array $schemas = null;
 
     /** Lazily built lookup of validator-permitted tables, keyed lowercase. */
@@ -43,6 +44,7 @@ class SchemaRegistry
 
         if (!is_dir($this->configPath)) {
             Log::warning('[NaturalQuery:SchemaRegistry] Schema directory not found', ['path' => $this->configPath]);
+
             return $this->schemas;
         }
 
@@ -67,6 +69,7 @@ class SchemaRegistry
                     Log::info('[NaturalQuery:SchemaRegistry] Ignoring the unedited example template', [
                         'file' => $file,
                     ]);
+
                     continue;
                 }
 
@@ -95,7 +98,7 @@ class SchemaRegistry
      * Static and public because naturalquery:doctor asks the same question,
      * and the two must never disagree about which files are real.
      *
-     * @param array<string, mixed> $schema
+     * @param  array<string, mixed>  $schema
      */
     public static function isUntouchedTemplate(array $schema): bool
     {
@@ -110,6 +113,7 @@ class SchemaRegistry
     public function get(string $key): ?array
     {
         $schemas = $this->all();
+
         return $schemas[$key] ?? null;
     }
 
@@ -157,6 +161,7 @@ class SchemaRegistry
     public function getTableName(string $key): ?string
     {
         $schema = $this->get($key);
+
         return $schema['tables']['primary']['name'] ?? null;
     }
 
@@ -336,6 +341,7 @@ class SchemaRegistry
     public function getColumns(string $key): array
     {
         $schema = $this->get($key);
+
         return $schema['tables']['primary']['columns'] ?? [];
     }
 
@@ -422,6 +428,7 @@ class SchemaRegistry
                 }
             }
         }
+
         return array_unique($tables);
     }
 
@@ -530,6 +537,7 @@ class SchemaRegistry
                 'aliases' => $schema['aliases'] ?? [],
             ];
         }
+
         return $result;
     }
 
@@ -579,6 +587,7 @@ class SchemaRegistry
     public function getConnection(string $key): ?string
     {
         $schema = $this->get($key);
+
         return $schema['connection'] ?? config('naturalquery.sql.database_connection');
     }
 
@@ -595,6 +604,7 @@ class SchemaRegistry
 
         // Fall back to first metric
         $metrics = $this->getMetrics($key);
+
         return !empty($metrics) ? array_key_first($metrics) : null;
     }
 
@@ -604,6 +614,7 @@ class SchemaRegistry
     public function getMaxLimit(string $key): ?int
     {
         $schema = $this->get($key);
+
         return $schema['max_limit'] ?? config('naturalquery.sql.max_limit');
     }
 
@@ -613,6 +624,7 @@ class SchemaRegistry
     public function getExampleQueries(string $key): array
     {
         $schema = $this->get($key);
+
         return $schema['example_queries'] ?? [];
     }
 
@@ -622,6 +634,7 @@ class SchemaRegistry
     public function getLlmInstructions(string $key): string
     {
         $schema = $this->get($key);
+
         return trim($schema['llm_instructions'] ?? '');
     }
 

@@ -4,7 +4,12 @@ namespace Jayanta\NaturalQuery\Tests\Benchmark;
 
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
+use Jayanta\NaturalQuery\Engine\NextStepSuggester;
+use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Engine\QueryPlanner;
+use Jayanta\NaturalQuery\Engine\SqlBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -164,11 +169,11 @@ class SpiderSampleTest extends TestCase
         foreach ([
             SchemaRegistry::class,
             QueryOrchestrator::class,
-            \Jayanta\NaturalQuery\Engine\SqlBuilder::class,
-            \Jayanta\NaturalQuery\Engine\PromptBuilder::class,
-            \Jayanta\NaturalQuery\Engine\QueryPlanner::class,
-            \Jayanta\NaturalQuery\Engine\NextStepSuggester::class,
-            \Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class,
+            SqlBuilder::class,
+            PromptBuilder::class,
+            QueryPlanner::class,
+            NextStepSuggester::class,
+            SchemaIntrospectorInterface::class,
         ] as $service) {
             $this->app->forgetInstance($service);
         }
@@ -333,7 +338,7 @@ class SpiderSampleTest extends TestCase
 
         $lines[] = '';
         $lines[] = sprintf(
-            "  asked %d of %d available; %d excluded (gold empty on synthetic data)",
+            '  asked %d of %d available; %d excluded (gold empty on synthetic data)',
             count($results),
             $results[0]['total_available'] ?? count($results),
             $skipped

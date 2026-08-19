@@ -5,6 +5,7 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -67,7 +68,7 @@ class CacheScopeIsNotTheAnswersDatasetTest extends TestCase
 
     private function provider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = function (string $prompt) {
             $table = str_contains($prompt, 'nq_products') ? 'nq_products' : 'nq_orders';
 
@@ -154,7 +155,7 @@ class CacheScopeIsNotTheAnswersDatasetTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
         $this->seedTables();
 
-        $cache = $this->app->make(\Jayanta\NaturalQuery\Contracts\QueryCacheInterface::class);
+        $cache = $this->app->make(QueryCacheInterface::class);
         $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
         $question = 'the usual summary';
 

@@ -107,7 +107,7 @@ class BenchmarkCommand extends Command
 
         foreach ($questions as $i => $q) {
             if (empty($q['question']) || empty($q['gold'])) {
-                $this->error("Question #" . ($i + 1) . " needs both 'question' and 'gold'.");
+                $this->error('Question #' . ($i + 1) . " needs both 'question' and 'gold'.");
 
                 return null;
             }
@@ -117,7 +117,7 @@ class BenchmarkCommand extends Command
             // thing that gets copied between projects, and a stray UPDATE in
             // one would be executed without a word. Reads only.
             if (!preg_match('/^\s*(SELECT|WITH)\b/i', (string) $q['gold'])) {
-                $this->error("Question #" . ($i + 1) . "'s reference SQL is not a SELECT. Refusing to run it.");
+                $this->error('Question #' . ($i + 1) . "'s reference SQL is not a SELECT. Refusing to run it.");
 
                 return null;
             }
@@ -127,7 +127,7 @@ class BenchmarkCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $q
+     * @param  array<string, mixed>  $q
      * @return array<string, mixed>
      */
     private function runQuestion(QueryOrchestrator $orchestrator, ResultComparator $comparator, array $q, int $n, int $of): array
@@ -194,7 +194,7 @@ class BenchmarkCommand extends Command
     }
 
     /**
-     * @param array<int, array<string, mixed>> $results
+     * @param  array<int, array<string, mixed>>  $results
      */
     private function emitJson(array $results): int
     {
@@ -211,7 +211,7 @@ class BenchmarkCommand extends Command
     }
 
     /**
-     * @param array<int, array<string, mixed>> $results
+     * @param  array<int, array<string, mixed>>  $results
      */
     private function emitReport(array $results): int
     {
@@ -273,7 +273,7 @@ class BenchmarkCommand extends Command
     }
 
     /**
-     * @param array<int, array<string, mixed>> $results
+     * @param  array<int, array<string, mixed>>  $results
      */
     private function exitCode(array $results): int
     {

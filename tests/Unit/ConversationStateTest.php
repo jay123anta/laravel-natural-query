@@ -46,7 +46,7 @@ class ConversationStateTest extends TestCase
     {
         $this->assertSame(
             TurnClassifier::NEW_QUERY,
-            $this->classifier()->classify('anything at all', new QueryState())
+            $this->classifier()->classify('anything at all', new QueryState)
         );
     }
 

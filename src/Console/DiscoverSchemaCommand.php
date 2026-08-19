@@ -60,6 +60,7 @@ class DiscoverSchemaCommand extends Command
     ];
 
     protected SchemaIntrospectorInterface $introspector;
+
     protected SqlValidatorInterface $validator;
 
     public function handle(SchemaIntrospectorInterface $introspector, SqlValidatorInterface $validator): int
@@ -96,14 +97,14 @@ class DiscoverSchemaCommand extends Command
         $tables = $introspector->listTables($connection, $schemas);
 
         if (!$includeViews) {
-            $tables = array_filter($tables, fn($t) => ($t['type'] ?? 'table') === 'table');
+            $tables = array_filter($tables, fn ($t) => ($t['type'] ?? 'table') === 'table');
         }
 
         if (!empty($specificTables)) {
-            $tables = array_filter($tables, fn($t) => in_array($t['short_name'], $specificTables, true));
+            $tables = array_filter($tables, fn ($t) => in_array($t['short_name'], $specificTables, true));
         } elseif (!$this->option('all-tables')) {
             $before = count($tables);
-            $tables = array_filter($tables, fn($t) => !$this->isExcluded($t['short_name']));
+            $tables = array_filter($tables, fn ($t) => !$this->isExcluded($t['short_name']));
             $removed = $before - count($tables);
             if ($removed > 0) {
                 $this->line("  Skipped {$removed} framework/system table(s) — use --all-tables to include them");
@@ -112,6 +113,7 @@ class DiscoverSchemaCommand extends Command
 
         if (empty($tables)) {
             $this->warn('No tables found to discover.');
+
             return self::FAILURE;
         }
 
@@ -139,6 +141,7 @@ class DiscoverSchemaCommand extends Command
             if (empty($columns)) {
                 $this->warn('    Skipping — no columns found');
                 $skipped++;
+
                 continue;
             }
 
@@ -156,11 +159,13 @@ class DiscoverSchemaCommand extends Command
                     if ($existing === null) {
                         $this->warn("    Cannot merge — {$schemaKey}.php did not parse; leaving it untouched");
                         $skipped++;
+
                         continue;
                     }
                 } elseif (!$this->option('force')) {
                     $this->line("    Skipping — {$schemaKey}.php already exists (--merge to update it, --force to regenerate)");
                     $skipped++;
+
                     continue;
                 }
             }
@@ -184,6 +189,7 @@ class DiscoverSchemaCommand extends Command
             if ($dryRun) {
                 $this->line("    Would create {$schemaKey}.php (" . count($columns) . ' columns)');
                 $created++;
+
                 continue;
             }
 
@@ -201,6 +207,7 @@ class DiscoverSchemaCommand extends Command
                 $this->error("    ✗ Generated file was invalid and has been removed: {$parseError}");
                 $this->line('      Please report this — include the table name and column comments.');
                 $failed++;
+
                 continue;
             }
 
@@ -262,7 +269,7 @@ class DiscoverSchemaCommand extends Command
      * database. Examples become few-shot guidance in every prompt, so a bad
      * one is worse than no example at all.
      *
-     * @param array $examples Raw [{natural, sql}, …] from the AI
+     * @param  array  $examples  Raw [{natural, sql}, …] from the AI
      * @return array Validated subset, re-indexed
      */
     protected function keepOnlyValidExamples(array $examples, string $fullName, ?string $connection): array
@@ -288,6 +295,7 @@ class DiscoverSchemaCommand extends Command
 
             if (!($result['valid'] ?? false)) {
                 $this->line('      · dropped unsafe example: ' . ($result['reason'] ?? 'failed validation'));
+
                 continue;
             }
 
@@ -295,6 +303,7 @@ class DiscoverSchemaCommand extends Command
                 $error = $this->explainFails($sql, $connection);
                 if ($error !== null) {
                     $this->line('      · dropped example that does not run: ' . $error);
+
                     continue;
                 }
             }
@@ -315,6 +324,7 @@ class DiscoverSchemaCommand extends Command
     {
         try {
             DB::connection($connection)->select('EXPLAIN ' . $sql);
+
             return null;
         } catch (\Throwable $e) {
             $message = $e->getMessage();
@@ -462,7 +472,7 @@ class DiscoverSchemaCommand extends Command
 
         if ($existing !== null) {
             $schema = $this->mergeSchema($schema, $existing);
-            $humanName = $schema["name"] ?? $humanName;
+            $humanName = $schema['name'] ?? $humanName;
         }
 
         $header = $this->fileHeader($humanName, $fullName, $relationships, $aiMeta);
@@ -533,8 +543,8 @@ class DiscoverSchemaCommand extends Command
      * telling the model about a column that no longer exists, which is exactly
      * the silent failure `doctor` reports.
      *
-     * @param array<string, mixed> $generated
-     * @param array<string, mixed> $existing
+     * @param  array<string, mixed>  $generated
+     * @param  array<string, mixed>  $existing
      * @return array<string, mixed>
      */
     protected function mergeSchema(array $generated, array $existing): array
@@ -615,7 +625,7 @@ class DiscoverSchemaCommand extends Command
      * there. That is everything needed to write a JOIN, and nothing that would
      * go stale differently from the rest of the file.
      *
-     * @param array<int, array<string, mixed>> $relationships
+     * @param  array<int, array<string, mixed>>  $relationships
      * @return array<int, array{column: string, references_table: string, references_column: string}>
      */
     protected function normalizeRelationships(array $relationships): array
@@ -753,7 +763,7 @@ class DiscoverSchemaCommand extends Command
                 'aliases' => isset($metric['aliases']) && is_array($metric['aliases'])
                     ? array_values(array_filter($metric['aliases'], 'is_string'))
                     : null,
-            ], fn($v) => $v !== null);
+            ], fn ($v) => $v !== null);
         }
 
         return $normalized;
@@ -845,7 +855,7 @@ class DiscoverSchemaCommand extends Command
             $relStr = '';
             if (!empty($relationships)) {
                 $rels = array_map(
-                    fn($r) => "{$r['column']} → {$r['referenced_table']}.{$r['referenced_column']}",
+                    fn ($r) => "{$r['column']} → {$r['referenced_table']}.{$r['referenced_column']}",
                     $relationships
                 );
                 $relStr = "\nRelationships:\n" . implode("\n", $rels);

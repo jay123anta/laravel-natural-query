@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
+use Illuminate\Testing\PendingCommand;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use Mockery;
@@ -143,7 +144,7 @@ return [
 PHP);
     }
 
-    private function discover(array $options = []): \Illuminate\Testing\PendingCommand
+    private function discover(array $options = []): PendingCommand
     {
         return $this->artisan('naturalquery:discover', array_merge([
             '--output' => $this->outputPath,

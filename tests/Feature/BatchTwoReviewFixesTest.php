@@ -3,7 +3,6 @@
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\PromptBudget;
@@ -195,7 +194,7 @@ class BatchTwoReviewFixesTest extends TestCase
     {
         config(['naturalquery.query_mode' => 'sql_generation', 'naturalquery.chat.multi_step' => true]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
         $provider->intentResponse = ['success' => false, 'error' => 'Too Many Requests', 'status' => 429];
         $this->app->instance(LlmProviderInterface::class, $provider);

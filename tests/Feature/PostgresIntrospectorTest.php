@@ -98,7 +98,7 @@ class PostgresIntrospectorTest extends TestCase
     {
         config(['naturalquery.sql.database_connection' => self::CONNECTION]);
 
-        return new PostgresIntrospector();
+        return new PostgresIntrospector;
     }
 
     #[Test]

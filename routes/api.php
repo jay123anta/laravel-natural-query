@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Jayanta\NaturalQuery\Http\Controllers\NaturalQueryController;
 use Jayanta\NaturalQuery\Http\Controllers\WidgetController;
+use Jayanta\NaturalQuery\Http\Middleware\Authorize;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,7 +34,7 @@ Route::get('/', [NaturalQueryController::class, 'index'])->name('index');
 // it just stops the widget rendering at all, and the failure looks like a
 // broken package rather than a policy. The endpoints it CALLS are gated.
 Route::get('/widget.js', [WidgetController::class, 'asset'])
-    ->withoutMiddleware(['auth', \Jayanta\NaturalQuery\Http\Middleware\Authorize::class])
+    ->withoutMiddleware(['auth', Authorize::class])
     ->name('widget.asset');
 
 // Interactive demo page using the widget (config-gated; defaults to local env only)

@@ -13,7 +13,7 @@ class ResponseFormatterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->formatter = new ResponseFormatter();
+        $this->formatter = new ResponseFormatter;
     }
 
     #[Test]
@@ -97,7 +97,7 @@ class ResponseFormatterTest extends TestCase
         ];
 
         // Few rows = bar chart
-        $rows = [(object)['name'=>'A','amount'=>1], (object)['name'=>'B','amount'=>2]];
+        $rows = [(object) ['name' => 'A', 'amount' => 1], (object) ['name' => 'B', 'amount' => 2]];
         $result = $this->formatter->format($queryResult, $rows);
         $this->assertEquals('bar', $result['visualization']);
     }
@@ -114,9 +114,9 @@ class ResponseFormatterTest extends TestCase
         ];
 
         $rows = [
-            (object)['name'=>'A','amount'=>100],
-            (object)['name'=>'B','amount'=>200],
-            (object)['name'=>'C','amount'=>300],
+            (object) ['name' => 'A', 'amount' => 100],
+            (object) ['name' => 'B', 'amount' => 200],
+            (object) ['name' => 'C', 'amount' => 300],
         ];
 
         $result = $this->formatter->format($queryResult, $rows);

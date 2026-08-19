@@ -2,9 +2,11 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
-use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
-use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Engine\QueryPlanner;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -29,7 +31,7 @@ class ClarificationTest extends TestCase
     /** Answer every intent parse with the given payload. */
     private function provider(array $intent): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = $intent + [
             'success' => true,
             'confidence' => 0.5,
@@ -37,7 +39,7 @@ class ClarificationTest extends TestCase
 
         $this->app->instance(LlmProviderInterface::class, $provider);
         $this->app->forgetInstance(QueryOrchestrator::class);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Engine\QueryPlanner::class);
+        $this->app->forgetInstance(QueryPlanner::class);
 
         return $provider;
     }
@@ -97,7 +99,7 @@ class ClarificationTest extends TestCase
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/related-schemas']);
         config(['naturalquery.query_mode' => 'auto']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         $provider = $this->provider([
             'dataset' => 'rel_orders',
@@ -167,7 +169,7 @@ class ClarificationTest extends TestCase
         // The guard on the fix: removing them everywhere would break the one
         // clarification that genuinely needs them.
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/related-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         $this->provider([
             'dataset' => null,
@@ -188,10 +190,10 @@ class ClarificationTest extends TestCase
         // Sorting by a date is reasonable; "best by order_date" is not, and a
         // dead option among live ones makes the whole list look untrustworthy.
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/time-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
         $metrics = array_column(
-            $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class)->getDatasetMetrics('tf_sales'),
+            $this->app->make(SchemaRegistry::class)->getDatasetMetrics('tf_sales'),
             'key'
         );
 

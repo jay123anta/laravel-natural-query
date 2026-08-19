@@ -2,9 +2,9 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
-use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Jayanta\NaturalQuery\Feedback\FeedbackStore;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
  * Prompt Builder
@@ -21,7 +21,9 @@ use Jayanta\NaturalQuery\Feedback\FeedbackStore;
 class PromptBuilder
 {
     protected SchemaRegistry $registry;
+
     protected SchemaIntrospectorInterface $introspector;
+
     protected FeedbackStore $feedback;
 
     public function __construct(SchemaRegistry $registry, SchemaIntrospectorInterface $introspector, FeedbackStore $feedback)
@@ -259,7 +261,7 @@ PROMPT;
 
         $lines[] = "TABLE: {$tableName}";
         $lines[] = "  Dataset: {$datasetKey} ({$schema['name']})";
-        $lines[] = "  Description: " . ($schema['description'] ?? '');
+        $lines[] = '  Description: ' . ($schema['description'] ?? '');
         $lines[] = "  Group/Filter Column: {$groupColumn}";
 
         if ($joinClause) {
@@ -276,8 +278,8 @@ PROMPT;
 
         // Columns with full detail
         $columns = $primary['columns'] ?? [];
-        $lines[] = "";
-        $lines[] = "  COLUMNS (only use these — do not invent column names):";
+        $lines[] = '';
+        $lines[] = '  COLUMNS (only use these — do not invent column names):';
         foreach ($columns as $colName => $colDef) {
             $desc = $colDef['description'] ?? '';
             $type = $colDef['type'] ?? '';
@@ -285,10 +287,18 @@ PROMPT;
             $aliases = !empty($colDef['aliases']) ? ' (user might say: ' . implode(', ', $colDef['aliases']) . ')' : '';
 
             $flags = [];
-            if ($colDef['filterable'] ?? false) $flags[] = 'filterable';
-            if ($colDef['groupable'] ?? false) $flags[] = 'groupable';
-            if ($colDef['aggregatable'] ?? false) $flags[] = 'aggregatable';
-            if ($colDef['sortable'] ?? false) $flags[] = 'sortable';
+            if ($colDef['filterable'] ?? false) {
+                $flags[] = 'filterable';
+            }
+            if ($colDef['groupable'] ?? false) {
+                $flags[] = 'groupable';
+            }
+            if ($colDef['aggregatable'] ?? false) {
+                $flags[] = 'aggregatable';
+            }
+            if ($colDef['sortable'] ?? false) {
+                $flags[] = 'sortable';
+            }
             $flagStr = !empty($flags) ? ' [' . implode(', ', $flags) . ']' : '';
 
             $lines[] = "    - {$colName} ({$type}){$unit}: {$desc}{$aliases}{$flagStr}";
@@ -297,8 +307,8 @@ PROMPT;
         // Computed metrics
         $computed = $schema['computed_metrics'] ?? [];
         if (!empty($computed)) {
-            $lines[] = "";
-            $lines[] = "  COMPUTED METRICS (NOT database columns — use the SQL expression in SELECT/ORDER BY):";
+            $lines[] = '';
+            $lines[] = '  COMPUTED METRICS (NOT database columns — use the SQL expression in SELECT/ORDER BY):';
             foreach ($computed as $metricKey => $metricData) {
                 $expr = $metricData['expression'] ?? '';
                 $desc = $metricData['description'] ?? '';
@@ -312,15 +322,15 @@ PROMPT;
         // Required filter
         $requiredFilter = $primary['required_filter'] ?? null;
         if ($requiredFilter) {
-            $lines[] = "";
+            $lines[] = '';
             $lines[] = "  REQUIRED FILTER (always include in WHERE): {$requiredFilter}";
         }
 
         // Query patterns (SQL templates for different query types)
         $queryPatterns = $schema['query_patterns'] ?? [];
         if (!empty($queryPatterns)) {
-            $lines[] = "";
-            $lines[] = "  SQL QUERY PATTERNS (use these as templates):";
+            $lines[] = '';
+            $lines[] = '  SQL QUERY PATTERNS (use these as templates):';
             foreach ($queryPatterns as $patternKey => $pattern) {
                 $desc = $pattern['description'] ?? $patternKey;
                 $sql = $pattern['sql'] ?? '';
@@ -347,7 +357,7 @@ PROMPT;
      * grouping by referenced table, which is right in every case except two
      * separate single-column keys pointing at the same table.
      *
-     * @param array<int, array<string, mixed>> $relationships
+     * @param  array<int, array<string, mixed>>  $relationships
      * @return string[]
      */
     protected function joinsFor(string $tableName, array $relationships): array
@@ -406,7 +416,7 @@ PROMPT;
 
         foreach ($this->registry->all() as $key => $schema) {
             $sections[] = $this->buildFullSchemaInfo($key, $schema);
-            $sections[] = ""; // blank line between schemas
+            $sections[] = ''; // blank line between schemas
         }
 
         return implode("\n", $sections);
@@ -426,7 +436,7 @@ PROMPT;
         foreach ($examples as $ex) {
             $lines[] = "Q: {$ex['natural']}";
             $lines[] = "SQL: {$ex['sql']}";
-            $lines[] = "";
+            $lines[] = '';
         }
 
         return implode("\n", $lines);
@@ -496,7 +506,7 @@ PROMPT;
         foreach ($grouped as $dataset => $keywords) {
             $schemaData = $this->registry->get($dataset);
             $name = $schemaData['name'] ?? $dataset;
-            $lines[] = "- If query mentions: " . implode(', ', $keywords) . " → use dataset \"{$dataset}\" ({$name})";
+            $lines[] = '- If query mentions: ' . implode(', ', $keywords) . " → use dataset \"{$dataset}\" ({$name})";
         }
 
         return implode("\n", $lines);
@@ -514,14 +524,14 @@ PROMPT;
 
         $lines = [];
         foreach ($examples as $ex) {
-            $lines[] = "Q: " . ($ex['natural'] ?? '');
+            $lines[] = 'Q: ' . ($ex['natural'] ?? '');
             if (!empty($ex['sql'])) {
-                $lines[] = "SQL: " . $ex['sql'];
+                $lines[] = 'SQL: ' . $ex['sql'];
             }
             if (!empty($ex['note'])) {
-                $lines[] = "Note: " . $ex['note'];
+                $lines[] = 'Note: ' . $ex['note'];
             }
-            $lines[] = "";
+            $lines[] = '';
         }
 
         return implode("\n", $lines);

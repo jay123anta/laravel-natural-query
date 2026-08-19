@@ -101,7 +101,7 @@ class CacheDatasetMismatchMissTest extends TestCase
      * so this file does not depend on that file's private helper. */
     private function wiredProvider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
 
         $provider->sqlResponse = function (string $prompt) {
             $sawProducts = str_contains(strtolower($prompt), 'nq_products');
@@ -253,7 +253,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         config(['naturalquery.cache.enabled' => true]);
         $this->artisan('migrate', ['--force' => true])->run();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = function (string $prompt) {
             $sawProducts = str_contains(strtolower($prompt), 'nq_products');
 
@@ -349,7 +349,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         ]);
         $this->artisan('migrate', ['--force' => true])->run();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         // The model's own determination — deliberately NOT what
         // DatasetSeeder::detect() would guess from this wording (see the
         // $question comment below).
@@ -455,7 +455,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         ]);
         $this->artisan('migrate', ['--force' => true])->run();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'nq_orders',

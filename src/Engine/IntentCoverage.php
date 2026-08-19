@@ -2,6 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+
 /**
  * Does the intent contract have somewhere to put this question?
  *
@@ -35,9 +37,7 @@ class IntentCoverage
      * average from one that does not, and escalates either way — the safe
      * direction, at the cost of one extra call.
      */
-    public function __construct(protected ?\Jayanta\NaturalQuery\Schema\SchemaRegistry $registry = null)
-    {
-    }
+    public function __construct(protected ?SchemaRegistry $registry = null) {}
 
     /**
      * Wording that needs SQL the intent contract cannot express, by the SQL

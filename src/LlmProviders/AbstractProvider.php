@@ -2,8 +2,10 @@
 
 namespace Jayanta\NaturalQuery\LlmProviders;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Contracts\ReportsUsage;
 use Jayanta\NaturalQuery\Schema\DatasetCatalog;
 
 /**
@@ -15,18 +17,22 @@ use Jayanta\NaturalQuery\Schema\DatasetCatalog;
  * - Error sanitization (removes API keys from messages)
  * - Health check caching
  */
-abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\ReportsUsage
+abstract class AbstractProvider implements ReportsUsage
 {
     protected array $config;
 
     /** Running token counts for this request. @var array<string, int> */
     protected array $usage = [];
+
     protected int $maxRetries;
+
     protected int $timeout;
 
     /** @var array|null Cached health check result */
     protected static ?array $healthCache = null;
+
     protected static ?int $healthCacheTime = null;
+
     protected const HEALTH_CACHE_TTL = 60;
 
     /**
@@ -98,6 +104,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
 
                     if ($waited !== null) {
                         Log::warning("[NaturalQuery:{$this->getName()}] Rate limited (429), attempt {$attempt}/{$this->maxRetries}, waited {$waited}ms");
+
                         continue;
                     }
 
@@ -115,6 +122,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
                     Log::warning("[NaturalQuery:{$this->getName()}] HTTP {$status}, attempt {$attempt}/{$this->maxRetries}, waited {$waited}ms");
                     $lastError = "API error: HTTP {$status}";
                     $lastStatus = $status;
+
                     continue;
                 }
 
@@ -158,8 +166,8 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * Sleep before the next attempt, if another attempt is allowed and the
      * wait fits the remaining budget.
      *
-     * @param int $attempt The attempt that just failed (1-based)
-     * @param int|null $retryAfterSeconds Provider's Retry-After hint, if sent
+     * @param  int  $attempt  The attempt that just failed (1-based)
+     * @param  int|null  $retryAfterSeconds  Provider's Retry-After hint, if sent
      * @return int|null Milliseconds slept, or NULL when the caller should stop
      *                  retrying (last attempt, or budget cannot cover the wait)
      */
@@ -181,6 +189,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
                 'next_delay_ms' => $delay,
                 'budget_ms' => $budget,
             ]);
+
             return null;
         }
 
@@ -303,6 +312,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
             $parsed = json_decode($fixed, true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($parsed)) {
                 Log::debug("[NaturalQuery:{$this->getName()}] JSON parsed after fixing");
+
                 return $parsed;
             }
         }
@@ -319,6 +329,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
             'text' => substr($original, 0, 500),
             'json_error' => json_last_error_msg(),
         ]);
+
         return null;
     }
 
@@ -343,16 +354,19 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
 
             if ($escape) {
                 $escape = false;
+
                 continue;
             }
 
             if ($char === '\\') {
                 $escape = true;
+
                 continue;
             }
 
             if ($char === '"') {
                 $inString = !$inString;
+
                 continue;
             }
 
@@ -414,7 +428,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * Truncated and stripped of secrets: this text reaches an HTTP response,
      * and a provider echoing part of the request must not echo a key with it.
      *
-     * @param \Illuminate\Http\Client\Response $response
+     * @param  Response  $response
      */
     protected function explain($response): string
     {
@@ -475,7 +489,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
      * between them cover every provider here and every OpenAI-compatible
      * server. A provider that returns neither simply reports nothing.
      *
-     * @param array<string, mixed> $body Decoded response body
+     * @param  array<string, mixed>  $body  Decoded response body
      */
     protected function recordUsage(array $body): void
     {
@@ -560,6 +574,7 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
             if (in_array($normalized, ['0', 'false', 'off', 'no'], true)) {
                 return ['verify' => false];
             }
+
             // Anything else is treated as a CA bundle path. Passed through
             // as-is: a bad path fails loudly with a clear Guzzle error rather
             // than being silently ignored.
@@ -606,10 +621,10 @@ abstract class AbstractProvider implements \Jayanta\NaturalQuery\Contracts\Repor
     /**
      * Build a standard error response.
      *
-     * @param string $message Error description (sanitized before returning)
-     * @param int|null $status HTTP status of the failed call, when known —
-     *                         preserved so callers can react to e.g. 429
-     *                         (rate limit) without string-matching messages
+     * @param  string  $message  Error description (sanitized before returning)
+     * @param  int|null  $status  HTTP status of the failed call, when known —
+     *                            preserved so callers can react to e.g. 429
+     *                            (rate limit) without string-matching messages
      */
     /**
      * Today, for resolving relative periods.

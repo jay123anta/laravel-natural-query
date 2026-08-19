@@ -2,36 +2,47 @@
 
 namespace Jayanta\NaturalQuery;
 
-use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
-use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
-use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
-use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
-use Jayanta\NaturalQuery\LlmProviders\GeminiProvider;
-use Jayanta\NaturalQuery\LlmProviders\OpenAiProvider;
-use Jayanta\NaturalQuery\LlmProviders\ClaudeProvider;
-use Jayanta\NaturalQuery\LlmProviders\OllamaProvider;
-use Jayanta\NaturalQuery\Schema\SchemaRegistry;
-use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
-use Jayanta\NaturalQuery\Security\SqlValidator;
-use Jayanta\NaturalQuery\Security\InputGuard;
+use Illuminate\Support\ServiceProvider;
+use Jayanta\NaturalQuery\Cache\NullQueryCache;
 use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
-use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
-use Jayanta\NaturalQuery\Engine\SqlBuilder;
-use Jayanta\NaturalQuery\Engine\PromptBuilder;
-use Jayanta\NaturalQuery\Engine\ResponseFormatter;
-use Jayanta\NaturalQuery\Engine\QueryVerifier;
-use Jayanta\NaturalQuery\Feedback\FeedbackStore;
-use Jayanta\NaturalQuery\Conversation\ConversationManager;
-use Jayanta\NaturalQuery\Console\InstallCommand;
-use Jayanta\NaturalQuery\Console\DiscoverSchemaCommand;
 use Jayanta\NaturalQuery\Console\AuditSchemaCommand;
 use Jayanta\NaturalQuery\Console\BenchmarkCommand;
 use Jayanta\NaturalQuery\Console\CacheCleanupCommand;
 use Jayanta\NaturalQuery\Console\CacheStatsCommand;
 use Jayanta\NaturalQuery\Console\DebugPromptCommand;
+use Jayanta\NaturalQuery\Console\DiscoverSchemaCommand;
 use Jayanta\NaturalQuery\Console\DoctorCommand;
+use Jayanta\NaturalQuery\Console\InstallCommand;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
+use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Conversation\ConversationManager;
+use Jayanta\NaturalQuery\Engine\DatasetSeeder;
+use Jayanta\NaturalQuery\Engine\IntentCoverage;
+use Jayanta\NaturalQuery\Engine\NextStepSuggester;
+use Jayanta\NaturalQuery\Engine\PromptBudget;
+use Jayanta\NaturalQuery\Engine\PromptBuilder;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Engine\QueryPlanner;
+use Jayanta\NaturalQuery\Engine\QueryVerifier;
+use Jayanta\NaturalQuery\Engine\ResponseFormatter;
+use Jayanta\NaturalQuery\Engine\SqlBuilder;
+use Jayanta\NaturalQuery\Engine\StepSynthesizer;
+use Jayanta\NaturalQuery\Feedback\FeedbackStore;
+use Jayanta\NaturalQuery\Http\Middleware\Authorize;
+use Jayanta\NaturalQuery\Http\Middleware\EnforceQueryBudget;
+use Jayanta\NaturalQuery\LlmProviders\ClaudeProvider;
+use Jayanta\NaturalQuery\LlmProviders\GeminiProvider;
+use Jayanta\NaturalQuery\LlmProviders\OllamaProvider;
+use Jayanta\NaturalQuery\LlmProviders\OpenAiProvider;
+use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Security\InputGuard;
+use Jayanta\NaturalQuery\Security\SqlValidator;
+use Jayanta\NaturalQuery\Support\EnvValue;
 
 class NaturalQueryServiceProvider extends ServiceProvider
 {
@@ -64,7 +75,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
                     ? new OpenAiProvider($providerConfig + ['name' => $driver])
                     : throw new \InvalidArgumentException(
                         "Unknown NaturalQuery LLM driver: '{$driver}'. Built-in: gemini, openai, claude, ollama. "
-                        . "For any OpenAI-compatible service (DeepSeek, Groq, vLLM, LM Studio, …) add a "
+                        . 'For any OpenAI-compatible service (DeepSeek, Groq, vLLM, LM Studio, …) add a '
                         . "'llm.providers.{$driver}' config block with 'base_url' and 'model'."
                     ),
             };
@@ -83,7 +94,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
             throw new \InvalidArgumentException(
                 "NaturalQuery cannot introspect the '{$driver}' database driver. "
                 . 'Supported: ' . implode(', ', IntrospectorRegistry::supportedDrivers())
-                . ". You can add your own by mapping the driver to a class implementing "
+                . '. You can add your own by mapping the driver to a class implementing '
                 . "SchemaIntrospectorInterface under 'sql.introspectors' in config/naturalquery.php"
                 . ". Run 'php artisan naturalquery:doctor' for a full checkup."
             );
@@ -95,8 +106,9 @@ class NaturalQueryServiceProvider extends ServiceProvider
 
         $this->app->singleton(QueryCacheInterface::class, function ($app) {
             if (!config('naturalquery.cache.enabled', true)) {
-                return new \Jayanta\NaturalQuery\Cache\NullQueryCache();
+                return new NullQueryCache;
             }
+
             return $app->make(TwoTierQueryCache::class);
         });
 
@@ -104,10 +116,10 @@ class NaturalQueryServiceProvider extends ServiceProvider
         $this->app->singleton(PromptBuilder::class);
         $this->app->singleton(ResponseFormatter::class);
         $this->app->singleton(QueryVerifier::class);
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\QueryPlanner::class);
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\StepSynthesizer::class);
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\NextStepSuggester::class);
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\IntentCoverage::class);
+        $this->app->singleton(QueryPlanner::class);
+        $this->app->singleton(StepSynthesizer::class);
+        $this->app->singleton(NextStepSuggester::class);
+        $this->app->singleton(IntentCoverage::class);
 
         // DatasetSeeder needs only SchemaRegistry, already bound above, so the
         // container auto-wires it — used both for dataset detection and, via
@@ -119,8 +131,8 @@ class NaturalQueryServiceProvider extends ServiceProvider
         // singletons are safe only because detect()/check() never memoise
         // anything on $this, which is what lets a step of a multi-step
         // answer call them again cleanly.
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\DatasetSeeder::class);
-        $this->app->singleton(\Jayanta\NaturalQuery\Engine\PromptBudget::class, function ($app) {
+        $this->app->singleton(DatasetSeeder::class);
+        $this->app->singleton(PromptBudget::class, function ($app) {
             // The env var is consulted directly when the published config has
             // no such key. mergeConfigFrom is ONE LEVEL deep, so an app that
             // ran naturalquery:install before 2.1.0 has a published `prompts`
@@ -139,9 +151,9 @@ class NaturalQueryServiceProvider extends ServiceProvider
 
             $max = array_key_exists('max_chars', $prompts)
                 ? $prompts['max_chars']
-                : \Jayanta\NaturalQuery\Support\EnvValue::int('NATURALQUERY_PROMPT_MAX_CHARS', null);
+                : EnvValue::int('NATURALQUERY_PROMPT_MAX_CHARS', null);
 
-            return new \Jayanta\NaturalQuery\Engine\PromptBudget($max);
+            return new PromptBudget($max);
         });
 
         $this->app->singleton(QueryOrchestrator::class);
@@ -169,7 +181,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
 
         // Views + <x-naturalquery::widget /> Blade component
         $this->loadViewsFrom(__DIR__ . '/../resources/views', 'naturalquery');
-        \Illuminate\Support\Facades\Blade::anonymousComponentPath(
+        Blade::anonymousComponentPath(
             __DIR__ . '/../resources/views/components',
             'naturalquery'
         );
@@ -204,13 +216,12 @@ class NaturalQueryServiceProvider extends ServiceProvider
         //
         // Authorize first: a refused request should not count against the
         // day's budget.
-        $middleware[] = \Jayanta\NaturalQuery\Http\Middleware\Authorize::class;
-        $middleware[] = \Jayanta\NaturalQuery\Http\Middleware\EnforceQueryBudget::class;
+        $middleware[] = Authorize::class;
+        $middleware[] = EnforceQueryBudget::class;
 
         Route::prefix(config('naturalquery.routes.prefix', 'naturalquery'))
             ->middleware($middleware)
             ->name(config('naturalquery.routes.name_prefix', 'naturalquery.'))
             ->group(__DIR__ . '/../routes/api.php');
     }
-
 }

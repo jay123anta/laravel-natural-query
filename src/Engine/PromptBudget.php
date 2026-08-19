@@ -30,18 +30,18 @@ class PromptBudget
     }
 
     /**
-     * @param int $datasetsRendered how many datasets' full schema actually
-     *        went into $prompt — the caller's own count, not a guess this
-     *        class makes. The wording below must pick its sentence from THIS
-     *        number, not from anything the caller may separately know about
-     *        seeds or scope: an earlier version chose the sentence from a
-     *        scope object's key count, which could disagree with what was
-     *        actually rendered, and told a single-dataset question to
-     *        "narrow to fewer datasets" — nonsense advice for a number that
-     *        was never more than one to begin with.
+     * @param  int  $datasetsRendered  how many datasets' full schema actually
+     *                                 went into $prompt — the caller's own count, not a guess this
+     *                                 class makes. The wording below must pick its sentence from THIS
+     *                                 number, not from anything the caller may separately know about
+     *                                 seeds or scope: an earlier version chose the sentence from a
+     *                                 scope object's key count, which could disagree with what was
+     *                                 actually rendered, and told a single-dataset question to
+     *                                 "narrow to fewer datasets" — nonsense advice for a number that
+     *                                 was never more than one to begin with.
      * @return string|null null when the prompt fits (or the budget is
-     *         unbounded); otherwise a refusal message naming bytes needed,
-     *         bytes allowed, and what a person can do about it.
+     *                     unbounded); otherwise a refusal message naming bytes needed,
+     *                     bytes allowed, and what a person can do about it.
      */
     public function check(string $prompt, int $datasetsRendered): ?string
     {

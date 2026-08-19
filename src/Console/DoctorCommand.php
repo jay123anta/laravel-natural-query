@@ -4,11 +4,12 @@ namespace Jayanta\NaturalQuery\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
-use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Security\InputGuard;
 
 /**
  * Doctor Command — diagnose a NaturalQuery installation.
@@ -67,6 +68,7 @@ class DoctorCommand extends Command
         $driver = config('naturalquery.llm.driver');
         if (!$driver) {
             $this->problem('No LLM driver configured', 'Set NATURALQUERY_LLM_DRIVER in .env (e.g. gemini, openai, claude, ollama)');
+
             return;
         }
 
@@ -77,6 +79,7 @@ class DoctorCommand extends Command
                 "Driver '{$driver}' has no provider block",
                 "Add a 'llm.providers.{$driver}' block in config/naturalquery.php, or switch NATURALQUERY_LLM_DRIVER to one of: {$available}"
             );
+
             return;
         }
 
@@ -211,9 +214,9 @@ class DoctorCommand extends Command
      * values — that is the point of publishing one — so a differing value is
      * not drift. A missing key is.
      *
-     * @param array<array-key, mixed> $package   Int keys are real: a config block
-     *        may hold a list, and the loop below skips those deliberately.
-     * @param array<array-key, mixed> $published
+     * @param  array<array-key, mixed>  $package  Int keys are real: a config block
+     *                                            may hold a list, and the loop below skips those deliberately.
+     * @param  array<array-key, mixed>  $published
      * @return array<int, string>
      */
     protected function missingKeys(array $package, array $published, string $prefix = ''): array
@@ -334,6 +337,7 @@ class DoctorCommand extends Command
                 'SSL verification is DISABLED',
                 'This exposes AI traffic to man-in-the-middle attacks. Download https://curl.se/ca/cacert.pem and set NATURALQUERY_SSL_VERIFY to its full path instead of false.'
             );
+
             return;
         }
 
@@ -346,6 +350,7 @@ class DoctorCommand extends Command
                     'Fix the NATURALQUERY_SSL_VERIFY path, or download a bundle from https://curl.se/ca/cacert.pem'
                 );
             }
+
             return;
         }
 
@@ -361,6 +366,7 @@ class DoctorCommand extends Command
         // regression.
         if ($bundle = $this->phpCaBundle()) {
             $this->pass('SSL verification enabled (PHP CA store: ' . $bundle . ')');
+
             return;
         }
 
@@ -425,6 +431,7 @@ class DoctorCommand extends Command
 
         if ($this->option('skip-api')) {
             $this->skip('Live provider check skipped (--skip-api)');
+
             return;
         }
 
@@ -432,6 +439,7 @@ class DoctorCommand extends Command
             $provider = app(LlmProviderInterface::class);
         } catch (\Throwable $e) {
             $this->problem('Could not build the LLM provider: ' . $e->getMessage(), 'Check the llm.driver and llm.providers config.');
+
             return;
         }
 
@@ -439,11 +447,13 @@ class DoctorCommand extends Command
             $health = $provider->healthCheck();
         } catch (\Throwable $e) {
             $this->diagnoseProviderError($e->getMessage());
+
             return;
         }
 
         if (($health['status'] ?? null) === 'ok') {
             $this->pass('Provider reachable — ' . ($health['model'] ?? 'model') . ' is live');
+
             return;
         }
 
@@ -462,6 +472,7 @@ class DoctorCommand extends Command
                 'TLS failure talking to the provider',
                 'Your PHP has no CA certificate store (common on XAMPP/WAMP). Download https://curl.se/ca/cacert.pem, then set NATURALQUERY_SSL_VERIFY to its full path in .env and run: php artisan config:clear'
             );
+
             return;
         }
 
@@ -470,6 +481,7 @@ class DoctorCommand extends Command
                 'Provider returned 404 — the configured model does not exist',
                 'Models get retired (gemini-2.0-flash was). Check your provider\'s current model list and update the model in .env, then run: php artisan config:clear'
             );
+
             return;
         }
 
@@ -478,6 +490,7 @@ class DoctorCommand extends Command
                 'Provider rejected the API key',
                 'Verify the key is correct, active, and has access to this model. After editing .env run: php artisan config:clear'
             );
+
             return;
         }
 
@@ -486,6 +499,7 @@ class DoctorCommand extends Command
                 'Provider is rate limiting (429)',
                 'Free-tier keys have low per-minute quotas. Wait a minute, keep the query cache enabled so repeats skip the API, or upgrade the key.'
             );
+
             return;
         }
 
@@ -494,6 +508,7 @@ class DoctorCommand extends Command
                 'Cannot reach the provider',
                 'Check network access and any proxy/firewall between this server and the provider. For self-hosted models, confirm base_url is correct and the server is running.'
             );
+
             return;
         }
 
@@ -521,6 +536,7 @@ class DoctorCommand extends Command
                 'Cannot connect to the database: ' . $e->getMessage(),
                 'Check DB_* settings in .env. The database must exist before migrating.'
             );
+
             return;
         }
 
@@ -581,6 +597,7 @@ class DoctorCommand extends Command
                 'Schema directory does not exist: ' . $path,
                 'Run: php artisan naturalquery:install (or create the directory and add a schema file)'
             );
+
             return;
         }
 
@@ -605,6 +622,7 @@ class DoctorCommand extends Command
                     : 'No schema files found in ' . $path,
                 'Generate one from your live database: php artisan naturalquery:discover'
             );
+
             return;
         }
 
@@ -690,15 +708,16 @@ class DoctorCommand extends Command
 
             if ($path === '*' || ($pattern !== '' && str_starts_with($prefix . '/', $pattern))) {
                 $this->pass("CORS covers /{$prefix} (cors.paths)");
+
                 return;
             }
         }
 
         $this->warn_(
             "Routes are set up for a separate front end, but /{$prefix} is not in cors.paths",
-            "A browser on another origin will block the response before your code sees it, and it will "
+            'A browser on another origin will block the response before your code sees it, and it will '
                 . "look like a network error rather than a policy one. Add '{$prefix}/*' to 'paths' in "
-                . "config/cors.php (and set supports_credentials if you use cookies)."
+                . 'config/cors.php (and set supports_credentials if you use cookies).'
         );
     }
 
@@ -721,6 +740,7 @@ class DoctorCommand extends Command
             foreach ($schema['tables']['primary']['columns'] ?? [] as $column) {
                 if (!empty($column['aggregatable'])) {
                     $withMeasures[] = $key;
+
                     continue 2;
                 }
             }
@@ -782,6 +802,7 @@ class DoctorCommand extends Command
 
         if (!$table) {
             $this->problem("Schema '{$key}' has no table name", "Add tables.primary.name to the '{$key}' schema file.");
+
             return;
         }
 
@@ -794,6 +815,7 @@ class DoctorCommand extends Command
         // it is named for what it is instead.
         if ($this->isUntouchedExample($table)) {
             $this->skip("Schema '{$key}' is the shipped template (placeholder table). Edit it or delete it — it is not queried.");
+
             return;
         }
 
@@ -815,6 +837,7 @@ class DoctorCommand extends Command
                     "Schema '{$key}': table '{$table}' not found in the database",
                     'Fix the table name in the schema file, run your migrations, or regenerate with: php artisan naturalquery:discover'
                 );
+
                 return;
             }
 
@@ -822,7 +845,7 @@ class DoctorCommand extends Command
             $declared = array_keys($registry->getColumns($key));
             $missing = array_values(array_filter(
                 $declared,
-                fn($column) => !in_array(strtolower($column), $actual, true)
+                fn ($column) => !in_array(strtolower($column), $actual, true)
             ));
 
             if ($missing) {
@@ -830,6 +853,7 @@ class DoctorCommand extends Command
                     "Schema '{$key}': column(s) not in '{$table}': " . implode(', ', $missing),
                     'Correct these names in the schema file — the AI is told they exist, so queries using them will fail at execution.'
                 );
+
                 return;
             }
 
@@ -839,6 +863,7 @@ class DoctorCommand extends Command
                     "Schema '{$key}': group_column '{$groupColumn}' is not a real column",
                     'Set group_column to the column results should be grouped/labelled by.'
                 );
+
                 return;
             }
 
@@ -872,6 +897,7 @@ class DoctorCommand extends Command
 
         if (!config('naturalquery.routes.enabled', true)) {
             $this->skip('Routes disabled — the widget and API endpoints are unavailable');
+
             return;
         }
 
@@ -879,8 +905,8 @@ class DoctorCommand extends Command
         $this->pass("Routes registered under /{$prefix} (widget.js, text, conversation, health)");
 
         $middleware = (array) config('naturalquery.routes.middleware', []);
-        $hasAuth = (bool) array_filter($middleware, fn($m) => is_string($m) && str_starts_with($m, 'auth'));
-        $hasThrottle = (bool) array_filter($middleware, fn($m) => is_string($m) && str_starts_with($m, 'throttle'));
+        $hasAuth = (bool) array_filter($middleware, fn ($m) => is_string($m) && str_starts_with($m, 'auth'));
+        $hasThrottle = (bool) array_filter($middleware, fn ($m) => is_string($m) && str_starts_with($m, 'throttle'));
 
         $this->checkCrossOriginSetup($middleware);
 
@@ -905,7 +931,7 @@ class DoctorCommand extends Command
             } else {
                 $this->problem(
                     'Endpoints are public AND have no daily limit',
-                    "Anyone who finds the URL can spend your API key without bound. Set "
+                    'Anyone who finds the URL can spend your API key without bound. Set '
                         . "'limits.queries_per_day' in config/naturalquery.php, add auth middleware, or both."
                 );
             }
@@ -917,7 +943,7 @@ class DoctorCommand extends Command
             // installed, so the first request to any endpoint here dies with
             // RouteNotFoundException — a 500 that says nothing about the real
             // cause. Cheap to detect, baffling to debug.
-            if (!\Illuminate\Support\Facades\Route::has('login')) {
+            if (!Route::has('login')) {
                 $this->warn_(
                     "auth middleware is on, but this app has no route named 'login'",
                     'Any unauthenticated request will fail with "Route [login] not defined" rather than a redirect. '

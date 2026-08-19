@@ -4,12 +4,12 @@ namespace Jayanta\NaturalQuery\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\DatasetSeeder;
 use Jayanta\NaturalQuery\Engine\IntentCoverage;
 use Jayanta\NaturalQuery\Engine\PromptBudget;
 use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
 /**
  * Debug Prompt Command
@@ -43,16 +43,16 @@ class DebugPromptCommand extends Command
         $query = $this->argument('query');
         $dataset = $this->option('dataset');
 
-        $this->info("NaturalQuery Prompt Debugger");
+        $this->info('NaturalQuery Prompt Debugger');
         $this->newLine();
 
         // Show config
-        $this->comment("Configuration:");
-        $this->line("  Query mode: " . config('naturalquery.query_mode', 'auto'));
-        $this->line("  LLM provider: " . $llm->getName());
-        $this->line("  Default dataset: " . (config('naturalquery.default_dataset') ?: 'none'));
-        $this->line("  System instructions: " . (config('naturalquery.system_instructions') ? 'set (' . strlen(config('naturalquery.system_instructions')) . ' chars)' : 'none'));
-        $this->line("  Schemas loaded: " . count($registry->all()) . ' (' . implode(', ', $registry->keys()) . ')');
+        $this->comment('Configuration:');
+        $this->line('  Query mode: ' . config('naturalquery.query_mode', 'auto'));
+        $this->line('  LLM provider: ' . $llm->getName());
+        $this->line('  Default dataset: ' . (config('naturalquery.default_dataset') ?: 'none'));
+        $this->line('  System instructions: ' . (config('naturalquery.system_instructions') ? 'set (' . strlen(config('naturalquery.system_instructions')) . ' chars)' : 'none'));
+        $this->line('  Schemas loaded: ' . count($registry->all()) . ' (' . implode(', ', $registry->keys()) . ')');
         $this->newLine();
 
         // Detect dataset
@@ -70,8 +70,8 @@ class DebugPromptCommand extends Command
             $dataset = $seeder->detect($query);
         }
 
-        $this->comment("Dataset detection:");
-        $this->line("  Detected: " . ($dataset ?: 'NONE — will use multi-dataset prompt'));
+        $this->comment('Dataset detection:');
+        $this->line('  Detected: ' . ($dataset ?: 'NONE — will use multi-dataset prompt'));
         $this->newLine();
 
         // Same condition as QueryOrchestrator::processWithSqlGeneration(). The
@@ -87,15 +87,15 @@ class DebugPromptCommand extends Command
         } else {
             $prompt = $promptBuilder->buildMultiDatasetPrompt($query);
             $datasetsRendered = count($registry->all());
-            $this->comment("Prompt type: Multi-dataset (all datasets)");
+            $this->comment('Prompt type: Multi-dataset (all datasets)');
 
             if ($dataset && $registry->has($dataset) && $registry->hasLinkedSchemas()) {
-                $this->line("  (schemas are linked, so the engine sends the multi-dataset prompt");
+                $this->line('  (schemas are linked, so the engine sends the multi-dataset prompt');
                 $this->line("   even though '{$dataset}' was detected — a question may span them)");
             }
         }
 
-        $this->line("  Length: " . strlen($prompt) . " chars (" . str_word_count($prompt) . " words)");
+        $this->line('  Length: ' . strlen($prompt) . ' chars (' . str_word_count($prompt) . ' words)');
 
         // Which route the engine would actually take for this question. In the
         // shipped default 'auto' it answers most questions by intent parsing,
@@ -109,11 +109,11 @@ class DebugPromptCommand extends Command
         $this->newLine();
         if ($mode === 'intent') {
             $this->warn("query_mode is 'intent': the engine does NOT build this prompt.");
-            $this->line("  Intent prompts are built per-provider and are not shown here.");
+            $this->line('  Intent prompts are built per-provider and are not shown here.');
         } elseif ($mode === 'auto' && !$buildsThisPrompt) {
             $this->warn("query_mode is 'auto' and this question stays inside the intent contract,");
-            $this->line("  so the engine answers it by intent parsing and never builds the prompt below.");
-            $this->line("  It is shown as the prompt that WOULD be sent if the question escalated.");
+            $this->line('  so the engine answers it by intent parsing and never builds the prompt below.');
+            $this->line('  It is shown as the prompt that WOULD be sent if the question escalated.');
         } elseif ($mode === 'auto') {
             $this->line("  auto mode escalates this question to SQL generation ({$escalates}).");
         }
@@ -126,16 +126,16 @@ class DebugPromptCommand extends Command
 
         if ($refusal) {
             $this->newLine();
-            $this->error("This prompt would be REFUSED, not sent:");
-            $this->line("  " . $refusal);
+            $this->error('This prompt would be REFUSED, not sent:');
+            $this->line('  ' . $refusal);
         }
 
         $this->newLine();
 
         // Show prompt
-        $this->comment("=== FULL PROMPT ===");
+        $this->comment('=== FULL PROMPT ===');
         $this->line($prompt);
-        $this->comment("=== END PROMPT ===");
+        $this->comment('=== END PROMPT ===');
         $this->newLine();
 
         // Execute if requested — but never a prompt just reported as refused.
@@ -143,29 +143,29 @@ class DebugPromptCommand extends Command
         // available, and the refusal exists because an oversized prompt comes
         // back as a confident answer built on a truncated schema.
         if ($this->option('execute') && $refusal) {
-            $this->error("Not sending: this prompt is over prompts.max_chars (see above).");
+            $this->error('Not sending: this prompt is over prompts.max_chars (see above).');
 
             return self::SUCCESS;
         }
 
         if ($this->option('execute')) {
-            $this->comment("Sending to AI...");
+            $this->comment('Sending to AI...');
             $response = $llm->generateSql($prompt);
 
             $this->newLine();
-            $this->comment("=== AI RESPONSE ===");
+            $this->comment('=== AI RESPONSE ===');
 
             if ($response['success']) {
                 $data = $response['data'];
                 if (isset($data['sql'])) {
-                    $this->info("SQL: " . $data['sql']);
-                    $this->line("Dataset: " . ($data['dataset'] ?? '?'));
-                    $this->line("Type: " . ($data['query_type'] ?? '?'));
-                    $this->line("Explanation: " . ($data['explanation'] ?? '?'));
+                    $this->info('SQL: ' . $data['sql']);
+                    $this->line('Dataset: ' . ($data['dataset'] ?? '?'));
+                    $this->line('Type: ' . ($data['query_type'] ?? '?'));
+                    $this->line('Explanation: ' . ($data['explanation'] ?? '?'));
                 } elseif (isset($data['error'])) {
-                    $this->error("AI returned error: " . $data['error']);
+                    $this->error('AI returned error: ' . $data['error']);
                 } else {
-                    $this->warn("Unexpected response format");
+                    $this->warn('Unexpected response format');
                 }
 
                 if ($this->option('raw')) {
@@ -176,7 +176,7 @@ class DebugPromptCommand extends Command
                 // Try executing the SQL
                 if (isset($data['sql'])) {
                     $this->newLine();
-                    $this->comment("Executing SQL...");
+                    $this->comment('Executing SQL...');
                     $connection = $dataset ? $registry->getConnection($dataset) : null;
 
                     try {
@@ -184,19 +184,19 @@ class DebugPromptCommand extends Command
                             ? DB::connection($connection)->select($data['sql'])
                             : DB::select($data['sql']);
 
-                        $this->info("Results: " . count($rows) . " rows");
+                        $this->info('Results: ' . count($rows) . ' rows');
                         foreach (array_slice($rows, 0, 5) as $row) {
-                            $this->line("  " . json_encode((array) $row));
+                            $this->line('  ' . json_encode((array) $row));
                         }
                         if (count($rows) > 5) {
-                            $this->line("  ... and " . (count($rows) - 5) . " more");
+                            $this->line('  ... and ' . (count($rows) - 5) . ' more');
                         }
                     } catch (\Exception $e) {
-                        $this->error("SQL execution failed: " . $e->getMessage());
+                        $this->error('SQL execution failed: ' . $e->getMessage());
                     }
                 }
             } else {
-                $this->error("AI call failed: " . ($response['error'] ?? 'unknown'));
+                $this->error('AI call failed: ' . ($response['error'] ?? 'unknown'));
             }
         }
 

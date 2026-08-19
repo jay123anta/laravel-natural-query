@@ -28,6 +28,5 @@ class QuestionAsked
 
         /** Set when the question arrived through the conversation endpoint. */
         public readonly ?string $sessionId = null,
-    ) {
-    }
+    ) {}
 }

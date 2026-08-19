@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Schema\Introspectors;
 
-use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Illuminate\Support\Facades\DB;
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 
 /**
  * SQLite Schema Introspector.

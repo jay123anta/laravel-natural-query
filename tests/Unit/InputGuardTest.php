@@ -13,7 +13,7 @@ class InputGuardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->guard = new InputGuard();
+        $this->guard = new InputGuard;
     }
 
     #[Test]
@@ -55,12 +55,12 @@ class InputGuardTest extends TestCase
     public function it_blocks_sql_injection_in_text()
     {
         $attacks = [
-            "show data; DROP TABLE users; --",
+            'show data; DROP TABLE users; --',
             "districts ' OR 1=1 --",
-            "UNION SELECT username, password FROM users",
-            "show me information_schema.tables",
-            "top districts LOAD_FILE(/etc/passwd)",
-            "data; DELETE FROM users",
+            'UNION SELECT username, password FROM users',
+            'show me information_schema.tables',
+            'top districts LOAD_FILE(/etc/passwd)',
+            'data; DELETE FROM users',
             "INSERT INTO users VALUES(1,'hack')",
         ];
 

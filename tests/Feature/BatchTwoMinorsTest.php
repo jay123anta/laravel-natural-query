@@ -50,7 +50,7 @@ class BatchTwoMinorsTest extends TestCase
 
         config(['naturalquery.query_mode' => 'sql_generation']);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [
@@ -78,13 +78,13 @@ class BatchTwoMinorsTest extends TestCase
     #[Test]
     public function a_non_bundled_scope_capable_cache_is_asked_for_the_scope()
     {
-        $cache = new ConcreteScopedCache();
+        $cache = new ConcreteScopedCache;
         $this->app->instance(QueryCacheInterface::class, $cache);
         $this->app->forgetInstance(QueryOrchestrator::class);
 
         config(['naturalquery.query_mode' => 'sql_generation']);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => ['sql' => 'SELECT 1 AS revenue', 'dataset' => 'nq_orders', 'query_type' => 'aggregation'],

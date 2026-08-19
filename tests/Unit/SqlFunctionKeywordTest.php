@@ -25,14 +25,14 @@ class SqlFunctionKeywordTest extends TestCase
 {
     private function validate(string $sql): array
     {
-        return (new SqlValidator())->validate($sql, ['demo_orders', 'public.orders']);
+        return (new SqlValidator)->validate($sql, ['demo_orders', 'public.orders']);
     }
 
     #[Test]
     public function extract_year_from_a_column_is_not_a_table_reference()
     {
         $result = $this->validate(
-            "SELECT SUM(revenue) AS revenue FROM demo_orders WHERE EXTRACT(YEAR FROM order_date) = 2026"
+            'SELECT SUM(revenue) AS revenue FROM demo_orders WHERE EXTRACT(YEAR FROM order_date) = 2026'
         );
 
         $this->assertTrue($result['valid'], $result['reason'] ?? '');
@@ -72,7 +72,7 @@ class SqlFunctionKeywordTest extends TestCase
         foreach ([
             'SELECT * FROM secret_salaries',
             'SELECT SUM(revenue) FROM demo_orders JOIN secret_salaries ON 1=1',
-            "SELECT EXTRACT(YEAR FROM order_date) FROM secret_salaries",
+            'SELECT EXTRACT(YEAR FROM order_date) FROM secret_salaries',
             'SELECT * FROM demo_orders, secret_salaries',
         ] as $sql) {
             $result = $this->validate($sql);

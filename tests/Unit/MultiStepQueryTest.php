@@ -78,11 +78,11 @@ class MultiStepQueryTest extends TestCase
     public function a_comparison_of_two_totals_is_computed_in_php()
     {
         // Never by asking a model to subtract two numbers it can already see.
-        $result = (new StepSynthesizer())->synthesize('compare', [
+        $result = (new StepSynthesizer)->synthesize('compare', [
             ['question' => 'revenue in 2026', 'status' => 'success', 'metric' => 'revenue',
-             'rows' => [['revenue' => 21011088]], 'answer' => 'Total revenue: 21,011,088'],
+                'rows' => [['revenue' => 21011088]], 'answer' => 'Total revenue: 21,011,088'],
             ['question' => 'revenue in 2025', 'status' => 'success', 'metric' => 'revenue',
-             'rows' => [['revenue' => 18244900]], 'answer' => 'Total revenue: 18,244,900'],
+                'rows' => [['revenue' => 18244900]], 'answer' => 'Total revenue: 18,244,900'],
         ], true);
 
         $this->assertSame(15.2, $result['comparison']['change_pct']);
@@ -93,7 +93,7 @@ class MultiStepQueryTest extends TestCase
     #[Test]
     public function a_fall_is_reported_as_a_fall()
     {
-        $result = (new StepSynthesizer())->synthesize('compare', [
+        $result = (new StepSynthesizer)->synthesize('compare', [
             ['question' => 'this year', 'status' => 'success', 'metric' => 'revenue', 'rows' => [['revenue' => 80]]],
             ['question' => 'last year', 'status' => 'success', 'metric' => 'revenue', 'rows' => [['revenue' => 100]]],
         ], true);
@@ -111,11 +111,11 @@ class MultiStepQueryTest extends TestCase
     public function incomparable_steps_produce_no_percentage()
     {
         $ranking = ['question' => 'top regions', 'status' => 'success', 'metric' => 'revenue',
-                    'rows' => [['region' => 'West', 'revenue' => 5], ['region' => 'East', 'revenue' => 4]]];
+            'rows' => [['region' => 'West', 'revenue' => 5], ['region' => 'East', 'revenue' => 4]]];
         $total = ['question' => 'total revenue', 'status' => 'success', 'metric' => 'revenue',
-                  'rows' => [['revenue' => 9]]];
+            'rows' => [['revenue' => 9]]];
 
-        $result = (new StepSynthesizer())->synthesize('q', [$ranking, $total], true);
+        $result = (new StepSynthesizer)->synthesize('q', [$ranking, $total], true);
 
         $this->assertNull($result['comparison'], 'a ranking and a total are not comparable');
     }
@@ -123,7 +123,7 @@ class MultiStepQueryTest extends TestCase
     #[Test]
     public function two_different_metrics_are_never_compared()
     {
-        $result = (new StepSynthesizer())->synthesize('q', [
+        $result = (new StepSynthesizer)->synthesize('q', [
             ['question' => 'revenue', 'status' => 'success', 'metric' => 'revenue', 'rows' => [['revenue' => 100]]],
             ['question' => 'orders', 'status' => 'success', 'metric' => 'record_count', 'rows' => [['record_count' => 50]]],
         ], true);
@@ -134,7 +134,7 @@ class MultiStepQueryTest extends TestCase
     #[Test]
     public function dividing_by_zero_does_not_produce_a_percentage()
     {
-        $result = (new StepSynthesizer())->synthesize('q', [
+        $result = (new StepSynthesizer)->synthesize('q', [
             ['question' => 'this year', 'status' => 'success', 'metric' => 'revenue', 'rows' => [['revenue' => 500]]],
             ['question' => 'last year', 'status' => 'success', 'metric' => 'revenue', 'rows' => [['revenue' => 0]]],
         ], true);
@@ -147,9 +147,9 @@ class MultiStepQueryTest extends TestCase
     public function a_failed_step_is_reported_rather_than_hidden()
     {
         // Three numbers out of four beats none, provided the answer says so.
-        $result = (new StepSynthesizer())->synthesize('q', [
+        $result = (new StepSynthesizer)->synthesize('q', [
             ['question' => 'revenue in 2026', 'status' => 'success', 'metric' => 'revenue',
-             'rows' => [['revenue' => 10]], 'answer' => 'Total revenue: 10'],
+                'rows' => [['revenue' => 10]], 'answer' => 'Total revenue: 10'],
             ['question' => 'revenue in 1900', 'status' => 'error', 'answer' => 'No data found'],
         ], false);
 
@@ -159,7 +159,7 @@ class MultiStepQueryTest extends TestCase
     #[Test]
     public function every_step_failing_is_stated_plainly()
     {
-        $result = (new StepSynthesizer())->synthesize('q', [
+        $result = (new StepSynthesizer)->synthesize('q', [
             ['question' => 'a', 'status' => 'error'],
             ['question' => 'b', 'status' => 'error'],
         ], true);

@@ -61,8 +61,8 @@ class UnmatchedNameFilterTest extends TestCase
             ['buyer' => 'Kalita Stores', 'total' => 400.00, 'state' => 'settled'],
         ]);
 
-        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector());
-        $this->provider = new RecordingProvider();
+        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector);
+        $this->provider = new RecordingProvider;
         $this->app->instance(LlmProviderInterface::class, $this->provider);
     }
 

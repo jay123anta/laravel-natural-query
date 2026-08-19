@@ -36,7 +36,7 @@ class DatasetsEndpointTest extends TestCase
         $dataset = $response->json('datasets.0');
 
         foreach (['key', 'name', 'description', 'aliases', 'metrics', 'dimensions',
-                  'default_dimension', 'date_column', 'examples'] as $field) {
+            'default_dimension', 'date_column', 'examples'] as $field) {
             $this->assertArrayHasKey($field, $dataset, "missing {$field}");
         }
     }

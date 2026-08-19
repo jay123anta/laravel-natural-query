@@ -57,7 +57,7 @@ class StepsInheritTheConversationTest extends TestCase
 
     private function planningProvider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $n = 0;
         $provider->sqlResponse = function (string $prompt) use (&$n) {
             $n++;

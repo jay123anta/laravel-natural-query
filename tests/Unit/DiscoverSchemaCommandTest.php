@@ -3,8 +3,10 @@
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Testing\PendingCommand;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
@@ -56,7 +58,7 @@ class DiscoverSchemaCommandTest extends TestCase
     }
 
     /**
-     * @param array $tables Entries as returned by the introspector
+     * @param  array  $tables  Entries as returned by the introspector
      */
     private function fakeIntrospector(array $tables, array $columnsByTable): void
     {
@@ -67,7 +69,7 @@ class DiscoverSchemaCommandTest extends TestCase
         $introspector->shouldReceive('listTables')->andReturn($tables);
         $introspector->shouldReceive('getRelationships')->andReturn([]);
         $introspector->shouldReceive('getColumns')->andReturnUsing(
-            fn($table) => $columnsByTable[$table] ?? []
+            fn ($table) => $columnsByTable[$table] ?? []
         );
 
         $this->app->instance(SchemaIntrospectorInterface::class, $introspector);
@@ -127,7 +129,7 @@ class DiscoverSchemaCommandTest extends TestCase
         return $value;
     }
 
-    private function runDiscover(array $options = []): \Illuminate\Testing\PendingCommand
+    private function runDiscover(array $options = []): PendingCommand
     {
         return $this->artisan('naturalquery:discover', array_merge([
             '--output' => $this->outputPath,
@@ -392,7 +394,7 @@ class DiscoverSchemaCommandTest extends TestCase
         $this->runDiscover()->assertExitCode(0);
 
         // Exercise the real loader, not just include()
-        $registry = new \Jayanta\NaturalQuery\Schema\SchemaRegistry($this->outputPath);
+        $registry = new SchemaRegistry($this->outputPath);
 
         $this->assertTrue($registry->has('orders'));
         $this->assertSame('orders', $registry->getTableName('orders'));

@@ -22,8 +22,11 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 class TurnClassifier
 {
     public const NEW_QUERY = 'new_query';
+
     public const REFINEMENT = 'refinement';
+
     public const DRILL_DOWN = 'drill_down';
+
     public const REFERENCE = 'reference';
 
     /** "Why is that?" — reuse the state, change what is shown. */

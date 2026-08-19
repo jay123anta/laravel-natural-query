@@ -75,7 +75,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
         $this->seedOrders();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [
@@ -116,7 +116,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
         $this->seedOrders();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [
@@ -154,7 +154,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
         $this->seedOrders();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [

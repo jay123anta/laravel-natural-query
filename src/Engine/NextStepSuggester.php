@@ -36,7 +36,7 @@ class NextStepSuggester
 
     /**
      * @param  array  $queryResult  The SqlBuilder result that produced the rows.
-     * @param  array  $rows         The rows returned, used only for drill-down labels.
+     * @param  array  $rows  The rows returned, used only for drill-down labels.
      * @return array<int, array{label: string, query: string}>
      */
     public function suggest(array $queryResult, array $rows = []): array
@@ -219,5 +219,4 @@ class NextStepSuggester
             fn ($c) => !in_array($c, $exclude, true)
         ));
     }
-
 }

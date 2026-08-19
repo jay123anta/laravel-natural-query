@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 use Jayanta\NaturalQuery\Http\Middleware\EnforceQueryBudget;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,7 +22,7 @@ class QueryBudgetTest extends TestCase
 {
     private function pass(Request $request): mixed
     {
-        return (new EnforceQueryBudget())->handle($request, fn () => response()->json(['status' => 'success']));
+        return (new EnforceQueryBudget)->handle($request, fn () => response()->json(['status' => 'success']));
     }
 
     private function request(string $ip = '203.0.113.9'): Request
@@ -97,7 +98,7 @@ class QueryBudgetTest extends TestCase
         config(['naturalquery.limits.queries_per_day' => 1]);
 
         try {
-            (new EnforceQueryBudget())->handle($this->request(), function () {
+            (new EnforceQueryBudget)->handle($this->request(), function () {
                 throw new \RuntimeException('provider exploded');
             });
         } catch (\RuntimeException) {
@@ -113,7 +114,7 @@ class QueryBudgetTest extends TestCase
         // Appended in the ServiceProvider rather than left in the config array,
         // so an app that customises routes.middleware to make the widget public
         // cannot drop the ceiling by accident.
-        $middleware = \Illuminate\Support\Facades\Route::getRoutes()
+        $middleware = Route::getRoutes()
             ->getByName('naturalquery.text')
             ?->gatherMiddleware() ?? [];
 

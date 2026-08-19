@@ -5,6 +5,7 @@ namespace Jayanta\NaturalQuery\Tests\Unit;
 use Illuminate\Support\Facades\Http;
 use Jayanta\NaturalQuery\LlmProviders\ClaudeProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -38,6 +39,7 @@ class ClaudeRequestShapeTest extends TestCase
         $sent = null;
         Http::assertSent(function ($request) use (&$sent) {
             $sent = $request->data();
+
             return true;
         });
 
@@ -56,7 +58,7 @@ class ClaudeRequestShapeTest extends TestCase
      * Current models refuse a trailing assistant turn outright. They also do
      * not need one: the system prompt asks for JSON and they return JSON.
      */
-    #[\PHPUnit\Framework\Attributes\DataProvider('calls')]
+    #[DataProvider('calls')]
     #[Test]
     public function the_conversation_ends_with_a_user_message(callable $call)
     {
@@ -69,7 +71,7 @@ class ClaudeRequestShapeTest extends TestCase
         $this->assertNotContains('assistant', $roles);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('calls')]
+    #[DataProvider('calls')]
     #[Test]
     public function temperature_is_not_sent_unless_asked_for(callable $call)
     {

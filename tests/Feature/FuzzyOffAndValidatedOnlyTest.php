@@ -98,7 +98,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
         // ask. (Rejecting only the FIRST generation is not enough to test
         // this: the retry then succeeds and the question is answered, which
         // is correct behaviour and reveals nothing about what was stored.)
-        $invalid = new RecordingProvider();
+        $invalid = new RecordingProvider;
         $invalid->sqlResponse = [
             'success' => true,
             'data' => [
@@ -125,7 +125,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
 
         // And the question recovers once the model produces usable SQL — it is
         // not permanently poisoned by the rejected generation.
-        $good = new RecordingProvider();
+        $good = new RecordingProvider;
         $good->sqlResponse = [
             'success' => true,
             'data' => [

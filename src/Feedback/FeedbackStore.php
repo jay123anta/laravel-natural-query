@@ -31,13 +31,12 @@ class FeedbackStore
     /**
      * Record a correction from the user.
      *
-     * @param string $query Original natural language query
-     * @param string $dataset The dataset that was queried
-     * @param string $generatedSql The SQL that was generated (the wrong one)
-     * @param string $correction User's correction text (what was wrong / what was expected)
-     * @param string|null $correctedSql Optional: the correct SQL if user provides it
-     * @param string|null $feedbackType 'wrong_metric', 'wrong_table', 'wrong_result', 'wrong_filter', 'other'
-     * @return bool
+     * @param  string  $query  Original natural language query
+     * @param  string  $dataset  The dataset that was queried
+     * @param  string  $generatedSql  The SQL that was generated (the wrong one)
+     * @param  string  $correction  User's correction text (what was wrong / what was expected)
+     * @param  string|null  $correctedSql  Optional: the correct SQL if user provides it
+     * @param  string|null  $feedbackType  'wrong_metric', 'wrong_table', 'wrong_result', 'wrong_filter', 'other'
      */
     public function recordCorrection(
         string $query,
@@ -68,6 +67,7 @@ class FeedbackStore
             return true;
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:Feedback] Failed to record', ['error' => $e->getMessage()]);
+
             return false;
         }
     }
@@ -93,6 +93,7 @@ class FeedbackStore
             return true;
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:Feedback] Failed to record positive', ['error' => $e->getMessage()]);
+
             return false;
         }
     }
@@ -115,7 +116,7 @@ class FeedbackStore
                 ->limit($limit)
                 ->get(['query', 'correction', 'corrected_sql', 'feedback_type']);
 
-            return $corrections->map(fn($c) => [
+            return $corrections->map(fn ($c) => [
                 'query' => $c->query,
                 'correction' => $c->correction,
                 'corrected_sql' => $c->corrected_sql,
@@ -140,7 +141,7 @@ class FeedbackStore
                 ->limit($limit)
                 ->get(['dataset', 'query', 'correction', 'corrected_sql', 'feedback_type']);
 
-            return $corrections->map(fn($c) => [
+            return $corrections->map(fn ($c) => [
                 'dataset' => $c->dataset,
                 'query' => $c->query,
                 'correction' => $c->correction,

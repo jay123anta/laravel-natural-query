@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
+use Jayanta\NaturalQuery\Engine\ResponseFormatter;
 use Jayanta\NaturalQuery\Engine\SqlBuilder;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -104,7 +105,7 @@ class GroupByDimensionTest extends TestCase
         // "Top 5 by revenue: West, Central" reads identically whether those are
         // regions or customers — the reader cannot tell which question was
         // answered, which is how the original bug stayed invisible.
-        $formatter = $this->app->make(\Jayanta\NaturalQuery\Engine\ResponseFormatter::class);
+        $formatter = $this->app->make(ResponseFormatter::class);
         $method = new \ReflectionMethod($formatter, 'humanizeDimension');
 
         $this->assertSame('regions', $method->invoke($formatter, 'region'));

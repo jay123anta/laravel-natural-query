@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Illuminate\Auth\GenericUser;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
@@ -48,7 +49,7 @@ class ConversationStateEndpointTest extends TestCase
             ['customer_name' => 'Grace', 'region' => 'East', 'status' => 'pending', 'revenue' => 500],
         ]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',
@@ -138,8 +139,8 @@ class ConversationStateEndpointTest extends TestCase
     #[Test]
     public function one_users_session_id_does_not_read_anothers_conversation()
     {
-        $alice = new \Illuminate\Auth\GenericUser(['id' => 1]);
-        $bob = new \Illuminate\Auth\GenericUser(['id' => 2]);
+        $alice = new GenericUser(['id' => 1]);
+        $bob = new GenericUser(['id' => 2]);
 
         $manager = $this->app->make(ConversationManager::class);
 

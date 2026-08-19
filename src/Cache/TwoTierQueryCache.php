@@ -2,11 +2,12 @@
 
 namespace Jayanta\NaturalQuery\Cache;
 
-use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
-use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
+use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
+use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 
 /**
  * Two-Tier Query Cache
@@ -57,10 +58,15 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     ];
 
     protected int $cacheTtlSeconds;
+
     protected float $similarityThreshold;
+
     protected bool $useTier1;
+
     protected string $tier1Prefix;
+
     protected ?string $tier1Store;
+
     protected string $tableName;
 
     /**
@@ -160,7 +166,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // the log says exactly which command fixes it.
         try {
             return $this->lookup($query, $datasetHint);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             Log::warning(
                 '[NaturalQuery:Cache] Cache table unreadable, continuing without it. '
                 . "Run `php artisan migrate` to create `{$this->tableName}`.",
@@ -182,6 +188,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             if ($tier1Result) {
                 Log::debug('[NaturalQuery:Cache] Tier 1 hit', ['hash' => substr($hash, 0, 16)]);
                 $this->incrementHitCountByHash($hash);
+
                 return $tier1Result;
             }
         }
@@ -195,6 +202,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
                 $this->storeInTier1($hash, $result);
             }
             Log::debug('[NaturalQuery:Cache] Tier 2 exact hit');
+
             return $result;
         }
 
@@ -221,10 +229,12 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         if ($fuzzyMatch) {
             $this->incrementHitCount($fuzzyMatch->id);
             Log::debug('[NaturalQuery:Cache] Tier 2 fuzzy hit', ['similarity' => $fuzzyMatch->similarity ?? 'N/A']);
+
             return $this->formatCacheResult($fuzzyMatch, 'fuzzy');
         }
 
         Log::debug('[NaturalQuery:Cache] Cache miss', ['query' => $query]);
+
         return null;
     }
 
@@ -305,6 +315,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             return true;
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:Cache] Store failed', ['error' => $e->getMessage()]);
+
             return false;
         }
     }
@@ -357,6 +368,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             ];
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:Cache] Statistics failed', ['error' => $e->getMessage()]);
+
             return ['enabled' => true, 'total_entries' => 0, 'total_hits' => 0, 'error' => $e->getMessage()];
         }
     }
@@ -411,6 +423,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             return $deleted;
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:Cache] Clear failed', ['error' => $e->getMessage()]);
+
             return 0;
         }
     }
@@ -523,11 +536,13 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             $cached = $this->getCacheStore()->get($this->tier1Prefix . $hash);
             if ($cached && is_array($cached)) {
                 $cached['cache_match_type'] = 'tier1';
+
                 return $cached;
             }
         } catch (\Exception $e) {
             Log::warning('[NaturalQuery:Cache] Tier 1 lookup failed', ['error' => $e->getMessage()]);
         }
+
         return null;
     }
 
@@ -603,7 +618,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         $askingScope = $this->askingScopeForLookup;
 
         $words = explode(' ', $normalizedQuery);
-        $significantWords = array_filter($words, fn($w) => strlen($w) > 3);
+        $significantWords = array_filter($words, fn ($w) => strlen($w) > 3);
 
         if (empty($significantWords)) {
             return null;

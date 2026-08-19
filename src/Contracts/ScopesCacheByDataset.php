@@ -49,14 +49,14 @@ interface ScopesCacheByDataset
     /**
      * Find a cached result for a query asked about a specific dataset.
      *
-     * @param string $query The natural language query
-     * @param string|null $datasetHint The dataset THIS question resolves to,
-     *        when it is known at zero API cost — an explicit hint,
-     *        conversation state, or keyword detection on the question's own
-     *        text. Never the dataset of a candidate row: that is the thing
-     *        being checked, not the thing doing the checking. With no hint,
-     *        an implementation must refuse a fuzzy match rather than guess
-     *        which dataset the asking question was about.
+     * @param  string  $query  The natural language query
+     * @param  string|null  $datasetHint  The dataset THIS question resolves to,
+     *                                    when it is known at zero API cost — an explicit hint,
+     *                                    conversation state, or keyword detection on the question's own
+     *                                    text. Never the dataset of a candidate row: that is the thing
+     *                                    being checked, not the thing doing the checking. With no hint,
+     *                                    an implementation must refuse a fuzzy match rather than guess
+     *                                    which dataset the asking question was about.
      * @return array|null Cached intent data, or null if not found
      */
     public function findForDataset(string $query, ?string $datasetHint = null): ?array;

@@ -2,10 +2,10 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Illuminate\Contracts\Cache\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
-use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -49,7 +49,7 @@ class MalformedCacheRowStaysInsideTheEnvelopeTest extends TestCase
         });
         DB::table('nq_orders')->insert(['revenue' => 100]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'nq_orders',
@@ -83,7 +83,7 @@ class MalformedCacheRowStaysInsideTheEnvelopeTest extends TestCase
         DB::table($table)->update(['intent' => json_encode('not an array')]);
 
         // Tier 1 would serve the good copy from memory and hide it.
-        $this->app->make(\Illuminate\Contracts\Cache\Factory::class)->store()->flush();
+        $this->app->make(Factory::class)->store()->flush();
 
         $result = $orchestrator->query($question);
 

@@ -18,7 +18,7 @@ use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
  * @method static array healthCheck()
  * @method static \Jayanta\NaturalQuery\Schema\SchemaRegistry registry()
  *
- * @see \Jayanta\NaturalQuery\Engine\QueryOrchestrator
+ * @see QueryOrchestrator
  */
 class NaturalQuery extends Facade
 {

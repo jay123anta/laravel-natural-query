@@ -47,7 +47,7 @@ class AnswerShowsHowItWasUnderstoodTest extends TestCase
 
     private function answer(array $sqlData): array
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = ['success' => true, 'data' => $sqlData];
         $this->app->instance(LlmProviderInterface::class, $provider);
         $this->app->forgetInstance(QueryOrchestrator::class);
@@ -108,7 +108,7 @@ class AnswerShowsHowItWasUnderstoodTest extends TestCase
         });
         DB::table('nq_orders')->insert(['status' => 'pending', 'revenue' => 100]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'nq_orders',

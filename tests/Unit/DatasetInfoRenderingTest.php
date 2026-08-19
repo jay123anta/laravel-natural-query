@@ -74,7 +74,7 @@ class DatasetInfoRenderingTest extends TestCase
 
         $this->assertSame(
             "- orders (Orders): aliases=[], metrics=[revenue]\n"
-            . "- customers (Customers): aliases=[], metrics=[], group_by=[region]",
+            . '- customers (Customers): aliases=[], metrics=[], group_by=[region]',
             $rendered
         );
     }

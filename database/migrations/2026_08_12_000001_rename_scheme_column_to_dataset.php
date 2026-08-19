@@ -112,7 +112,7 @@ return new class extends Migration
             Schema::table($table, function (Blueprint $blueprint) use ($old) {
                 $blueprint->dropIndex($old);
             });
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return;
         }
 
@@ -120,7 +120,7 @@ return new class extends Migration
             Schema::table($table, function (Blueprint $blueprint) use ($new, $columns) {
                 $blueprint->index($columns, $new);
             });
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Left without the index rather than without the rename.
         }
     }

@@ -41,6 +41,7 @@ class OllamaContextWindowTest extends TestCase
         $sent = null;
         Http::assertSent(function ($request) use (&$sent) {
             $sent = $request->data();
+
             return true;
         });
 
@@ -181,9 +182,9 @@ class OllamaContextWindowTest extends TestCase
     public static function unusableValues(): array
     {
         return [
-            'empty env'   => [(int) ''],
-            'zero'        => [0],
-            'negative'    => [-1],
+            'empty env' => [(int) ''],
+            'zero' => [0],
+            'negative' => [-1],
             'absurdly small' => [16],
         ];
     }

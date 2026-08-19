@@ -14,7 +14,8 @@ class ProviderSslOptionsTest extends TestCase
     {
         parent::setUp();
 
-        $this->provider = new class extends AbstractProvider {
+        $this->provider = new class extends AbstractProvider
+        {
             public function getName(): string
             {
                 return 'test';

@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
-use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
  * Safe SQL Builder
@@ -26,7 +26,7 @@ class SqlBuilder
     /**
      * Build SQL query from parsed intent.
      *
-     * @param array $intent Parsed intent {dataset, metric, district, limit, order}
+     * @param  array  $intent  Parsed intent {dataset, metric, district, limit, order}
      * @return array {success, sql, dataset, dataset_name, metric, query_type, ...}
      */
     public function buildQuery(array $intent): array
@@ -282,6 +282,7 @@ class SqlBuilder
 
         } catch (\Exception $e) {
             Log::error('[NaturalQuery:SqlBuilder] Error', ['error' => $e->getMessage()]);
+
             return $this->errorResponse('SQL build error: ' . $e->getMessage());
         }
     }
@@ -289,15 +290,15 @@ class SqlBuilder
     /**
      * Build ranking query (top/bottom N).
      *
-     * @param string $fromClause Table name, possibly with JOIN clause
-     * @param string $groupColumnSelect The SELECT expression for the group column (may include alias)
-     * @param string $groupColumnRef The reference to group column for ORDER BY / WHERE
-     * @param string $metricExpr SQL expression for the metric (already wrapped
-     *                           in SUM() for aggregatable plain columns)
-     * @param string $metricAlias Alias name for the metric
-     * @param string $order ASC or DESC
-     * @param int $limit Result limit
-     * @param bool $aggregate Whether to GROUP BY the group column (transactional tables)
+     * @param  string  $fromClause  Table name, possibly with JOIN clause
+     * @param  string  $groupColumnSelect  The SELECT expression for the group column (may include alias)
+     * @param  string  $groupColumnRef  The reference to group column for ORDER BY / WHERE
+     * @param  string  $metricExpr  SQL expression for the metric (already wrapped
+     *                              in SUM() for aggregatable plain columns)
+     * @param  string  $metricAlias  Alias name for the metric
+     * @param  string  $order  ASC or DESC
+     * @param  int  $limit  Result limit
+     * @param  bool  $aggregate  Whether to GROUP BY the group column (transactional tables)
      */
     protected function buildRankingQuery(
         string $fromClause,
@@ -401,8 +402,8 @@ class SqlBuilder
                 // returns a narrower shape makes every reader guard for a key
                 // the other branch always has.
                 return ['clauses' => [], 'bindings' => [], 'columns' => [], 'pairs' => [],
-                        'error' => "Cannot filter by '{$column}'."
-                            . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')];
+                    'error' => "Cannot filter by '{$column}'."
+                        . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')];
             }
 
             // A filter on the column being grouped by is NOT redundant, and
@@ -636,8 +637,8 @@ class SqlBuilder
      * all: it was answered as a filtered RANKING and came back grouped by
      * client. The count was right and the shape was a different question.
      *
-     * @param array{clauses?: array<int, string>, bindings?: array<int, mixed>} $filters
-     * @param array{clause?: string, bindings?: array<int, mixed>} $time
+     * @param  array{clauses?: array<int, string>, bindings?: array<int, mixed>}  $filters
+     * @param  array{clause?: string, bindings?: array<int, mixed>}  $time
      */
     protected function buildTotalQuery(
         string $fromClause,
@@ -727,6 +728,7 @@ class SqlBuilder
         }
 
         $computed = $this->registry->getComputedMetrics($datasetKey);
+
         return $computed[$metric] ?? [];
     }
 
@@ -791,6 +793,7 @@ class SqlBuilder
         // Insert WHERE before GROUP BY, ORDER BY or LIMIT (whichever comes first)
         if (preg_match('/\b(GROUP BY|ORDER BY|LIMIT)\b/i', $sql, $matches, PREG_OFFSET_CAPTURE)) {
             $pos = $matches[0][1];
+
             return substr($sql, 0, $pos) . "WHERE {$filter} " . substr($sql, $pos);
         }
 

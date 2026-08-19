@@ -35,7 +35,7 @@ class StateValidator
 
         if (!$dataset || !$this->registry->has($dataset)) {
             return ['valid' => false, 'slot' => 'dataset', 'value' => (string) $dataset,
-                    'options' => array_keys($this->registry->all())];
+                'options' => array_keys($this->registry->all())];
         }
 
         $slots = $state->toIntent();
@@ -45,7 +45,7 @@ class StateValidator
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => 'metric', 'value' => (string) $metric,
-                        'options' => array_column($this->registry->getDatasetMetrics($dataset), 'key')];
+                    'options' => array_column($this->registry->getDatasetMetrics($dataset), 'key')];
             }
 
             $slots['metric'] = $resolved;
@@ -60,7 +60,7 @@ class StateValidator
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => $dimensionSlot, 'value' => (string) $value,
-                        'options' => $this->registry->getGroupableColumns($dataset)];
+                    'options' => $this->registry->getGroupableColumns($dataset)];
             }
 
             $slots[$dimensionSlot] = $resolved;
@@ -76,7 +76,7 @@ class StateValidator
 
             if (!$resolved) {
                 return ['valid' => false, 'slot' => 'filter_column', 'value' => (string) ($filter['column'] ?? ''),
-                        'options' => $this->registry->getGroupableColumns($dataset)];
+                    'options' => $this->registry->getGroupableColumns($dataset)];
             }
 
             $filters[] = ['column' => $resolved, 'value' => $filter['value'] ?? null];

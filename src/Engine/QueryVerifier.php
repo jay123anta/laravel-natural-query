@@ -2,9 +2,9 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
+use Illuminate\Support\Facades\Log;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Query Verifier — The X Factor
@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Log;
 class QueryVerifier
 {
     protected LlmProviderInterface $llm;
+
     protected SchemaRegistry $registry;
 
     public function __construct(LlmProviderInterface $llm, SchemaRegistry $registry)
@@ -99,6 +100,7 @@ class QueryVerifier
             if (!$response['success']) {
                 // LLM call failed — graceful degradation, treat as pass
                 Log::debug('[NaturalQuery:Verifier] LLM call failed, passing through');
+
                 return $this->defaultPass();
             }
 
@@ -119,6 +121,7 @@ class QueryVerifier
         } catch (\Exception $e) {
             // Any failure — graceful degradation
             Log::warning('[NaturalQuery:Verifier] Exception, passing through', ['error' => $e->getMessage()]);
+
             return $this->defaultPass();
         }
     }
@@ -169,7 +172,7 @@ PROMPT;
         $primary = $schema['tables']['primary'] ?? [];
         $tableName = $primary['name'] ?? 'unknown';
         $columns = array_keys($primary['columns'] ?? []);
-        $parts[] = "{$tableName}(" . implode(', ', $columns) . ")";
+        $parts[] = "{$tableName}(" . implode(', ', $columns) . ')';
 
         // Computed metrics
         $computed = $schema['computed_metrics'] ?? [];
@@ -178,7 +181,7 @@ PROMPT;
             foreach ($computed as $key => $meta) {
                 $compNames[] = "{$key}={$meta['expression']}";
             }
-            $parts[] = "Computed: " . implode(', ', $compNames);
+            $parts[] = 'Computed: ' . implode(', ', $compNames);
         }
 
         // JOIN info

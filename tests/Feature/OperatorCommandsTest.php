@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
 use Jayanta\NaturalQuery\Console\DoctorCommand;
@@ -33,7 +34,7 @@ class OperatorCommandsTest extends TestCase
     #[Test]
     public function it_detects_settings_missing_from_a_published_config()
     {
-        $doctor = new DoctorCommand();
+        $doctor = new DoctorCommand;
         $missing = (fn () => $this->missingKeys(
             ['prompts' => ['system_role' => null, 'max_chars' => null], 'cache' => ['enabled' => true]],
             ['prompts' => ['system_role' => null], 'cache' => ['enabled' => true]]
@@ -51,7 +52,7 @@ class OperatorCommandsTest extends TestCase
     #[Test]
     public function a_customised_value_is_not_reported_as_drift()
     {
-        $doctor = new DoctorCommand();
+        $doctor = new DoctorCommand;
         $missing = (fn () => $this->missingKeys(
             ['cache' => ['enabled' => true, 'ttl' => 86400]],
             ['cache' => ['enabled' => false, 'ttl' => 60]]
@@ -73,8 +74,8 @@ class OperatorCommandsTest extends TestCase
             'naturalquery.llm.providers.ollama.model' => 'llama3.1:8b',
         ]);
 
-        \Illuminate\Support\Facades\Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
-        $out = \Illuminate\Support\Facades\Artisan::output();
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        $out = Artisan::output();
 
         $this->assertStringContainsString('llama3.1:8b', $out);
         $this->assertStringContainsString('12B or under', $out,
@@ -90,9 +91,9 @@ class OperatorCommandsTest extends TestCase
             'naturalquery.llm.providers.gemini.model' => 'gemini-2.5-flash',
         ]);
 
-        \Illuminate\Support\Facades\Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
+        Artisan::call('naturalquery:doctor', ['--skip-api' => true]);
 
-        $this->assertStringNotContainsString('12B or under', \Illuminate\Support\Facades\Artisan::output(),
+        $this->assertStringNotContainsString('12B or under', Artisan::output(),
             'doctor warned about a model that measured 17/17 here');
     }
 

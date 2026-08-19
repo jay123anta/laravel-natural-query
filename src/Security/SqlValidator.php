@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Security;
 
-use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
 use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
 
 /**
  * SQL Validator - Defense-in-Depth Security Layer
@@ -23,15 +23,15 @@ class SqlValidator implements SqlValidatorInterface
     /**
      * Validate a SQL query against security rules.
      *
-     * @param string $sql The SQL to validate
-     * @param array $allowedTables List of allowed table/view names
-     * @param array $options {
-     *   max_limit?: int,
-     *   forbidden_keywords?: string[],
-     *   allow_union_all?: bool,
-     *   allow_cte?: bool,
-     *   require_limit?: bool
-     * }
+     * @param  string  $sql  The SQL to validate
+     * @param  array  $allowedTables  List of allowed table/view names
+     * @param  array  $options  {
+     *                          max_limit?: int,
+     *                          forbidden_keywords?: string[],
+     *                          allow_union_all?: bool,
+     *                          allow_cte?: bool,
+     *                          require_limit?: bool
+     *                          }
      * @return array {valid: bool, reason: string|null}
      */
     public function validate(string $sql, array $allowedTables, array $options = []): array
@@ -80,6 +80,7 @@ class SqlValidator implements SqlValidatorInterface
                     'keyword' => $keyword,
                     'sql' => substr($sqlClean, 0, 200),
                 ]);
+
                 return $this->fail("Forbidden keyword: {$keyword}");
             }
         }
@@ -107,6 +108,7 @@ class SqlValidator implements SqlValidatorInterface
                     'pattern' => $description,
                     'sql' => substr($sqlClean, 0, 200),
                 ]);
+
                 return $this->fail("Potential SQL injection: {$description}");
             }
         }
@@ -147,6 +149,7 @@ class SqlValidator implements SqlValidatorInterface
                         'table' => $table,
                         'sql' => substr($sqlClean, 0, 200),
                     ]);
+
                     return $this->fail("Unauthorized table: {$table}");
                 }
             }
@@ -316,6 +319,7 @@ class SqlValidator implements SqlValidatorInterface
             if ($char === ',' && $depth === 0) {
                 $parts[] = $current;
                 $current = '';
+
                 continue;
             }
 

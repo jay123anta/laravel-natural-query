@@ -23,7 +23,8 @@ class RetryBackoffTest extends TestCase
             'jitter' => false, // deterministic assertions
         ], $retryConfig)]);
 
-        return new class(['max_retries' => $maxRetries]) extends AbstractProvider {
+        return new class(['max_retries' => $maxRetries]) extends AbstractProvider
+        {
             /** @var int[] Milliseconds passed to sleepMs(), in order */
             public array $slept = [];
 
@@ -270,7 +271,8 @@ class RetryBackoffTest extends TestCase
         // Apps that published config/naturalquery.php before this block existed
         config(['naturalquery.retry' => null]);
 
-        $p = new class(['max_retries' => 3]) extends AbstractProvider {
+        $p = new class(['max_retries' => 3]) extends AbstractProvider
+        {
             public function getName(): string
             {
                 return 'test';

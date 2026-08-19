@@ -3,6 +3,7 @@
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
@@ -53,7 +54,7 @@ class ApiContractTest extends TestCase
             ['customer_name' => 'Grace', 'region' => 'East', 'status' => 'pending', 'revenue' => 500],
         ]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',
@@ -83,7 +84,7 @@ class ApiContractTest extends TestCase
 
         // parsed_query is what a client renders as "we read this as".
         foreach (['dataset', 'metric', 'group_by', 'filter_column', 'filters', 'period',
-                  'group_value', 'limit', 'order', 'query_type'] as $field) {
+            'group_value', 'limit', 'order', 'query_type'] as $field) {
             $this->assertArrayHasKey($field, $response->json('parsed_query'), "parsed_query.{$field}");
         }
     }
@@ -267,7 +268,7 @@ class ApiContractTest extends TestCase
     {
         $unreachable = [];
 
-        foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
+        foreach (Route::getRoutes() as $route) {
             if (!str_starts_with($route->uri(), 'naturalquery')) {
                 continue;
             }

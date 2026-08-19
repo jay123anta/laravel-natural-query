@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\LlmProviders;
 
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Illuminate\Support\Facades\Http;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
 /**
  * Anthropic Claude LLM Provider
@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Http;
 class ClaudeProvider extends AbstractProvider implements LlmProviderInterface
 {
     protected string $apiKey;
+
     protected string $model;
+
     protected string $baseUrl = 'https://api.anthropic.com/v1';
 
     public function __construct(array $config = [])

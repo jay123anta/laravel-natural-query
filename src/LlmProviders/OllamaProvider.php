@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\LlmProviders;
 
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Illuminate\Support\Facades\Http;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
 /**
  * Ollama LLM Provider (local/self-hosted models)
@@ -54,7 +54,9 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
     private const MIN_NUM_CTX = 1024;
 
     protected string $baseUrl;
+
     protected string $model;
+
     protected int $numCtx;
 
     public function __construct(array $config = [])

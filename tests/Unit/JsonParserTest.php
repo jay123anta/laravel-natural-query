@@ -23,6 +23,7 @@ class JsonParserTest extends TestCase
     {
         $method = new \ReflectionMethod($this->provider, 'parseJsonResponse');
         $method->setAccessible(true);
+
         return $method->invoke($this->provider, $text);
     }
 

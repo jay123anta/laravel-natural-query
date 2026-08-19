@@ -26,15 +26,15 @@ interface LlmProviderInterface
      *
      * The prompt NEVER contains actual data values.
      *
-     * @param string $prompt The complete schema-aware prompt
+     * @param  string  $prompt  The complete schema-aware prompt
      * @return array {success: bool, data?: array, error?: string, refused_before_sending?: bool}
-     *               data contains parsed JSON with: sql, query_type, metric, explanation
-     *               refused_before_sending: set true when the provider decided
-     *               locally, before any request left the machine, that this
-     *               prompt cannot be answered honestly (e.g. it would not fit
-     *               the model's context window). Tells the orchestrator not to
-     *               retry with a smaller prompt — that would answer a
-     *               narrower question, not a corrected one.
+     *                                                                                            data contains parsed JSON with: sql, query_type, metric, explanation
+     *                                                                                            refused_before_sending: set true when the provider decided
+     *                                                                                            locally, before any request left the machine, that this
+     *                                                                                            prompt cannot be answered honestly (e.g. it would not fit
+     *                                                                                            the model's context window). Tells the orchestrator not to
+     *                                                                                            retry with a smaller prompt — that would answer a
+     *                                                                                            narrower question, not a corrected one.
      */
     public function generateSql(string $prompt): array;
 
@@ -44,20 +44,20 @@ interface LlmProviderInterface
      * Used when the system first identifies what dataset/metric the user wants,
      * before generating SQL.
      *
-     * @param string $text User's natural language query
-     * @param array $datasetList Available datasets [{key, name, aliases, metrics}]
+     * @param  string  $text  User's natural language query
+     * @param  array  $datasetList  Available datasets [{key, name, aliases, metrics}]
      * @return array {
-     *   success: bool,
-     *   dataset?: string,
-     *   metric?: string,
-     *   limit?: int,
-     *   order?: 'asc'|'desc',
-     *   district?: string,
-     *   confidence?: float (0.0-1.0),
-     *   needs_clarification?: bool,
-     *   clarification_type?: 'dataset'|'metric'|'ambiguous',
-     *   error?: string
-     * }
+     *               success: bool,
+     *               dataset?: string,
+     *               metric?: string,
+     *               limit?: int,
+     *               order?: 'asc'|'desc',
+     *               district?: string,
+     *               confidence?: float (0.0-1.0),
+     *               needs_clarification?: bool,
+     *               clarification_type?: 'dataset'|'metric'|'ambiguous',
+     *               error?: string
+     *               }
      */
     public function parseIntent(string $text, array $datasetList): array;
 

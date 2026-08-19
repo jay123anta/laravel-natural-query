@@ -13,7 +13,7 @@ namespace Jayanta\NaturalQuery\Engine;
  */
 class ResponseFormatter
 {
-    use \Jayanta\NaturalQuery\Engine\Concerns\HumanizesNames;
+    use Concerns\HumanizesNames;
 
     /**
      * Format a complete query response.
@@ -155,7 +155,7 @@ class ResponseFormatter
      * Format an error response.
      */
     /**
-     * @param string $code Machine-readable reason — see ErrorCode.
+     * @param  string  $code  Machine-readable reason — see ErrorCode.
      */
     public function formatError(string $error, array $metadata = [], string $code = ErrorCode::INTERNAL): array
     {
@@ -198,7 +198,7 @@ class ResponseFormatter
      * made an otherwise correct answer look broken, so fall back to the first
      * value in the row that reads like a label rather than a number.
      *
-     * @param array<string, mixed> $row
+     * @param  array<string, mixed>  $row
      */
     protected function labelFor(array $row, string $groupColumn, string $metric): string
     {
@@ -304,8 +304,8 @@ class ResponseFormatter
         }
 
         $values = array_filter(
-            array_map(fn($r) => ((array) $r)[$metric] ?? null, $rows),
-            fn($v) => is_numeric($v)
+            array_map(fn ($r) => ((array) $r)[$metric] ?? null, $rows),
+            fn ($v) => is_numeric($v)
         );
 
         if (empty($values)) {
@@ -357,6 +357,7 @@ class ResponseFormatter
             if ($format === 'indian') {
                 return $this->formatIndian((int) $value);
             }
+
             return number_format((int) $value);
         }
 

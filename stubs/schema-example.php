@@ -32,7 +32,7 @@ return [
 
     // Instructions for the AI - describe your data in plain English
     // The better you describe your data here, the better the AI understands it
-    'llm_instructions' => "
+    'llm_instructions' => '
         Describe your data structure here in plain English.
         The AI reads this to understand how to query your data.
 
@@ -42,7 +42,7 @@ return [
         - GROUP BY region for geographical analysis
         - revenue = SUM(total_amount)
         - Use order_date for time-based filtering (YYYY-MM-DD format)
-    ",
+    ',
 
     // Tables involved in this dataset
     'tables' => [

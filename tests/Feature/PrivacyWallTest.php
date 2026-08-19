@@ -2,9 +2,10 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
@@ -80,9 +81,9 @@ class PrivacyWallTest extends TestCase
         // and this keeps the suite service-free in CI. PromptBuilder asks the
         // introspector for one thing, `getDialect()`, so the real MySQL
         // introspector is bound and the prompt path stays genuine.
-        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector());
+        $this->app->instance(SchemaIntrospectorInterface::class, new MysqlIntrospector);
 
-        $this->provider = new RecordingProvider();
+        $this->provider = new RecordingProvider;
         $this->app->instance(LlmProviderInterface::class, $this->provider);
     }
 
@@ -229,16 +230,16 @@ class PrivacyWallTest extends TestCase
     public function the_package_has_no_way_to_receive_audio()
     {
         $this->assertFalse(
-            method_exists(\Jayanta\NaturalQuery\Engine\QueryOrchestrator::class, 'voiceQuery'),
+            method_exists(QueryOrchestrator::class, 'voiceQuery'),
             'an audio entry point came back'
         );
 
         $this->assertFalse(
-            method_exists(\Jayanta\NaturalQuery\Contracts\LlmProviderInterface::class, 'parseVoiceQuery'),
+            method_exists(LlmProviderInterface::class, 'parseVoiceQuery'),
             'the provider contract can be handed audio again'
         );
 
-        $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())
+        $routes = collect(Route::getRoutes())
             ->map(fn ($r) => $r->uri())
             ->filter(fn ($uri) => str_contains($uri, 'voice'));
 

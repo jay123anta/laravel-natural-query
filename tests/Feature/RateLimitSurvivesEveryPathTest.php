@@ -52,7 +52,7 @@ class RateLimitSurvivesEveryPathTest extends TestCase
 
     private function limited(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = self::LIMIT;
         $provider->intentResponse = self::LIMIT;
         $this->app->instance(LlmProviderInterface::class, $provider);
@@ -72,7 +72,7 @@ class RateLimitSurvivesEveryPathTest extends TestCase
      */
     private function limitedAfterPlanning(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $n = 0;
         $provider->sqlResponse = function () use (&$n) {
             $n++;
@@ -175,7 +175,7 @@ class RateLimitSurvivesEveryPathTest extends TestCase
     {
         config(['naturalquery.query_mode' => 'sql_generation']);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $n = 0;
         $provider->sqlResponse = function () use (&$n) {
             $n++;

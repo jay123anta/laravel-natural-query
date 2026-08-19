@@ -4,11 +4,14 @@ namespace Jayanta\NaturalQuery\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Str;
+use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
-use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Feedback\FeedbackStore;
-use Illuminate\Support\Str;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
+use Jayanta\NaturalQuery\Security\InputGuard;
 
 /**
  * NaturalQuery HTTP Controller
@@ -23,7 +26,9 @@ use Illuminate\Support\Str;
 class NaturalQueryController extends Controller
 {
     protected QueryOrchestrator $orchestrator;
+
     protected ConversationManager $conversation;
+
     protected FeedbackStore $feedback;
 
     public function __construct(QueryOrchestrator $orchestrator, ConversationManager $conversation, FeedbackStore $feedback)
@@ -279,6 +284,7 @@ class NaturalQueryController extends Controller
     public function clearConversation(string $sessionId)
     {
         $this->conversation->clearContext($sessionId);
+
         return response()->json(['status' => 'cleared', 'session_id' => $sessionId]);
     }
 
@@ -298,7 +304,7 @@ class NaturalQueryController extends Controller
         ]);
 
         // Security: Sanitize feedback content to prevent prompt injection via stored corrections
-        $inputGuard = app(\Jayanta\NaturalQuery\Security\InputGuard::class);
+        $inputGuard = app(InputGuard::class);
 
         $correction = $data['correction'] ?? '';
         $correctedSql = $data['corrected_sql'] ?? null;
@@ -313,8 +319,8 @@ class NaturalQueryController extends Controller
 
         // Validate corrected SQL if provided
         if ($correctedSql) {
-            $sqlValidator = app(\Jayanta\NaturalQuery\Contracts\SqlValidatorInterface::class);
-            $allowedTables = app(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class)->getAllowedTables();
+            $sqlValidator = app(SqlValidatorInterface::class);
+            $allowedTables = app(SchemaRegistry::class)->getAllowedTables();
             $validation = $sqlValidator->validate($correctedSql, $allowedTables);
             if (!$validation['valid']) {
                 return response()->json(['status' => 'rejected', 'reason' => 'Corrected SQL failed validation: ' . $validation['reason']], 422);

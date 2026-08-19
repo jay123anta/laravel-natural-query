@@ -2,6 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Conversation\ConversationManager;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
@@ -33,7 +35,7 @@ class ConversationGuardrailsTest extends TestCase
 
         // State is only carried forward on a successful turn, so the table the
         // stub schema names has to actually exist.
-        \Illuminate\Support\Facades\Schema::create('gb_sales', function ($t) {
+        Schema::create('gb_sales', function ($t) {
             $t->id();
             $t->string('customer_name');
             $t->string('region');
@@ -41,7 +43,7 @@ class ConversationGuardrailsTest extends TestCase
             $t->decimal('revenue', 12, 2);
         });
 
-        \Illuminate\Support\Facades\DB::table('gb_sales')->insert([
+        DB::table('gb_sales')->insert([
             ['customer_name' => 'Ada', 'region' => 'West', 'status' => 'delivered', 'revenue' => 300],
             ['customer_name' => 'Grace', 'region' => 'East', 'status' => 'pending', 'revenue' => 500],
         ]);
@@ -50,7 +52,7 @@ class ConversationGuardrailsTest extends TestCase
     /** Answers every turn with a resolvable intent. */
     private function provider(): void
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',

@@ -2,22 +2,22 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
-use Jayanta\NaturalQuery\Conversation\QueryState;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
-use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 use Jayanta\NaturalQuery\Contracts\ReportsUsage;
+use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Conversation\QueryState;
 use Jayanta\NaturalQuery\Events\QuestionAnswered;
 use Jayanta\NaturalQuery\Events\QuestionAsked;
 use Jayanta\NaturalQuery\Events\QuestionFailed;
 use Jayanta\NaturalQuery\Events\UnsafeSqlRejected;
-use Illuminate\Support\Facades\Event;
-use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Security\InputGuard;
 
 /**
  * Query Orchestrator - Main Engine
@@ -50,19 +50,29 @@ class QueryOrchestrator
         . 'Please wait a minute and try again.';
 
     protected LlmProviderInterface $llmProvider;
+
     protected QueryCacheInterface $cache;
+
     protected SqlValidatorInterface $validator;
+
     protected SchemaRegistry $registry;
+
     protected SqlBuilder $sqlBuilder;
+
     protected PromptBuilder $promptBuilder;
+
     protected ResponseFormatter $formatter;
 
     protected InputGuard $inputGuard;
+
     protected QueryVerifier $verifier;
 
     protected ?QueryPlanner $planner;
+
     protected ?StepSynthesizer $synthesizer;
+
     protected ?NextStepSuggester $suggester;
+
     protected ?IntentCoverage $coverage;
 
     // NQ-001-REDUCE: DatasetSeeder is load-bearing on its own for NQ-003 (see
@@ -73,6 +83,7 @@ class QueryOrchestrator
     // tests construct one directly) keeps working exactly as today, with the
     // bound simply never engaging.
     protected ?DatasetSeeder $seeder;
+
     protected ?PromptBudget $budget;
 
     /**
@@ -132,8 +143,8 @@ class QueryOrchestrator
     /**
      * Process a natural language query end-to-end.
      *
-     * @param string $naturalLanguageQuery The user's question
-     * @param string|null $datasetHint Optional dataset key hint
+     * @param  string  $naturalLanguageQuery  The user's question
+     * @param  string|null  $datasetHint  Optional dataset key hint
      * @return array Complete response with data, or clarification/error
      */
     public function query(string $naturalLanguageQuery, ?string $datasetHint = null, array $context = []): array
@@ -164,6 +175,7 @@ class QueryOrchestrator
                     'reason' => $guardResult['blocked_reason'],
                     'query' => substr($naturalLanguageQuery, 0, 100),
                 ]);
+
                 return $this->formatter->formatError(
                     $guardResult['blocked_reason'] ?? 'Query blocked for security reasons.',
                     $metadata,
@@ -486,16 +498,16 @@ class QueryOrchestrator
 
             return $result;
 
-        // \Throwable, not \Exception. A TypeError extends \Error and so slipped
-        // straight past this, taking the whole error envelope with it: the
-        // caller got a framework 500 and a stack trace instead of a
-        // NaturalQuery error response, and the HTTP layer's error_code,
-        // retryable and Retry-After never happened.
-        //
-        // Reachable from ordinary data rather than from a bug in the caller —
-        // a cache row whose `intent` column is present but not an array
-        // reaches normalizeIntent(array $intent) and throws. Tier 2 rows have
-        // no expiry, so once one exists that question is a hard 500 forever.
+            // \Throwable, not \Exception. A TypeError extends \Error and so slipped
+            // straight past this, taking the whole error envelope with it: the
+            // caller got a framework 500 and a stack trace instead of a
+            // NaturalQuery error response, and the HTTP layer's error_code,
+            // retryable and Retry-After never happened.
+            //
+            // Reachable from ordinary data rather than from a bug in the caller —
+            // a cache row whose `intent` column is present but not an array
+            // reaches normalizeIntent(array $intent) and throws. Tier 2 rows have
+            // no expiry, so once one exists that question is a hard 500 forever.
         } catch (\Throwable $e) {
             Log::error('[NaturalQuery] Orchestrator error', [
                 'error' => $e->getMessage(),
@@ -602,7 +614,7 @@ class QueryOrchestrator
         // The same QueryState::merge the conversation uses, so what runs and
         // what is displayed cannot disagree.
         if (!empty($context['state'])) {
-            $intent = \Jayanta\NaturalQuery\Conversation\QueryState::fromArray(['slots' => $context['state']])
+            $intent = QueryState::fromArray(['slots' => $context['state']])
                 ->merge($intent, 0, $query)
                 ->toIntent() + $intent;
 
@@ -939,9 +951,9 @@ class QueryOrchestrator
         return "CURRENT QUERY STATE (carry these forward unless the instruction changes them):\n"
             . '  ' . implode('; ', $slots) . "\n"
             . "NEW INSTRUCTION: \"{$query}\"\n"
-            . "A narrowing — \"only in X\", \"just for X\", \"in X\" — goes in filters as "
-            . "{\"column\":\"<the column X belongs to>\",\"value\":\"X\"}, and the existing "
-            . "group_by STAYS. Do not put it in group_value: that means one named record "
+            . 'A narrowing — "only in X", "just for X", "in X" — goes in filters as '
+            . '{"column":"<the column X belongs to>","value":"X"}, and the existing '
+            . 'group_by STAYS. Do not put it in group_value: that means one named record '
             . "and returns its detail rows instead of the narrowed answer.\n"
             . 'Return the FULL intent after applying the instruction to that state.';
     }
@@ -976,7 +988,7 @@ class QueryOrchestrator
      * in `prompts.intent_parsing`, or a third-party provider written against
      * the old contract.
      *
-     * @param array<string, mixed> $intent
+     * @param  array<string, mixed>  $intent
      * @return array<string, mixed>
      */
     /**
@@ -999,7 +1011,7 @@ class QueryOrchestrator
      * that did not ask for a total — "top clients by amount" has no total
      * wording and keeps its grouping.
      *
-     * @param array<string, mixed> $intent
+     * @param  array<string, mixed>  $intent
      * @return array<string, mixed>
      */
     protected function dropUnaskedBreakdown(array $intent, string $query): array
@@ -1064,7 +1076,7 @@ class QueryOrchestrator
      * Only inside a conversation. A one-shot "revenue for Guwahati" has no
      * established breakdown to narrow and keeps the detail reading.
      *
-     * @param array<string, mixed> $intent
+     * @param  array<string, mixed>  $intent
      * @return array<string, mixed>
      */
     protected function narrowingRatherThanDetail(array $intent): array
@@ -1127,7 +1139,7 @@ class QueryOrchestrator
      * copy goes. Compared case-insensitively, since the two rarely agree on
      * capitalisation.
      *
-     * @param array<string, mixed> $intent
+     * @param  array<string, mixed>  $intent
      * @return array<string, mixed>
      */
     protected function dropDuplicatedGroupValue(array $intent): array
@@ -1744,6 +1756,7 @@ class QueryOrchestrator
         }
 
         $keys = $this->registry->keys();
+
         return count($keys) === 1 ? $keys[0] : null;
     }
 
@@ -1769,8 +1782,8 @@ class QueryOrchestrator
      * came back "Could not understand the query. Try mentioning a dataset
      * name", which is a lie that costs an afternoon.
      *
-     * @param array<string, mixed> $response Provider response with success:false
-     * @param array<string, mixed> $metadata
+     * @param  array<string, mixed>  $response  Provider response with success:false
+     * @param  array<string, mixed>  $metadata
      * @return array<string, mixed>
      */
     protected function providerFailure(array $response, array $metadata): array
@@ -1885,14 +1898,14 @@ class QueryOrchestrator
                 'limit' => $data['limit'] ?? config('naturalquery.sql.default_limit', 100),
                 'order' => $data['order'] ?? 'DESC',
                 'query_type' => $data['query_type'] ?? 'ranking',
-            // Reported so a generated query says which dates it covered.
-            // Intent mode derives this from date_from/date_to; SQL
-            // generation writes the WHERE itself, so it had nothing to
-            // report and every step of a decomposed question came back
-            // with a blank period — while the README promises each one
-            // states the range it used. The model knows; it just was not
-            // being asked.
-            'time_filter' => $data['period'] ?? null,
+                // Reported so a generated query says which dates it covered.
+                // Intent mode derives this from date_from/date_to; SQL
+                // generation writes the WHERE itself, so it had nothing to
+                // report and every step of a decomposed question came back
+                // with a blank period — while the README promises each one
+                // states the range it used. The model knows; it just was not
+                // being asked.
+                'time_filter' => $data['period'] ?? null,
                 'group_column' => $this->registry->getGroupColumn($dataset),
             ];
 
@@ -1920,7 +1933,7 @@ class QueryOrchestrator
             return array_merge($previous, ['_retried' => true]);
         }
 
-        $datasets = array_map(fn($s) => $s['name'] . ' (' . $s['key'] . ')', $this->registry->getAvailableDatasets());
+        $datasets = array_map(fn ($s) => $s['name'] . ' (' . $s['key'] . ')', $this->registry->getAvailableDatasets());
         $datasetList = implode(', ', array_slice($datasets, 0, 10));
 
         return $this->formatter->formatError(
@@ -1933,7 +1946,7 @@ class QueryOrchestrator
     /**
      * Did this failure come from the provider rather than from the question?
      *
-     * @param array<string, mixed> $result
+     * @param  array<string, mixed>  $result
      */
     protected function isProviderFailure(array $result): bool
     {
@@ -1997,6 +2010,7 @@ class QueryOrchestrator
                 : DB::select($sql, $bindings);
         } catch (\Exception $e) {
             Log::error('[NaturalQuery] SQL execution failed', ['sql' => $sql, 'error' => $e->getMessage()]);
+
             return $this->formatter->formatError('Database query failed: ' . $this->sanitizeDbError($e->getMessage()), $metadata, ErrorCode::DATABASE_ERROR);
         }
 
@@ -2004,6 +2018,7 @@ class QueryOrchestrator
         if (empty($rows)) {
             $response = $this->formatter->formatNoData($queryResult);
             $response['metadata'] = $metadata;
+
             return $response;
         }
 
@@ -2122,6 +2137,7 @@ class QueryOrchestrator
         if ($metadata['_retried'] ?? false) {
             return false;
         }
+
         return true;
     }
 
@@ -2134,6 +2150,7 @@ class QueryOrchestrator
         if (preg_match('/ERROR:\s*(.+?)(?:\(|$)/i', $message, $m)) {
             return trim($m[1]);
         }
+
         return 'An error occurred while querying the database.';
     }
 
@@ -2147,7 +2164,7 @@ class QueryOrchestrator
      * system working, and firing a failure event for it would fill an alerting
      * channel with successes.
      *
-     * @param array<string, mixed> $result
+     * @param  array<string, mixed>  $result
      */
     protected function announceOutcome(string $question, array $result, bool $cacheHit, float $startTime): void
     {

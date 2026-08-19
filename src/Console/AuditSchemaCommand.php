@@ -82,7 +82,7 @@ class AuditSchemaCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $schema
+     * @param  array<string, mixed>  $schema
      */
     private function auditDataset(string $key, array $schema): void
     {
@@ -157,7 +157,7 @@ class AuditSchemaCommand extends Command
 
             $this->add($key, 'required-filter',
                 "`{$name}` holds " . implode('/', $excluding) . ' and this dataset has no required_filter',
-                "Should those rows count towards totals? If not, say so once and every query obeys: "
+                'Should those rows count towards totals? If not, say so once and every query obeys: '
                 . "'required_filter' => \"{$name} != '{$excluding[0]}'\" in the table block. Intent mode "
                 . 'appends it to the SQL; SQL generation refuses an answer that omits it. Without a rule '
                 . 'the model decides, and a total that quietly includes cancelled rows looks exactly like '
@@ -180,7 +180,7 @@ class AuditSchemaCommand extends Command
      * produces a plausible wrong number rather than an error: ask for
      * "revenue" when two datasets both offer it and the model picks, silently.
      *
-     * @param array<string, mixed> $datasets
+     * @param  array<string, mixed>  $datasets
      */
     private function auditCompetingMeasures(array $datasets): void
     {
@@ -233,7 +233,7 @@ class AuditSchemaCommand extends Command
      * whose permitted values someone has already written down is the only
      * place this can be known from structure alone.
      *
-     * @param array<string, mixed> $column
+     * @param  array<string, mixed>  $column
      * @return array<int, string>
      */
     private function exclusionValues(array $column): array

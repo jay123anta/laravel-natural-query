@@ -2,9 +2,11 @@
 
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
+use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
+use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
 use Jayanta\NaturalQuery\Schema\Introspectors\MysqlIntrospector;
 use Jayanta\NaturalQuery\Schema\Introspectors\PostgresIntrospector;
-use Jayanta\NaturalQuery\Schema\IntrospectorRegistry;
+use Jayanta\NaturalQuery\Schema\Introspectors\SqliteIntrospector;
 use Jayanta\NaturalQuery\Tests\Support\SqliteTestIntrospector;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -52,7 +54,7 @@ class IntrospectorRegistryTest extends TestCase
 
         $this->assertTrue(IntrospectorRegistry::supports('sqlite'));
         $this->assertSame(
-            \Jayanta\NaturalQuery\Schema\Introspectors\SqliteIntrospector::class,
+            SqliteIntrospector::class,
             IntrospectorRegistry::classFor('sqlite')
         );
     }
@@ -104,7 +106,7 @@ class IntrospectorRegistryTest extends TestCase
             'naturalquery.sql.introspectors' => ['sqlite' => SqliteTestIntrospector::class],
         ]);
 
-        $resolved = $this->app->make(\Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface::class);
+        $resolved = $this->app->make(SchemaIntrospectorInterface::class);
 
         $this->assertInstanceOf(SqliteTestIntrospector::class, $resolved);
     }

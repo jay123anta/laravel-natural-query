@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
+use Jayanta\NaturalQuery\Engine\PromptBudget;
 use Jayanta\NaturalQuery\Support\EnvValue;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -30,13 +31,13 @@ class EmptyEnvValueDoesNotFatalTest extends TestCase
     public static function envValues(): array
     {
         return [
-            'absent'            => [null,     30],
+            'absent' => [null,     30],
             'present but empty' => ['',       30],
-            'whitespace only'   => ['   ',    30],
-            'not a number'      => ['thirty', 30],
-            'a number'          => ['45',     45],
-            'a quoted number'   => ['60',     60],
-            'zero'              => ['0',      0],
+            'whitespace only' => ['   ',    30],
+            'not a number' => ['thirty', 30],
+            'a number' => ['45',     45],
+            'a quoted number' => ['60',     60],
+            'zero' => ['0',      0],
         ];
     }
 
@@ -80,8 +81,8 @@ class EmptyEnvValueDoesNotFatalTest extends TestCase
         $config = require __DIR__ . '/../../config/naturalquery.php';
 
         // PromptBudget takes ?int and fatals on a string.
-        $budget = new \Jayanta\NaturalQuery\Engine\PromptBudget($config['prompts']['max_chars']);
-        $this->assertInstanceOf(\Jayanta\NaturalQuery\Engine\PromptBudget::class, $budget);
+        $budget = new PromptBudget($config['prompts']['max_chars']);
+        $this->assertInstanceOf(PromptBudget::class, $budget);
 
         // Http::timeout() takes int|float and fatals on a string. Check every
         // provider's configured timeout, not just the first.

@@ -122,7 +122,7 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
      */
     private function wiredProvider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
 
         $provider->sqlResponse = function (string $prompt) {
             $sawProducts = str_contains(strtolower($prompt), 'nq_products');

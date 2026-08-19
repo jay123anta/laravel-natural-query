@@ -2,9 +2,9 @@
 
 namespace Jayanta\NaturalQuery\Engine;
 
+use Illuminate\Support\Facades\Log;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Decide whether a question needs more than one query, and if so, what they are.
@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Log;
 class QueryPlanner
 {
     protected LlmProviderInterface $provider;
+
     protected SchemaRegistry $registry;
 
     /**

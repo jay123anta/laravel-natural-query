@@ -27,6 +27,5 @@ class QuestionFailed
 
         public readonly string $provider,
         public readonly float $durationMs,
-    ) {
-    }
+    ) {}
 }

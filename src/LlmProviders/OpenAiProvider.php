@@ -2,8 +2,8 @@
 
 namespace Jayanta\NaturalQuery\LlmProviders;
 
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Illuminate\Support\Facades\Http;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
 /**
  * OpenAI-compatible LLM Provider.
@@ -24,10 +24,15 @@ use Illuminate\Support\Facades\Http;
 class OpenAiProvider extends AbstractProvider implements LlmProviderInterface
 {
     protected string $apiKey;
+
     protected string $model;
+
     protected string $baseUrl;
+
     protected string $providerName;
+
     protected int $maxTokens;
+
     protected bool $forceJson;
 
     public function __construct(array $config = [])
@@ -57,6 +62,7 @@ class OpenAiProvider extends AbstractProvider implements LlmProviderInterface
         if ($this->forceJson) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
+
         return $payload;
     }
 

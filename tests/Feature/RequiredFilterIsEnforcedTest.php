@@ -59,7 +59,7 @@ class RequiredFilterIsEnforcedTest extends TestCase
     /** A model that ignores the prompt line must not produce an unfiltered total. */
     private function disobedientProvider(string $sql): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [
@@ -124,7 +124,7 @@ class RequiredFilterIsEnforcedTest extends TestCase
         config(['naturalquery.query_mode' => 'intent']);
         $this->seedOrders();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'nq_orders',

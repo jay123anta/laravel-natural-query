@@ -30,13 +30,13 @@ class RateLimitHandlingTest extends TestCase
 
         return new QueryOrchestrator(
             $llm,
-            new NullQueryCache(),
-            new SqlValidator(),
+            new NullQueryCache,
+            new SqlValidator,
             $registry,
             new SqlBuilder($registry),
             Mockery::mock(PromptBuilder::class)->shouldIgnoreMissing('prompt'),
-            new ResponseFormatter(),
-            new InputGuard(),
+            new ResponseFormatter,
+            new InputGuard,
             Mockery::mock(QueryVerifier::class)->shouldIgnoreMissing()
         );
     }

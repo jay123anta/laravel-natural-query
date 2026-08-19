@@ -2,11 +2,10 @@
 
 namespace Jayanta\NaturalQuery\Tests\Benchmark;
 
-use Jayanta\NaturalQuery\Benchmark\ResultComparator;
-
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Jayanta\NaturalQuery\Benchmark\ResultComparator;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -410,12 +409,12 @@ class ExecutionAccuracyTest extends TestCase
      */
     private function normalize(array $rows, bool $ordered): array
     {
-        return (new ResultComparator())->normalize($rows, $ordered);
+        return (new ResultComparator)->normalize($rows, $ordered);
     }
 
     private function preview(array $normalized): string
     {
-        return (new ResultComparator())->preview($normalized);
+        return (new ResultComparator)->preview($normalized);
     }
 
     private function report(array $results): void
@@ -437,7 +436,7 @@ class ExecutionAccuracyTest extends TestCase
 
         foreach ($results as $r) {
             $lines[] = sprintf(
-                "  %-4s %-8s %-46s %s",
+                '  %-4s %-8s %-46s %s',
                 $r['correct'] ? ' ok ' : 'FAIL',
                 $r['hardness'],
                 substr($r['question'], 0, 46),

@@ -63,7 +63,7 @@ class CacheScopesCoexistTest extends TestCase
 
     private function provider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = function (string $prompt) {
             $table = str_contains($prompt, 'nq_products') ? 'nq_products' : 'nq_orders';
 
@@ -195,11 +195,11 @@ class CacheScopesCoexistTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
         $this->seedTables();
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = [
             'success' => true,
             'data' => [
-                'sql' => "SELECT SUM(revenue) AS revenue FROM nq_orders WHERE revenue > 60",
+                'sql' => 'SELECT SUM(revenue) AS revenue FROM nq_orders WHERE revenue > 60',
                 'dataset' => 'nq_orders',
                 'query_type' => 'aggregation',
             ],

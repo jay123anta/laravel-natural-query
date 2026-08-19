@@ -62,7 +62,7 @@ class BenchmarkCommandTest extends TestCase
 
     private function provider(string $sql): void
     {
-        $p = new RecordingProvider();
+        $p = new RecordingProvider;
         $p->sqlResponse = [
             'success' => true,
             'data' => ['sql' => $sql, 'dataset' => 'nq_orders', 'metric' => 'revenue', 'query_type' => 'aggregation'],
@@ -183,7 +183,7 @@ class BenchmarkCommandTest extends TestCase
     #[Test]
     public function differently_named_columns_are_the_same_answer()
     {
-        $c = new ResultComparator();
+        $c = new ResultComparator;
 
         $this->assertTrue($c->matches(
             [(object) ['total' => 350]],
@@ -195,7 +195,7 @@ class BenchmarkCommandTest extends TestCase
     #[Test]
     public function row_order_matters_only_when_ordered()
     {
-        $c = new ResultComparator();
+        $c = new ResultComparator;
         $a = [(object) ['n' => 'x', 'v' => 1], (object) ['n' => 'y', 'v' => 2]];
         $b = [(object) ['n' => 'y', 'v' => 2], (object) ['n' => 'x', 'v' => 1]];
 
@@ -207,7 +207,7 @@ class BenchmarkCommandTest extends TestCase
     #[Test]
     public function tiny_float_differences_are_the_same_number()
     {
-        $c = new ResultComparator();
+        $c = new ResultComparator;
 
         $this->assertTrue($c->matches([(object) ['v' => 350.001]], [(object) ['v' => 350.004]]));
         $this->assertFalse($c->matches([(object) ['v' => 350]], [(object) ['v' => 351]]));

@@ -38,7 +38,7 @@ interface QueryCacheInterface
      * as an unfiltered one, or another dataset's number returned with
      * `success` and no API call. Store the array whole and hand it back whole.
      *
-     * @param string $query The natural language query
+     * @param  string  $query  The natural language query
      * @return array|null Cached intent data in the shape above, or null
      */
     public function find(string $query): ?array;
@@ -46,8 +46,8 @@ interface QueryCacheInterface
     /**
      * Store a query result in cache.
      *
-     * @param string $query The original natural language query
-     * @param array $intent The parsed intent/result to cache — opaque; keep it whole
+     * @param  string  $query  The original natural language query
+     * @param  array  $intent  The parsed intent/result to cache — opaque; keep it whole
      * @return bool Whether storing succeeded
      */
     public function store(string $query, array $intent): bool;
@@ -62,9 +62,9 @@ interface QueryCacheInterface
     /**
      * Clear cache entries.
      *
-     * @param string|null $dataset Clear only entries for this dataset (null = all)
-     * @param int $olderThanDays Clear entries older than N days (0 = all ages)
-     * @param int $minHits Only clear entries with fewer than N hits (0 = all)
+     * @param  string|null  $dataset  Clear only entries for this dataset (null = all)
+     * @param  int  $olderThanDays  Clear entries older than N days (0 = all ages)
+     * @param  int  $minHits  Only clear entries with fewer than N hits (0 = all)
      * @return int Number of entries cleared
      */
     public function clear(?string $dataset = null, int $olderThanDays = 0, int $minHits = 0): int;

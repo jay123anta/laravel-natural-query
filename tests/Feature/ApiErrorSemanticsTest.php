@@ -2,9 +2,12 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -121,20 +124,20 @@ class ApiErrorSemanticsTest extends TestCase
     public function a_successful_answer_is_200_and_carries_no_error_fields()
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
-        \Illuminate\Support\Facades\Schema::create('gb_sales', function ($t) {
+        Schema::create('gb_sales', function ($t) {
             $t->id();
             $t->string('customer_name');
             $t->string('region');
             $t->string('status');
             $t->decimal('revenue', 12, 2);
         });
-        \Illuminate\Support\Facades\DB::table('gb_sales')->insert([
+        DB::table('gb_sales')->insert([
             ['customer_name' => 'Ada', 'region' => 'West', 'status' => 'delivered', 'revenue' => 300],
         ]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = [
             'success' => true,
             'dataset' => 'gb_sales',
@@ -212,7 +215,7 @@ class ApiErrorSemanticsTest extends TestCase
     #[Test]
     public function an_unreachable_provider_says_so_instead_of_blaming_the_question()
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $unreachable = [
             'success' => false,
             'error' => 'Unable to connect to AI service. Please check your network connection and try again.',
@@ -248,9 +251,9 @@ class ApiErrorSemanticsTest extends TestCase
     public function naming_the_dataset_is_not_the_advice_when_the_dataset_was_understood()
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/groupby-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         // Intent parsing produces nothing usable, so the retry runs; the retry's
         // call succeeds but comes back with no SQL in it.
         $provider->intentResponse = ['success' => true, 'dataset' => null, 'metric' => null, 'confidence' => 0.1];
@@ -289,7 +292,7 @@ class ApiErrorSemanticsTest extends TestCase
     {
         config(['naturalquery.errors.retry_on_failure' => true]);
 
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $unreachable = ['success' => false, 'error' => 'Unable to connect to AI service.'];
         $provider->intentResponse = $unreachable;
         $provider->sqlResponse = $unreachable;

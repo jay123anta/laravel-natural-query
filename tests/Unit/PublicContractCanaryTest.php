@@ -6,9 +6,10 @@ use Jayanta\NaturalQuery\Cache\TwoTierQueryCache;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
 use Jayanta\NaturalQuery\Contracts\ReportsUsage;
-use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
+use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
 use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -69,7 +70,7 @@ class PublicContractCanaryTest extends TestCase
             "{$implementation} no longer loads — {$contract} changed shape and every adopter implementing it breaks on upgrade"
         );
 
-        $this->assertInstanceOf($contract, new $implementation());
+        $this->assertInstanceOf($contract, new $implementation);
     }
 
     /**
@@ -80,7 +81,7 @@ class PublicContractCanaryTest extends TestCase
     #[Test]
     public function a_third_party_provider_still_loads()
     {
-        $provider = new LegacyThirdPartyProvider();
+        $provider = new LegacyThirdPartyProvider;
 
         $this->assertInstanceOf(LlmProviderInterface::class, $provider);
         $this->assertSame('legacy-third-party', $provider->getName());
@@ -94,8 +95,8 @@ class PublicContractCanaryTest extends TestCase
     #[Test]
     public function capability_interfaces_are_not_required_of_anyone()
     {
-        $this->assertNotInstanceOf(ReportsUsage::class, new LegacyThirdPartyProvider());
-        $this->assertNotInstanceOf(ScopesCacheByDataset::class, new LegacyThirdPartyCache());
+        $this->assertNotInstanceOf(ReportsUsage::class, new LegacyThirdPartyProvider);
+        $this->assertNotInstanceOf(ScopesCacheByDataset::class, new LegacyThirdPartyCache);
     }
 
     /**
@@ -123,7 +124,7 @@ class PublicContractCanaryTest extends TestCase
     {
         $this->assertInstanceOf(
             TwoTierQueryCache::class,
-            new LegacySubclassedCache(),
+            new LegacySubclassedCache,
             'a cache subclass written against the previous release no longer loads, so any application '
                 . 'that added a tenant or permission gate this way is dead on upgrade'
         );
@@ -137,7 +138,7 @@ class PublicContractCanaryTest extends TestCase
         // install gets, and it degrading to the bypass path would be silent.
         $this->assertInstanceOf(
             ScopesCacheByDataset::class,
-            new TwoTierQueryCache(),
+            new TwoTierQueryCache,
             'the real cache is no longer seen as scope-capable, so every lookup silently takes the degraded path'
         );
 
@@ -156,7 +157,7 @@ class PublicContractCanaryTest extends TestCase
     #[Test]
     public function the_engine_resolves_the_capability_interface_it_checks_against()
     {
-        $orchestrator = new \ReflectionClass(\Jayanta\NaturalQuery\Engine\QueryOrchestrator::class);
+        $orchestrator = new \ReflectionClass(QueryOrchestrator::class);
         $source = file_get_contents($orchestrator->getFileName());
 
         preg_match_all('/instanceof\s+([A-Z][A-Za-z0-9_]*)/', $source, $matches);
@@ -297,7 +298,7 @@ class LegacyThirdPartyProvider implements LlmProviderInterface
  *
  * Loading this class is the assertion.
  */
-class LegacySubclassedCache extends \Jayanta\NaturalQuery\Cache\TwoTierQueryCache
+class LegacySubclassedCache extends TwoTierQueryCache
 {
     protected function generateHash(string $normalizedQuery): string
     {

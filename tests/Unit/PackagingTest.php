@@ -54,7 +54,7 @@ class PackagingTest extends TestCase
                 $this->assertFalse(
                     $relative === $prefix || str_starts_with($relative, $prefix . '/'),
                     "'{$relative}' is needed at runtime but .gitattributes marks '{$prefix}' export-ignore — "
-                    . "it would be missing after `composer require`"
+                    . 'it would be missing after `composer require`'
                 );
             }
         }

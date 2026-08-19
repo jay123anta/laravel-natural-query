@@ -2,9 +2,8 @@
 
 namespace Jayanta\NaturalQuery\LlmProviders;
 
-use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 
 /**
  * Google Gemini LLM Provider
@@ -15,7 +14,9 @@ use Illuminate\Support\Facades\Log;
 class GeminiProvider extends AbstractProvider implements LlmProviderInterface
 {
     protected string $apiKey;
+
     protected string $model;
+
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
     /**
@@ -61,6 +62,7 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
         if ($this->thinkingBudget !== null) {
             $config['thinkingConfig'] = ['thinkingBudget' => $this->thinkingBudget];
         }
+
         return $config;
     }
 

@@ -2,6 +2,7 @@
 
 namespace Jayanta\NaturalQuery\Tests\Unit;
 
+use Illuminate\Support\Facades\Route;
 use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -87,7 +88,7 @@ class ApiDocsMatchCodeTest extends TestCase
         $prefix = config('naturalquery.routes.prefix', 'naturalquery');
         $undocumented = [];
 
-        foreach (\Illuminate\Support\Facades\Route::getRoutes() as $route) {
+        foreach (Route::getRoutes() as $route) {
             if (!str_starts_with($route->uri(), $prefix)) {
                 continue;
             }

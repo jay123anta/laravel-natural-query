@@ -60,7 +60,7 @@ class CacheCrossingRemainingRoutesTest extends TestCase
 
     private function provider(): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->sqlResponse = function (string $prompt) {
             $table = str_contains($prompt, 'nq_products') ? 'nq_products' : 'nq_orders';
 

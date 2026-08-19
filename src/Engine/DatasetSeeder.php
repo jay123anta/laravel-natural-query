@@ -46,12 +46,13 @@ class DatasetSeeder
         $routing = config('naturalquery.query_routing', []);
         if (!empty($routing)) {
             // Sort by key length DESC — longer phrases matched first
-            uksort($routing, fn($a, $b) => strlen($b) - strlen($a));
+            uksort($routing, fn ($a, $b) => strlen($b) - strlen($a));
 
             foreach ($routing as $keyword => $datasetKey) {
                 if (str_contains($queryLower, strtolower($keyword))) {
                     if ($this->registry->has($datasetKey)) {
                         Log::debug('[NaturalQuery] Route matched', ['keyword' => $keyword, 'dataset' => $datasetKey]);
+
                         return $datasetKey;
                     }
                 }
@@ -65,7 +66,7 @@ class DatasetSeeder
             }
 
             $aliases = $schema['aliases'] ?? [];
-            usort($aliases, fn($a, $b) => strlen($b) - strlen($a));
+            usort($aliases, fn ($a, $b) => strlen($b) - strlen($a));
 
             foreach ($aliases as $alias) {
                 if (str_contains($queryLower, strtolower($alias))) {

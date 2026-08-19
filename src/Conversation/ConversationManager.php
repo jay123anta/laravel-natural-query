@@ -2,10 +2,10 @@
 
 namespace Jayanta\NaturalQuery\Conversation;
 
-use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
-use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
  * Conversation Manager
@@ -27,10 +27,15 @@ use Illuminate\Support\Facades\Log;
 class ConversationManager
 {
     protected QueryOrchestrator $orchestrator;
+
     protected SchemaRegistry $registry;
+
     protected TurnClassifier $classifier;
+
     protected StateValidator $validator;
+
     protected int $contextTtl;
+
     /**
      * Versioned because the stored state is a slot object, and 2.0.0 renamed
      * the `scheme` slot to `dataset`. Without the suffix, a conversation in
@@ -57,9 +62,9 @@ class ConversationManager
     /**
      * Process a query within a conversation context.
      *
-     * @param string $sessionId Unique session identifier (e.g., user ID, session token)
-     * @param string $query The user's natural language query
-     * @param string|null $datasetHint Optional explicit dataset
+     * @param  string  $sessionId  Unique session identifier (e.g., user ID, session token)
+     * @param  string  $query  The user's natural language query
+     * @param  string|null  $datasetHint  Optional explicit dataset
      * @return array Response with conversation metadata
      */
     public function query(string $sessionId, string $query, ?string $datasetHint = null): array
@@ -80,7 +85,7 @@ class ConversationManager
         // A new question inherits nothing; anything else resolves against the
         // state, which the model sees as a compact object rather than as a
         // transcript it has to re-read.
-        $carried = $classification === TurnClassifier::NEW_QUERY ? new QueryState() : $state;
+        $carried = $classification === TurnClassifier::NEW_QUERY ? new QueryState : $state;
         $result = $this->orchestrator->query(
             $query,
             $datasetHint ?? $carried->get('dataset'),
@@ -257,7 +262,6 @@ class ConversationManager
         return $this->cachePrefix . 'hist:' . $this->scopeSession($sessionId);
     }
 
-
     /**
      * Scope session_id to the authenticated user.
      * Prevents one user from accessing another user's conversation.
@@ -265,9 +269,9 @@ class ConversationManager
     protected function scopeSession(string $sessionId): string
     {
         $userId = auth()->id() ?? 'anon';
+
         return $userId . ':' . $sessionId;
     }
-
 
     /**
      * Clear conversation context (start fresh).

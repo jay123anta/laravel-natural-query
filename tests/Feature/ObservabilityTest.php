@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Contracts\ReportsUsage;
 use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Events\QuestionAnswered;
@@ -58,7 +59,7 @@ class ObservabilityTest extends TestCase
 
     private function provider(array $overrides = []): RecordingProvider
     {
-        $provider = new RecordingProvider();
+        $provider = new RecordingProvider;
         $provider->intentResponse = array_merge([
             'success' => true,
             'dataset' => 'gb_sales',
@@ -126,7 +127,9 @@ class ObservabilityTest extends TestCase
     {
         $this->provider();
         $captured = null;
-        Event::listen(QuestionAnswered::class, function ($e) use (&$captured) { $captured = $e; });
+        Event::listen(QuestionAnswered::class, function ($e) use (&$captured) {
+            $captured = $e;
+        });
 
         $this->orchestrator()->query('revenue by region');
 
@@ -189,7 +192,7 @@ class ObservabilityTest extends TestCase
     public function token_counts_reach_the_response_when_the_provider_reports_them()
     {
         // Gemini's dialect. The orchestrator must not care which one it is.
-        $provider = new UsageReportingProvider();
+        $provider = new UsageReportingProvider;
         $provider->body = ['usageMetadata' => [
             'promptTokenCount' => 1200,
             'candidatesTokenCount' => 80,
@@ -212,7 +215,7 @@ class ObservabilityTest extends TestCase
     #[Test]
     public function the_openai_dialect_is_read_the_same_way()
     {
-        $provider = new UsageReportingProvider();
+        $provider = new UsageReportingProvider;
         $provider->body = ['usage' => [
             'prompt_tokens' => 900,
             'completion_tokens' => 60,
@@ -236,7 +239,7 @@ class ObservabilityTest extends TestCase
     #[Test]
     public function several_calls_for_one_question_add_up()
     {
-        $provider = new UsageReportingProvider();
+        $provider = new UsageReportingProvider;
         $provider->body = ['usage' => ['prompt_tokens' => 100, 'total_tokens' => 120]];
 
         $provider->recordUsagePublic(['usage' => ['prompt_tokens' => 100, 'total_tokens' => 120]]);
@@ -254,7 +257,7 @@ class ObservabilityTest extends TestCase
     #[Test]
     public function each_question_is_counted_on_its_own()
     {
-        $provider = new UsageReportingProvider();
+        $provider = new UsageReportingProvider;
         $provider->body = ['usage' => ['prompt_tokens' => 500, 'total_tokens' => 550]];
 
         $this->app->instance(LlmProviderInterface::class, $provider);
@@ -282,7 +285,7 @@ class ObservabilityTest extends TestCase
 }
 
 /** A provider whose HTTP body the test controls, to exercise usage parsing. */
-class UsageReportingProvider extends RecordingProvider implements \Jayanta\NaturalQuery\Contracts\ReportsUsage
+class UsageReportingProvider extends RecordingProvider implements ReportsUsage
 {
     public array $body = [];
 

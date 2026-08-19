@@ -4,6 +4,7 @@ namespace Jayanta\NaturalQuery\Tests\Unit;
 
 use Jayanta\NaturalQuery\Engine\NextStepSuggester;
 use Jayanta\NaturalQuery\Engine\SqlBuilder;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -90,7 +91,7 @@ class DrillDownFilterTest extends TestCase
     public function a_period_survives_alongside_the_filter()
     {
         config(['naturalquery.schema.config_path' => __DIR__ . '/../Stubs/time-schemas']);
-        $this->app->forgetInstance(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $this->app->forgetInstance(SchemaRegistry::class);
         $this->app->forgetInstance(SqlBuilder::class);
 
         $result = $this->app->make(SqlBuilder::class)->buildQuery([

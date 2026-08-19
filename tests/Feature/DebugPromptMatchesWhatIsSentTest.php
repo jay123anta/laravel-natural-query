@@ -2,6 +2,8 @@
 
 namespace Jayanta\NaturalQuery\Tests\Feature;
 
+use Jayanta\NaturalQuery\Engine\DatasetSeeder;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -45,7 +47,7 @@ class DebugPromptMatchesWhatIsSentTest extends TestCase
     #[Test]
     public function it_reports_the_prompt_the_engine_would_actually_build()
     {
-        $registry = $this->app->make(\Jayanta\NaturalQuery\Schema\SchemaRegistry::class);
+        $registry = $this->app->make(SchemaRegistry::class);
         $this->assertTrue(
             $registry->hasLinkedSchemas(),
             'precondition: this fixture must have linked schemas for the divergence to exist'
@@ -88,7 +90,7 @@ class DebugPromptMatchesWhatIsSentTest extends TestCase
     #[Test]
     public function it_detects_the_dataset_the_way_the_engine_does()
     {
-        $seeder = $this->app->make(\Jayanta\NaturalQuery\Engine\DatasetSeeder::class);
+        $seeder = $this->app->make(DatasetSeeder::class);
         $question = 'how much revenue did we make';
 
         $expected = $seeder->detect($question);

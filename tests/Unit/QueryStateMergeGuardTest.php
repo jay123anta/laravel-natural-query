@@ -109,7 +109,7 @@ class QueryStateMergeGuardTest extends TestCase
     #[Test]
     public function a_first_turn_is_not_constrained()
     {
-        $merged = (new QueryState())
+        $merged = (new QueryState)
             ->merge(['dataset' => 'invoices', 'metric' => 'amount', 'group_by' => 'city'], 1, 'only in Guwahati')
             ->toIntent();
 

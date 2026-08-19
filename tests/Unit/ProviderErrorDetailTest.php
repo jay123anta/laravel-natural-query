@@ -5,6 +5,7 @@ namespace Jayanta\NaturalQuery\Tests\Unit;
 use Illuminate\Support\Facades\Http;
 use Jayanta\NaturalQuery\LlmProviders\OpenAiProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -55,7 +56,7 @@ class ProviderErrorDetailTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('bodyShapes')]
+    #[DataProvider('bodyShapes')]
     #[Test]
     public function it_reads_the_common_body_shapes(array $body, string $expected)
     {
