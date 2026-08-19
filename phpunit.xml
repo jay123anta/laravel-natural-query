@@ -30,4 +30,19 @@
             <directory>tests/Conformance</directory>
         </testsuite>
     </testsuites>
+
+    <!--
+        What coverage measures. Without this, PHPUnit 12+ raises "No filter is
+        configured" and exits non-zero the moment coverage is asked for, so
+        the CI coverage job fails on a warning rather than on a test.
+
+        src only. Coverage of tests/ measures whether the tests ran, which the
+        test count already says, and it inflates the figure with fixture code
+        nobody ships.
+    -->
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
 </phpunit>
