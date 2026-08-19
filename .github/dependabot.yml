@@ -28,3 +28,10 @@ updates:
           - "*"
         exclude-patterns:
           - "actions/upload-artifact"
+    # upload-artifact v7 failed CI on the v4 -> v7 bump and was not worth
+    # debugging: it uploads a coverage file for humans to download, it is not
+    # part of the package, and v4 works. Majors are ignored; patches and minors
+    # still come through, so a security fix is not blocked by this.
+    ignore:
+      - dependency-name: "actions/upload-artifact"
+        update-types: ["version-update:semver-major"]

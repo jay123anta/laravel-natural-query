@@ -280,12 +280,25 @@ jobs:
       - name: Run suite with coverage
         run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml --colors=never
 
+      # always(): a failing run is exactly the one where you want the
+      # coverage report, and without this the upload is skipped precisely then.
       - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.xml
           retention-days: 14
+          # error, not the default warn. The case this protects is a
+          # PASSING run that produced no coverage file — which is the bug this
+          # job shipped with, and which warn would let through silently.
+          #
+          # Combined with always() it does mean a run that dies before writing
+          # the file reports two red steps instead of one. Acceptable: the test
+          # step is listed first and is the real cause, and phpunit writes the
+          # clover file even when tests fail, so the common failure still
+          # produces an artifact.
+          if-no-files-found: error
 
   lint:
     name: Lint (PHP syntax + widget JS)
