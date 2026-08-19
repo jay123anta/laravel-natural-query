@@ -211,8 +211,9 @@ class DoctorCommand extends Command
      * values — that is the point of publishing one — so a differing value is
      * not drift. A missing key is.
      *
-     * @param array<string, mixed> $package
-     * @param array<string, mixed> $published
+     * @param array<array-key, mixed> $package   Int keys are real: a config block
+     *        may hold a list, and the loop below skips those deliberately.
+     * @param array<array-key, mixed> $published
      * @return array<int, string>
      */
     protected function missingKeys(array $package, array $published, string $prefix = ''): array

@@ -82,7 +82,7 @@ class QueryPlanner
      * the ordinary single-query path — the same intent parsing, the same
      * validation, the same table whitelist. Nothing here bypasses a guard.
      *
-     * @return array{success: bool, steps: array<int, string>, comparison: bool, error?: string}
+     * @return array{success: bool, steps: array<int, string>, comparison: bool, error?: string, status?: int|null, refused_before_sending?: bool}
      */
     public function plan(string $query): array
     {

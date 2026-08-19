@@ -202,7 +202,8 @@ class ResponseFormatter
      */
     protected function labelFor(array $row, string $groupColumn, string $metric): string
     {
-        if (isset($row[$groupColumn]) && $row[$groupColumn] !== null && $row[$groupColumn] !== '') {
+        // isset() already excludes null; only the empty string needs saying.
+        if (isset($row[$groupColumn]) && $row[$groupColumn] !== '') {
             return (string) $row[$groupColumn];
         }
 

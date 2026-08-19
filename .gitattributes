@@ -15,3 +15,4 @@
 # `composer require` — it would be downloaded into vendor/ by every adopter,
 # forever, to be looked at by nobody.
 /art                export-ignore
+/docs/demo.gif      export-ignore

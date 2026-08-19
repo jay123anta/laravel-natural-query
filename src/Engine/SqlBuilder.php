@@ -397,7 +397,10 @@ class SqlBuilder
             if (!$resolved) {
                 $groupable = $this->registry->getGroupableColumns($datasetKey);
 
-                return ['clauses' => [], 'bindings' => [], 'columns' => [],
+                // Same keys as the success branch below. A branch that
+                // returns a narrower shape makes every reader guard for a key
+                // the other branch always has.
+                return ['clauses' => [], 'bindings' => [], 'columns' => [], 'pairs' => [],
                         'error' => "Cannot filter by '{$column}'."
                             . ($groupable ? ' Available: ' . implode(', ', $groupable) . '.' : '')];
             }

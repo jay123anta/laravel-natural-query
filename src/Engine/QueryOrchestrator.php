@@ -226,9 +226,10 @@ class QueryOrchestrator
                     $refused = $this->providerFailure($plan, $metadata);
                     unset($refused['_unretriable'], $refused['_rate_limited'], $refused['_fallback_eligible']);
 
-                    if (!$this->inStepExecution) {
-                        $this->announceOutcome($naturalLanguageQuery, $refused, false, $startTime);
-                    }
+                    // Unconditional: the planner branch this sits in already
+                    // required !inStepExecution, so re-checking only looks
+                    // like it is guarding something.
+                    $this->announceOutcome($naturalLanguageQuery, $refused, false, $startTime);
 
                     return $refused;
                 }
@@ -244,9 +245,10 @@ class QueryOrchestrator
                         ErrorCode::RATE_LIMITED
                     );
 
-                    if (!$this->inStepExecution) {
-                        $this->announceOutcome($naturalLanguageQuery, $limited, false, $startTime);
-                    }
+                    // Unconditional: the planner branch this sits in already
+                    // required !inStepExecution, so re-checking only looks
+                    // like it is guarding something.
+                    $this->announceOutcome($naturalLanguageQuery, $limited, false, $startTime);
 
                     return $limited;
                 }
@@ -1891,7 +1893,7 @@ class QueryOrchestrator
             // states the range it used. The model knows; it just was not
             // being asked.
             'time_filter' => $data['period'] ?? null,
-                'group_column' => $dataset ? $this->registry->getGroupColumn($dataset) : 'name',
+                'group_column' => $this->registry->getGroupColumn($dataset),
             ];
 
             $result = $this->validateAndExecute($queryResult, $dataset, $metadata);

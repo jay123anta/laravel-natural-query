@@ -10,7 +10,7 @@
 without your data ever leaving your server.**
 
 <p align="center">
-  <img src="docs/demo.gif" alt="Asking a database a question in English — the model receives only table and column names" width="100%">
+  <img src="https://raw.githubusercontent.com/jay123anta/laravel-natural-query/main/docs/demo.gif" alt="Asking a database a question in English — the model receives only table and column names" width="100%">
 </p>
 
 
@@ -194,10 +194,27 @@ are meant to answer.
 **It is not magic.** Pointed at an undescribed database and asked something
 vague, any text-to-SQL system will sometimes produce a confident, wrong answer.
 
-Measured against the Spider benchmark - real questions, unfamiliar databases,
-no curation - it answers **29 of 36 (81%)**. Read that as: roughly one question
-in five is wrong on an *uncurated* schema. On a described one it is far better,
-which is why the schema files matter more than anything else you will do.
+Two benchmarks, both run against uncurated schemas, both reproducible:
+
+| Benchmark | Score | What it is |
+|---|---|---|
+| Spider dev sample | **29/36 (81%)** | Real questions and gold SQL from the Spider set, two unfamiliar databases |
+| This package own set | **30/46 (65%)** | 46 questions over a 14-table schema, up to four-table joins |
+
+The second is lower because it is harder: more joins, more periods, and
+questions like *which orders have not shipped* where a wrong join silently
+returns everything. Both numbers are published because quoting only the
+friendlier one is the kind of thing anybody can check in five minutes.
+
+Read them as: **roughly one question in five is wrong on an uncurated schema,
+and closer to one in three once the joins get deep.** Describing your schema
+moves it - measurably, and you can measure it yourself below - but it is a
+correction, not a cure.
+
+Where it is weakest, from those runs: superlatives that need a LIMIT
+("which carrier shipped the most"), HAVING clauses, and anti-joins
+("customers who have never ordered"). Those are limits of the approach, not
+of your schema, and no amount of curation fixes them.
 
 The honest framing is **a fast analyst for datasets you have curated**, not an
 oracle for arbitrary databases. Every mitigation here follows from that: SQL is
@@ -255,6 +272,30 @@ pass often measures the rate limit rather than the model - add
 
 ---
 
+## How this differs from the alternatives
+
+**[prism-php/prism](https://packagist.org/packages/prism-php/prism)** and
+**[openai-php/laravel](https://packagist.org/packages/openai-php/laravel)** are
+the layer *below* this one. They give you a clean, provider-agnostic way to
+call a model from Laravel. They do not know what a dataset is, will not stop a
+`DROP TABLE`, and have no opinion about whether a row reaches the provider.
+NaturalQuery is a vertical built on that idea: schema introspection, a SQL
+validator, a two-tier cache, conversation state, and a privacy wall. If you
+want to call an LLM, use Prism. If you want to let people ask your database
+questions, use this.
+
+**Hosted text-to-SQL** — the analytics products with an "ask your data" box —
+send your schema *and usually your rows* to a third party, and price per seat.
+This runs in your application, sends schema structure only, and can run
+entirely offline against Ollama.
+
+**Writing it yourself.** Entirely reasonable, and most of it is a weekend.
+The parts that are not: SELECT-only validation against a schema-derived
+whitelist, a cache that cannot answer one question with another question's
+result, rate limits reported as rate limits, and a benchmark that tells you how
+often you are wrong. Those took this package four adversarial review rounds and
+668 tests, and every one of them exists because something went wrong first.
+
 ## Documentation
 
 | | |
@@ -287,9 +328,11 @@ benchmark tells you what fixing that was worth, on your own data.
 
 ## Contributing
 
-`vendor/bin/phpunit` must pass and the widget must pass `node --check`. New
-behaviour gets a test; every failure a real user hits becomes a regression
-test.
+`vendor/bin/phpunit`, `vendor/bin/pint` and `vendor/bin/phpstan analyse` must
+pass, and the widget must pass `node --check`. New behaviour gets a test you
+have watched fail; every failure a real user hits becomes a regression test.
+See [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md) for
+anything that should not be a public issue.
 
 ## License
 
