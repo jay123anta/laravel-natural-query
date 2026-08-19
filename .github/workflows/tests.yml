@@ -251,6 +251,42 @@ jobs:
             exit 1
           fi
 
+  # Coverage runs once, with Xdebug, which is slow enough that putting it in
+  # the matrix would multiply the wall clock for a number that does not vary by
+  # PHP version.
+  #
+  # No threshold is enforced, deliberately. A coverage gate rewards tests that
+  # execute lines over tests that check behaviour, and this suite is built on
+  # the second kind — several of its most valuable tests assert that something
+  # does NOT happen. The report is here to be read, not to be passed.
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, pdo_sqlite, sqlite3, json, curl
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: Run suite with coverage
+        run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml --colors=never
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 14
+
   lint:
     name: Lint (PHP syntax + widget JS)
     runs-on: ubuntu-latest
@@ -290,6 +326,18 @@ jobs:
         run: |
           find src config database routes stubs tests -name '*.php' -print0 \
             | xargs -0 -n1 -P4 php -l
+
+      # Pint and PHPStan live here rather than in the test matrix: neither
+      # depends on the PHP or Laravel version, and thirteen identical failures
+      # help nobody find the one line that caused them.
+      - name: Install dependencies
+        run: composer update --prefer-stable --prefer-dist --no-interaction --no-progress
+
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
       # composer.lock is gitignored (correct for a library — the consuming app
       # owns the lock), so there is nothing to check it against.
