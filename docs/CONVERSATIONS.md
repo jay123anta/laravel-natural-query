@@ -149,8 +149,7 @@ questions:
 
 ```json
 "next_steps": [
-  { "label": "Break West down by product category",
-    "query": "revenue by product_category for West" },
+  { "label": "Revenue by product category", "query": "revenue by product_category" },
   { "label": "Show order counts by region", "query": "how many by region" },
   { "label": "Bottom 5 instead",            "query": "bottom 5 regions by revenue" }
 ]
@@ -160,6 +159,22 @@ These are derived from your schema, not from the model: no API call, no added
 latency, and they can only propose breakdowns the validator would accept. The
 bundled widget renders them as buttons; a custom chat UI can do the same.
 
+**No suggestion ever contains a value from your results.** Until 2.1.1 one kind
+did - "Break West down by category", built from the top row - and it was
+governed by a `suggest_drilldown_values` setting. That was wrong twice over. A
+suggestion is sent to the provider the instant it is clicked, so the value was
+leaving the building; and the privacy wall is not something a setting should be
+able to open. On a schema produced by `naturalquery:discover` the top row's
+value can be a `remember_token`, because introspection marks every string
+column groupable and nothing in the suggester knows which columns hold secrets.
+
+The setting is still accepted so an existing published config keeps working,
+and it is no longer read.
+
+You can still ask for a drill-down - "revenue by category in West" answers
+exactly as before. The package will not compose that sentence out of your data
+for you.
+
 ```php
 // config/naturalquery.php
 'chat' => [
@@ -167,12 +182,5 @@ bundled widget renders them as buttons; a custom chat UI can do the same.
     'max_steps' => 4,                   // ceiling on queries per question
     'suggest_next_steps' => true,
     'max_next_steps' => 4,
-    'suggest_drilldown_values' => true, // may a suggestion name a value from the results?
 ],
 ```
-
-`suggest_drilldown_values` is the one worth a thought. "Break West down by
-category" contains a value read from your data. It is built and returned
-locally like every other suggestion, and clicking it sends that question as the
-user's own query text - the same as typing it. Set it to `false` if you would
-rather no value from your data ever reach a prompt, even by the user's hand.

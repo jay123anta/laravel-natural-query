@@ -132,11 +132,23 @@ class DrillDownFilterTest extends TestCase
     }
 
     /**
-     * The suggestion and the engine have to agree. A button that produces a
-     * question the builder cannot answer is worse than no button.
+     * A drill-down is still a query the engine answers correctly — every test
+     * above proves that. What it is no longer is a SUGGESTION.
+     *
+     * The suggester used to offer "Break West down by category", composing the
+     * top row's value into the query it would send. A suggestion is not inert:
+     * the widget sends it to the provider the moment it is clicked, so the
+     * value left the building. It was defended on the grounds that clicking
+     * makes it the user's own text, and gated by
+     * `chat.suggest_drilldown_values` — which is the "rejected by
+     * configuration" that Rule 2 explicitly forbids.
+     *
+     * On a freshly discovered schema the top row's value can be a
+     * `remember_token`: introspection marks every string column groupable and
+     * the suggester has no idea which columns hold secrets.
      */
     #[Test]
-    public function the_drill_down_suggestion_names_the_column_it_filters_on()
+    public function no_suggestion_carries_a_value_out_of_the_rows()
     {
         $suggestions = $this->app->make(NextStepSuggester::class)->suggest([
             'dataset' => 'gb_sales',
@@ -147,13 +159,15 @@ class DrillDownFilterTest extends TestCase
             'limit' => 5,
         ], [['region' => 'West', 'revenue' => 100]]);
 
-        $drill = array_values(array_filter(
+        $carryingTheValue = array_values(array_filter(
             $suggestions,
-            fn ($s) => str_contains($s['label'], 'West')
+            fn ($s) => str_contains($s['label'], 'West') || str_contains($s['query'], 'West')
         ));
 
-        $this->assertNotEmpty($drill, 'expected a drill-down into the top row');
-        $this->assertStringContainsString('where region is West', $drill[0]['query']);
-        $this->assertStringNotContainsString('for West', $drill[0]['query']);
+        $this->assertEmpty(
+            $carryingTheValue,
+            'a suggestion carried a value out of the result rows, and one click sends it to the '
+                . 'provider: ' . json_encode($carryingTheValue)
+        );
     }
 }

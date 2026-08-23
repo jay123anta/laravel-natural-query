@@ -547,13 +547,18 @@ return [
         'suggest_next_steps' => true,
         'max_next_steps' => 4,
 
-        // Whether a suggestion may name a value from the results, e.g.
-        // "Break West down by category" after West came top.
+        // NO LONGER READ, since 2.1.1. Kept so that an existing published
+        // config keeps working unchanged.
         //
-        // These are built and returned locally like every other suggestion.
-        // Clicking one sends that question to the provider as the user's own
-        // query text — the same as typing it. Set false if you would rather no
-        // value from your data ever reach a prompt, even by the user's hand.
+        // A suggestion could name a value from the results ("Break West down
+        // by category"), gated by this setting. But a suggestion is sent to the
+        // provider the moment it is clicked, so the value left the building —
+        // and on a discovered schema the top row's value can be a
+        // `remember_token`, because introspection marks every string column
+        // groupable and the suggester cannot know which hold secrets.
+        //
+        // The privacy wall is not a setting. No suggestion carries a value out
+        // of your data now, whatever this is set to.
         'suggest_drilldown_values' => true,
     ],
 

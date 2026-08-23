@@ -5,6 +5,47 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-08-21
+
+A hotfix. Both of these affect every release from 1.0.0 onwards.
+
+### Fixed
+- **`composer require` failed on a current Laravel application.** The package
+  required `guzzlehttp/guzzle: ^7.15.1`, and the Laravel 13 skeleton ships
+  guzzle 8, so installing stopped at a dependency conflict on the very first
+  command in the README. The requirement was never needed: nothing in `src/`
+  references Guzzle. HTTP goes through `Illuminate\Support\Facades\Http`, whose
+  own dependency resolves the client. The line is gone; nothing else changed.
+
+- **A value from your data could be sent to the AI provider.** `next_steps`
+  offered "Break West down by category", composed from the top row of the
+  result and carrying that value in the query it would send. Suggestions are
+  built locally, which is why this looked safe — but the widget sends one to
+  the provider the moment it is clicked, so the value left the building.
+
+  On a schema produced by `naturalquery:discover` the value need not be a
+  region. Introspection marks every string column groupable, so on a stock
+  Laravel `users` table the top row's value can be a `remember_token`, and
+  `naturalquery:audit-schema` reports nothing wrong.
+
+  It was governed by `chat.suggest_drilldown_values` and defended on the
+  grounds that clicking makes the question the user's own text. Rule 2 rejects
+  both halves of that: the string was composed by the package out of data, and
+  a privacy wall a setting can open is not a wall. **No suggestion now contains
+  anything read from your rows.** The setting is still accepted, so a published
+  config keeps working, and is no longer read.
+
+  Turning it off would not have protected you either. The code fell back to
+  `config(..., true)`, and because Laravel merges package config one level
+  deep, a published `chat` block shadowed the package default entirely — so the
+  fix had to be in code, not in a default.
+
+  Drill-down questions still work: "revenue by category in West" answers
+  exactly as before. The package will not compose that sentence out of your
+  data for you. Restoring the button means running a drill-down without a
+  provider at all, since the dataset, measure, dimension and value are already
+  known — a feature, not a patch.
+
 ## [2.1.0] - 2026-08-16
 
 ### Added

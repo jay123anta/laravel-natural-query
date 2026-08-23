@@ -137,8 +137,10 @@ your server or any model provider.
     "query_type": "ranking"
   },
 
-  "next_steps": [                 // schema-derived; no API call was made for these
-    { "label": "Break West down by category", "query": "revenue by product_category where region is West" }
+  "next_steps": [                 // schema-derived; no API call was made for
+                                  // these, and none carries a value from your
+                                  // rows — clicking one sends it to a provider
+    { "label": "Revenue by category", "query": "revenue by product_category" }
   ],
 
   "metadata": {
