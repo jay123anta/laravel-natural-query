@@ -582,6 +582,7 @@ class QueryOrchestrator
                 && !$wouldClobberARecipe
                 && ($intent['success'] ?? false)
                 && !($intent['needs_clarification'] ?? false)
+                && $this->intentIsCacheable($intent)
             ) {
                 $this->rememberIntent(
                     $query,
@@ -1559,7 +1560,7 @@ class QueryOrchestrator
         // and it is the write, not the read, that does the damage: the row
         // outlives the conversation that created it.
         if (!$inConversation) {
-            $rememberIfItWorks = fn () => $this->rememberIntent($query, [
+            $recipe = [
                 'dataset' => $dataset,
                 'metric' => $queryResult['metric'],
                 'group_value' => $queryResult['group_value'],
@@ -1567,7 +1568,11 @@ class QueryOrchestrator
                 'order' => $queryResult['order'],
                 'query_type' => $queryResult['query_type'],
                 '_sql_result' => $queryResult,
-            ], $this->resolveAskingDataset($query, $datasetHint, $context));
+            ];
+
+            $rememberIfItWorks = fn () => $this->intentIsCacheable($recipe)
+                ? $this->rememberIntent($query, $recipe, $this->resolveAskingDataset($query, $datasetHint, $context))
+                : null;
         }
 
         // Validate and execute -  THEN cache, and only what worked.
@@ -1818,6 +1823,48 @@ class QueryOrchestrator
             . 'that route applies the filter itself instead of asking the model to.',
             $required
         );
+    }
+
+    /**
+     * A resolved date range is only true for the moment it was resolved.
+     *
+     * The model turns "last month" into absolute dates, and the whole intent
+     * was cached, dates included. So the question asked in July stored a June
+     * window and the same words asked in August replayed June - the wrong
+     * number, with no provider call, and no escape: Tier 2 rows carry no
+     * expiry and the fuzzy tier hands the same row to every rewording.
+     *
+     * The cache is keyed on the question's WORDS, and those do not change when
+     * the correct answer does. That makes any intent carrying dates
+     * uncacheable, whether the user said "last month" or "July 2026" - the
+     * package cannot tell which from the intent, and guessing wrong costs a
+     * wrong number rather than a slow one.
+     *
+     * The price is a provider call on every dated question. Worth it: a stale
+     * period is the failure Rule 0 names, and one that never heals.
+     */
+    private function intentIsCacheable(array $intent): bool
+    {
+        if (($intent['date_from'] ?? null) !== null || ($intent['date_to'] ?? null) !== null) {
+            return false;
+        }
+
+        // The same staleness reaches the other route by a different door. A
+        // `_sql_result` recipe stores the model's finished SQL, and a question
+        // about "last month" bakes that month's dates into it as literals, so
+        // replaying the recipe next month is stale in exactly the same way -
+        // and worse, because nothing downstream can even see the dates.
+        // `time_filter` is set whenever an answer covered a period, on either
+        // route, so it is the marker that travels.
+        $recipe = $intent['_sql_result'] ?? null;
+
+        if (is_array($recipe)) {
+            return ($recipe['time_filter'] ?? null) === null
+                && ($recipe['date_from'] ?? null) === null
+                && ($recipe['date_to'] ?? null) === null;
+        }
+
+        return true;
     }
 
     private function rememberIntent(string $query, array $intent, ?string $askingScope): void
