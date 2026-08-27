@@ -23,7 +23,7 @@ use PHPUnit\Framework\Attributes\Test;
  *    whenever schemas are linked, even with a dataset detected, because a
  *    question can legitimately span them and only that prompt permits a join.
  *    The command omitted the linked-schemas condition and printed the focused
- *    single-dataset prompt — the one the engine would not have sent.
+ *    single-dataset prompt -  the one the engine would not have sent.
  *
  * 3. THE SIZE BOUND. prompts.max_chars refuses a prompt before it is sent.
  *    The command printed the prompt with no indication that this question
@@ -68,7 +68,7 @@ class DebugPromptMatchesWhatIsSentTest extends TestCase
      *
      * In sql_generation mode, because that is the only route prompts.max_chars
      * is consulted on. This originally left query_mode at its default and so
-     * asserted the refusal appears in 'auto' — where the engine answers this
+     * asserted the refusal appears in 'auto' -  where the engine answers this
      * question by intent parsing and never consults the bound at all. The
      * assertion was passing on behaviour that told the user their question
      * would fail when it would not.

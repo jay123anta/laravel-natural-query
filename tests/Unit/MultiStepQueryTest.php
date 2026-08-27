@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * "Compare revenue this year with last year" is two queries and a subtraction.
  * Answered as one, it returns whichever half the model wrote SQL for and drops
- * the other silently — the same shape of failure as a dropped GROUP BY.
+ * the other silently -  the same shape of failure as a dropped GROUP BY.
  *
  * Planning costs an API call, so the gate that decides whether to plan matters
  * as much as the planning: an ordinary question must take the ordinary path at

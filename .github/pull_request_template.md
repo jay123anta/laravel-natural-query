@@ -15,4 +15,4 @@
 - [ ] `node --check resources/js/naturalquery-widget.js` passes (if the widget changed)
 - [ ] New behaviour has a test **that I have watched fail** before the fix
 - [ ] Documentation updated in this same change set, if anything became inaccurate
-- [ ] No interface method gained a parameter (fatal for existing implementors — see CONTRIBUTING.md)
+- [ ] No interface method gained a parameter (fatal for existing implementors -  see CONTRIBUTING.md)

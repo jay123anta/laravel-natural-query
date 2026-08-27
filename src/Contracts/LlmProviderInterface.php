@@ -33,7 +33,7 @@ interface LlmProviderInterface
      *                                                                                            locally, before any request left the machine, that this
      *                                                                                            prompt cannot be answered honestly (e.g. it would not fit
      *                                                                                            the model's context window). Tells the orchestrator not to
-     *                                                                                            retry with a smaller prompt — that would answer a
+     *                                                                                            retry with a smaller prompt -  that would answer a
      *                                                                                            narrower question, not a corrected one.
      */
     public function generateSql(string $prompt): array;

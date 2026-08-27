@@ -81,7 +81,7 @@ class GroupByDimensionTest extends TestCase
     #[Test]
     public function a_measure_is_not_an_acceptable_dimension()
     {
-        // Grouping by an amount yields one row per distinct value — never what
+        // Grouping by an amount yields one row per distinct value -  never what
         // was meant, and it looks plausible enough to go unnoticed.
         $result = $this->build(['group_by' => 'revenue']);
 
@@ -103,7 +103,7 @@ class GroupByDimensionTest extends TestCase
     public function the_answer_sentence_names_the_dimension_it_grouped_by()
     {
         // "Top 5 by revenue: West, Central" reads identically whether those are
-        // regions or customers — the reader cannot tell which question was
+        // regions or customers -  the reader cannot tell which question was
         // answered, which is how the original bug stayed invisible.
         $formatter = $this->app->make(ResponseFormatter::class);
         $method = new \ReflectionMethod($formatter, 'humanizeDimension');

@@ -7,7 +7,7 @@ use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
- * The hard part of asking your data questions is not phrasing one — it is
+ * The hard part of asking your data questions is not phrasing one -  it is
  * knowing what can be asked at all. In a chat box there is nothing on screen
  * to tell you, so every answer carries a few concrete follow-ups.
  *
@@ -42,7 +42,7 @@ class NextStepSuggesterTest extends TestCase
         $this->assertNotEmpty($queries);
 
         // Re-offering the question just answered is the one useless suggestion.
-        // ("how many by region" is fine — same slice, different measure.)
+        // ("how many by region" is fine -  same slice, different measure.)
         $this->assertNotContains('revenue by region', $queries);
 
         $joined = implode(' | ', $queries);
@@ -57,7 +57,7 @@ class NextStepSuggesterTest extends TestCase
     {
         // revenue is a measure, not a dimension. Grouping by it is a question
         // the SqlBuilder is required to reject, so it must never be offered.
-        // Only the breakdown position matters — "... by revenue" as the METRIC
+        // Only the breakdown position matters -  "... by revenue" as the METRIC
         // is exactly right.
         foreach ($this->suggest() as $s) {
             $this->assertDoesNotMatchRegularExpression(
@@ -68,28 +68,51 @@ class NextStepSuggesterTest extends TestCase
         }
     }
 
+    /**
+     * RULE 2. No value from the result set may appear in a suggestion.
+     *
+     * A suggestion is not inert text: the widget sends it to a provider the
+     * moment it is clicked, so a value composed into one is a data-derived
+     * string on its way out of the building.
+     *
+     * This class used to offer "Break West down by category", carrying that
+     * value in the query it would send, defended on the grounds that clicking
+     * makes it the user's own text. On a freshly discovered schema the top
+     * row's value can be a `remember_token` -  introspection marks every string
+     * column groupable and nothing here knows which ones hold secrets. It was
+     * gated by `chat.suggest_drilldown_values`, which is exactly the
+     * "rejected by configuration" that Rule 2 forbids.
+     *
+     * The seeded values are deliberately unmistakable: if one reaches a
+     * suggestion by ANY route, this fails and names the field it came out of.
+     */
     #[Test]
-    public function it_offers_to_drill_into_the_top_result()
+    public function no_value_from_the_rows_ever_reaches_a_suggestion()
     {
-        $suggestions = $this->suggest([], [['region' => 'West', 'revenue' => 5515736]]);
+        $secret = 'TOKENabc123SESSIONSECRET';
 
-        $labels = array_column($suggestions, 'label');
-        $matching = array_values(array_filter($labels, fn ($l) => str_contains($l, 'West')));
+        $suggestions = $this->suggest([], [
+            ['region' => $secret, 'revenue' => 5515736],
+            ['region' => 'ALSO-SECRET-VALUE', 'revenue' => 42],
+        ]);
 
-        $this->assertNotEmpty($matching, 'expected a drill-down into the top row: ' . implode(' | ', $labels));
-    }
+        $this->assertNotEmpty(
+            $suggestions,
+            'suggestions vanished entirely; the schema-derived ones are meant to survive'
+        );
 
-    #[Test]
-    public function drilling_into_values_can_be_switched_off()
-    {
-        // For deployments that would rather no value from the data appear in a
-        // suggestion, even though the user is the one who would send it.
-        config(['naturalquery.chat.suggest_drilldown_values' => false]);
-
-        $labels = array_column($this->suggest([], [['region' => 'West', 'revenue' => 1]]), 'label');
-
-        foreach ($labels as $label) {
-            $this->assertStringNotContainsString('West', $label);
+        foreach ($suggestions as $s) {
+            foreach (['query', 'label'] as $field) {
+                $this->assertStringNotContainsString(
+                    $secret,
+                    (string) $s[$field],
+                    "a value from the result rows reached suggestion[{$field}] -  one click sends "
+                        . 'that string to the provider, and the privacy wall is the product: '
+                        . json_encode($s)
+                );
+                $this->assertStringNotContainsString('ALSO-SECRET-VALUE', (string) $s[$field]);
+                $this->assertStringNotContainsString('5515736', (string) $s[$field]);
+            }
         }
     }
 

@@ -25,7 +25,7 @@ final class ErrorCode
     /** Understood, but the schema has no way to answer it. */
     public const CANNOT_ANSWER = 'cannot_answer';
 
-    /** The provider is rate limiting. Wait and retry — the query was fine. */
+    /** The provider is rate limiting. Wait and retry -  the query was fine. */
     public const RATE_LIMITED = 'rate_limited';
 
     /** The provider failed or returned something unusable. */
@@ -46,7 +46,7 @@ final class ErrorCode
      * 4xx where the caller can do something about it, 429 where the answer is
      * simply "later", 5xx where it is ours or an upstream's fault. A rate limit
      * arriving as 400 told every client the query was malformed, so the sensible
-     * response — wait and retry — was the one thing it could not choose.
+     * response -  wait and retry -  was the one thing it could not choose.
      */
     public const HTTP_STATUS = [
         self::BLOCKED => 400,

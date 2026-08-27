@@ -11,25 +11,25 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * A rate limit during planning must not be answered with another call.
  *
- * QueryPlanner treats its own failure as non-fatal on purpose — planning is an
+ * QueryPlanner treats its own failure as non-fatal on purpose -  planning is an
  * enhancement, and a question a planner could not decompose is still a question
  * the ordinary path can answer. That is right for a malformed plan or a model
  * that returned nonsense.
  *
  * It is wrong for a 429, and the package says so in as many words:
- * docs/TROUBLESHOOTING.md promises the package "fails fast on 429 — it
+ * docs/TROUBLESHOOTING.md promises the package "fails fast on 429 -  it
  * deliberately does not fall back or retry the whole query, since more calls
  * would extend the rate-limit window." On a comparison question the opposite
  * happened. Planning burned a call, hit the limit, dropped `$plan['error']`
- * without reading it, and the ordinary path immediately made another — against
+ * without reading it, and the ordinary path immediately made another -  against
  * a provider that had just said stop.
  *
  * The user then saw whatever the SECOND call produced. When that one was also
  * limited, the message was at least still about rate limiting; when it happened
  * to succeed, the comparison silently became a single-part answer.
  *
- * The planner's return had no way to say which kind of failure it was — the
- * HTTP status was dropped one level down — so the caller could not have
+ * The planner's return had no way to say which kind of failure it was -  the
+ * HTTP status was dropped one level down -  so the caller could not have
  * distinguished them even if it had looked.
  */
 class PlanningRateLimitDoesNotFallThroughTest extends TestCase

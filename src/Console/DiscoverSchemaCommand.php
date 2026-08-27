@@ -12,7 +12,7 @@ use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
  * Schema Discovery Command
  *
  * Auto-generates schema configuration files by introspecting an existing
- * database — one file per table/view. With --ai it also fills in the human
+ * database -  one file per table/view. With --ai it also fills in the human
  * layer (name, description, aliases, instructions, computed metrics, example
  * queries) that would otherwise be written by hand.
  *
@@ -27,7 +27,7 @@ use Jayanta\NaturalQuery\Contracts\SqlValidatorInterface;
  *     fed to the AI as few-shot guidance, so a hallucinated column here
  *     silently corrupts every future query.
  *
- * Neither check ever reads a data value — EXPLAIN plans a query, it does not
+ * Neither check ever reads a data value -  EXPLAIN plans a query, it does not
  * run it, so the privacy wall holds.
  */
 class DiscoverSchemaCommand extends Command
@@ -75,7 +75,7 @@ class DiscoverSchemaCommand extends Command
         //     Artisan::call('naturalquery:discover', ['--table' => 'invoices'])
         //
         // From the command line Symfony wraps it; through Artisan::call it does
-        // not, and the string went straight into in_array() as a haystack — a
+        // not, and the string went straight into in_array() as a haystack -  a
         // raw TypeError from inside the command, naming nothing the caller did.
         // The package's own harnesses invoke it this way, so it is a supported
         // path and not a misuse to be punished.
@@ -107,7 +107,7 @@ class DiscoverSchemaCommand extends Command
             $tables = array_filter($tables, fn ($t) => !$this->isExcluded($t['short_name']));
             $removed = $before - count($tables);
             if ($removed > 0) {
-                $this->line("  Skipped {$removed} framework/system table(s) — use --all-tables to include them");
+                $this->line("  Skipped {$removed} framework/system table(s) -  use --all-tables to include them");
             }
         }
 
@@ -139,7 +139,7 @@ class DiscoverSchemaCommand extends Command
             $relationships = $introspector->getRelationships($fullName, $connection);
 
             if (empty($columns)) {
-                $this->warn('    Skipping — no columns found');
+                $this->warn('    Skipping -  no columns found');
                 $skipped++;
 
                 continue;
@@ -157,13 +157,13 @@ class DiscoverSchemaCommand extends Command
                 if ($this->option('merge')) {
                     $existing = $this->readExistingSchema($outputFile);
                     if ($existing === null) {
-                        $this->warn("    Cannot merge — {$schemaKey}.php did not parse; leaving it untouched");
+                        $this->warn("    Cannot merge -  {$schemaKey}.php did not parse; leaving it untouched");
                         $skipped++;
 
                         continue;
                     }
                 } elseif (!$this->option('force')) {
-                    $this->line("    Skipping — {$schemaKey}.php already exists (--merge to update it, --force to regenerate)");
+                    $this->line("    Skipping -  {$schemaKey}.php already exists (--merge to update it, --force to regenerate)");
                     $skipped++;
 
                     continue;
@@ -205,7 +205,7 @@ class DiscoverSchemaCommand extends Command
             if ($parseError !== null) {
                 @unlink($outputFile);
                 $this->error("    ✗ Generated file was invalid and has been removed: {$parseError}");
-                $this->line('      Please report this — include the table name and column comments.');
+                $this->line('      Please report this -  include the table name and column comments.');
                 $failed++;
 
                 continue;
@@ -286,7 +286,7 @@ class DiscoverSchemaCommand extends Command
             }
 
             // Illustrative examples legitimately omit LIMIT (e.g. "total
-            // revenue"), so only the safety rules apply here — not the
+            // revenue"), so only the safety rules apply here -  not the
             // runtime LIMIT policy.
             $result = $this->validator->validate($sql, $allowed, [
                 'require_limit' => false,
@@ -363,14 +363,14 @@ class DiscoverSchemaCommand extends Command
         }
 
         // Check syntax WITHOUT executing. A parse error inside include/require
-        // is a fatal compile error, not a catchable ParseError — the catch
+        // is a fatal compile error, not a catchable ParseError -  the catch
         // below never fires and the whole PHP process dies, which is precisely
         // the outcome this verification exists to prevent. token_get_all with
         // TOKEN_PARSE parses the same grammar and throws catchably instead.
         try {
             token_get_all($code, TOKEN_PARSE);
         } catch (\ParseError $e) {
-            return 'PHP syntax error — ' . $e->getMessage();
+            return 'PHP syntax error -  ' . $e->getMessage();
         }
 
         // Syntax is proven, so including it can no longer kill the process.
@@ -444,8 +444,8 @@ class DiscoverSchemaCommand extends Command
                     'description' => $description,
                     'group_column' => $groupColumn,
                     // Which date "last month" narrows on, written out rather
-                    // than inferred. A table often has several — ordered,
-                    // shipped, created — and they answer different questions;
+                    // than inferred. A table often has several -  ordered,
+                    // shipped, created -  and they answer different questions;
                     // the engine falls back to the first one it finds, which
                     // is a silent choice on exactly the kind of question where
                     // a silent choice has bitten us before. Stated here, it is
@@ -454,7 +454,7 @@ class DiscoverSchemaCommand extends Command
                     'columns' => $columnDefs,
                     // Real foreign keys, as config rather than a comment. The
                     // prompt lists these so the model can join to reach a name
-                    // that lives in another table — without them, "top
+                    // that lives in another table -  without them, "top
                     // customers by revenue" on a normalised schema can only be
                     // answered with raw customer_id values.
                     'relationships' => $this->normalizeRelationships($relationships),
@@ -515,7 +515,7 @@ class DiscoverSchemaCommand extends Command
     /**
      * Keys a human curates and the database cannot tell us.
      *
-     * Everything else — types, which columns exist — is refreshed from the
+     * Everything else -  types, which columns exist -  is refreshed from the
      * live schema, because that is the whole point of re-running discovery.
      */
     protected const CURATED_TOP_LEVEL = [
@@ -533,13 +533,18 @@ class DiscoverSchemaCommand extends Command
     protected const CURATED_COLUMN_KEYS = [
         'description', 'aliases', 'unit', 'filterable', 'groupable',
         'aggregatable', 'sortable',
+        // `values` is never generated -  the privacy wall keeps sampled
+        // contents out of a file that is sent to the model -  but a human may
+        // write one so `audit-schema` can name the exact value to exclude.
+        // Left off this list, re-running discover silently deleted it.
+        'values',
     ];
 
     /**
      * Fold a freshly generated schema into what is already on disk.
      *
      * Structure wins for facts; the existing file wins for judgement. A column
-     * dropped from the database is dropped here too — leaving it would keep
+     * dropped from the database is dropped here too -  leaving it would keep
      * telling the model about a column that no longer exists, which is exactly
      * the silent failure `doctor` reports.
      *
@@ -603,7 +608,7 @@ class DiscoverSchemaCommand extends Command
         $added = array_diff($after, $before);
         $removed = array_diff($before, $after);
 
-        $this->line('    Merged — your descriptions, aliases, instructions, metrics and examples kept');
+        $this->line('    Merged -  your descriptions, aliases, instructions, metrics and examples kept');
 
         if ($added) {
             $this->line('      + new column(s): ' . implode(', ', $added));
@@ -621,7 +626,7 @@ class DiscoverSchemaCommand extends Command
     /**
      * Turn introspected foreign keys into the shape the schema file carries.
      *
-     * Kept minimal on purpose — column, the table it points at, and the column
+     * Kept minimal on purpose -  column, the table it points at, and the column
      * there. That is everything needed to write a JOIN, and nothing that would
      * go stale differently from the rest of the file.
      *
@@ -663,15 +668,15 @@ class DiscoverSchemaCommand extends Command
      * Pick the column results should be grouped and labelled by.
      *
      * "First dimension wins" chose `status` for an orders table, because
-     * status is the first text column — so every answer came back grouped by
+     * status is the first text column -  so every answer came back grouped by
      * "settled" rather than by customer. Prefer a column that reads like a
      * label; fall back to the first dimension only when there isn't one.
      */
     /**
      * The date a period should narrow on.
      *
-     * Prefers the one that reads like when the thing HAPPENED — an order date
-     * over a created_at — because that is what "last month" means to the person
+     * Prefers the one that reads like when the thing HAPPENED -  an order date
+     * over a created_at -  because that is what "last month" means to the person
      * asking. Null when the table has no dates, which is honest: the schema
      * then says so instead of leaving the reader to guess.
      */
@@ -793,7 +798,7 @@ class DiscoverSchemaCommand extends Command
             $lines[] = ' *';
         }
 
-        $lines[] = ' * This file is yours to edit — it is plain config, no code changes needed:';
+        $lines[] = ' * This file is yours to edit -  it is plain config, no code changes needed:';
         $lines[] = ' *   description / aliases  what users call this data';
         $lines[] = ' *   llm_instructions       business rules the AI must follow';
         $lines[] = ' *   aggregatable           set on measures so totals SUM per group';
@@ -888,7 +893,7 @@ Generate a JSON response with:
 6. "example_queries": Array of 4-6 objects with "natural" (user question) and
    "sql" (correct SELECT for this dialect).
 
-CRITICAL: use ONLY the exact column names listed above — do not invent columns.
+CRITICAL: use ONLY the exact column names listed above -  do not invent columns.
 Reference the table as {$tableName}. Every SQL statement must be a SELECT.
 
 Return JSON only.

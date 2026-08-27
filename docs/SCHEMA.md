@@ -250,22 +250,47 @@ is that certain rows must never count:
 
 Nothing in a column's name, type or foreign keys says whether a cancelled order
 belongs in a total. Only you know. Without the rule the model decides, and a
-total that quietly includes cancelled orders looks exactly like a correct one —
+total that quietly includes cancelled orders looks exactly like a correct one - 
 no error, no warning, just a number that is too big.
 
 **It is enforced, not suggested.** In `intent` mode `SqlBuilder` appends the
 filter to the SQL, so it cannot be omitted. In `sql_generation` mode the filter
-is put in the prompt *and* the returned SQL is checked for it — a query that
+is put in the prompt *and* the returned SQL is checked for it -  a query that
 omits it is refused rather than executed. You will get an error saying which
 filter was missing, which is the correct outcome: the alternative is a wrong
 number reported as a success.
 
-One consequence worth knowing. The check is literal — whitespace is collapsed
-and `<>` is folded to `!=`, nothing more. A model that writes an equivalent
-filter in different words (`status NOT IN ('cancelled')`) is refused even
-though its SQL was right. That is a deliberate trade: a false refusal costs an
-error on a good answer, while a looser check that merely looked for the column
-name would pass `GROUP BY status` and hand back the unfiltered total.
+The check happens where the SQL is **executed**, so it covers every route that
+answers a question -  the first generation, the refinement retry, a query the
+self-verifier rewrote afterwards, a step of a decomposed question, and a cached
+result replayed later.
+
+Three consequences worth knowing.
+
+It is armed by the dataset being answered. So if the model reports the wrong
+dataset while querying a guarded table, the rule does not fire. The SQL is
+still checked against the schema-derived table whitelist, so it can never reach
+a table you have not registered, but the filter is not applied. Arming instead
+from the table names inside the SQL was tried and removed: matching names
+against arbitrary generated SQL let `FROM a, b` slip the guard completely, and
+made a bare `FROM orders` trigger the rule of every `schema.orders` dataset on
+a multi-schema database, refusing correct queries with a message about a
+different dataset.
+
+The comparison is literal -  whitespace is collapsed and `<>` is folded to
+`!=`, nothing more. A model that writes an equivalent filter in different words
+(`status NOT IN ('cancelled')`) is refused even though its SQL was right. That
+is a deliberate trade: a false refusal costs an error on a good answer, while a
+looser check that merely looked for the column name would pass `GROUP BY
+status` and hand back the unfiltered total.
+
+And it checks that the filter is **present**, not that it **covers**. A filter
+sitting in a subquery while the outer aggregate runs unfiltered, or one
+defeated by an `OR` beside it, reads as present. Detecting that needs a real
+SQL parser rather than a bigger pattern. So this raises the floor from *the
+model was asked nicely* to *the text must be there* -  and `intent` mode remains
+the route where the filter is **applied** rather than checked. If a rule has to
+hold absolutely, use `intent` mode for that dataset.
 
 Other uses of the same setting:
 
@@ -276,21 +301,27 @@ Other uses of the same setting:
 // Soft deletes, if you are not using Eloquent's global scope here
 'required_filter' => 'deleted_at IS NULL',
 
-// Multi-tenant tables — but see the note below
+// Multi-tenant tables -  but see the note below
 'required_filter' => 'tenant_id = 42',
 ```
 
 **Not a security boundary.** It is a correctness rule expressed in your schema
 file, applied to questions this package answers. It is not row-level security
 and does not protect anything from code that queries the database directly. For
-tenancy, use a database user, a global scope, or a policy — and treat
+tenancy, use a database user, a global scope, or a policy -  and treat
 `required_filter` as the thing that keeps *answers* right, not the thing that
 keeps *data* private.
 
-`php artisan naturalquery:audit-schema` flags a filterable column whose declared
-values include things like `cancelled`, `void` or `deleted` when the table has
-no `required_filter`, so you get asked the question rather than having to
-remember it.
+`php artisan naturalquery:audit-schema` asks you the question rather than
+leaving you to remember it. It flags a table with no `required_filter` when a
+column is *named* like an exclusion marker -  `deleted_at`, `is_cancelled`,
+`archived_at` -  or when a column you have given a `values` list declares
+something like `cancelled`, `void` or `deleted`.
+
+`discover` never writes `values` itself: sampling what your columns contain
+would put data into a file that gets sent to the model, and only schema
+structure may go there. Write one by hand if you want the audit to name the
+exact value to exclude; re-running `discover` keeps it.
 
 ## Working with many tables
 
@@ -346,7 +377,7 @@ Saying so took three sentences:
 // config/naturalquery.php
 'system_instructions' => "
     Revenue means SUM(order_items.line_total). Never use payments.amount as
-    revenue — payments record what has been collected, not what was sold.
+    revenue -  payments record what has been collected, not what was sold.
     sessions, jobs and audit_log are infrastructure tables and never answer a
     business question.
 ",

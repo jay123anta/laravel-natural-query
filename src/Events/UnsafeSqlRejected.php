@@ -17,7 +17,7 @@ namespace Jayanta\NaturalQuery\Events;
 class UnsafeSqlRejected
 {
     public function __construct(
-        /** The question that led here — usually the more telling half. */
+        /** The question that led here -  usually the more telling half. */
         public readonly string $question,
 
         /** The SQL as generated. Rejected before execution. */

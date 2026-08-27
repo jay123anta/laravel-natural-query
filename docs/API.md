@@ -1,7 +1,7 @@
 # HTTP API reference
 
 The bundled widget is a reference implementation. Most applications will build
-their own front end in React, Vue, Inertia or Blade — and for those, this
+their own front end in React, Vue, Inertia or Blade -  and for those, this
 document is the package.
 
 Everything here is covered by `tests/Feature/ApiContractTest.php`. Fields are
@@ -19,7 +19,7 @@ package **always** applies whatever you put in that list:
 
 | | Who gets in |
 |---|---|
-| A `viewNaturalQuery` gate defined by your app | Whatever the gate says — always, including "no" in local |
+| A `viewNaturalQuery` gate defined by your app | Whatever the gate says -  always, including "no" in local |
 | No gate, `local` or `testing` | Everyone. The package works the moment it is installed |
 | No gate, anywhere else | Signed-in users only |
 
@@ -28,14 +28,14 @@ package **always** applies whatever you put in that list:
 Gate::define('viewNaturalQuery', fn ($user) => $user->isAdmin());
 ```
 
-Refusals are **403 with a message naming the gate** — never a redirect. There
+Refusals are **403 with a message naming the gate** -  never a redirect. There
 may be nowhere to redirect to: `auth` used to be the default, and on a fresh
 Laravel app with no login route that turned an unauthenticated visit into
 `RouteNotFoundException: Route [login] not defined`, a 500 on the demo page.
 Add `auth` back yourself if your app has auth scaffolding and you want the
 redirect.
 
-`GET /widget.js` is deliberately public — it is a static file with no data and
+`GET /widget.js` is deliberately public -  it is a static file with no data and
 no key in it, loaded by every page embedding the widget. The endpoints it calls
 are gated.
 
@@ -66,7 +66,7 @@ and it looks like a network error rather than a policy one.
 
 ## Asking a question
 
-### `POST /text` — one-shot question
+### `POST /text` -  one-shot question
 
 ```json
 { "text": "top 5 customers by revenue", "dataset": "orders" }
@@ -74,7 +74,7 @@ and it looks like a network error rather than a policy one.
 
 `dataset` is optional; omit it to let the package route the question.
 
-### `POST /conversation` — a turn in a conversation
+### `POST /conversation` -  a turn in a conversation
 
 ```json
 { "session_id": "abc-123", "text": "only in West", "dataset": null }
@@ -83,7 +83,7 @@ and it looks like a network error rather than a policy one.
 Identical response, plus `state`, `state_summary` and `conversation`. Follow-ups
 resolve against the stored state and are never served from the query cache.
 
-### Voice — there is no audio endpoint
+### Voice -  there is no audio endpoint
 
 Speech is recognised **in the browser** and posted to `/text` as ordinary text.
 That is the whole design, and it is why voice needs no configuration and works
@@ -98,12 +98,12 @@ sr.start();
 ```
 
 Chrome, Edge and Safari have `SpeechRecognition`; Firefox does not, so hide the
-microphone there and let people type. Feature-detect — do not sniff the agent.
+microphone there and let people type. Feature-detect -  do not sniff the agent.
 
 **This package is English-only by design.** `sr.lang` selects an English accent
 (`en-US`, `en-GB`, `en-IN`, `en-AU`) and that genuinely improves recognition.
 Another language may appear to work because the browser will attempt it, but
-nothing downstream is built for it — the prompts, the schema descriptions and
+nothing downstream is built for it -  the prompts, the schema descriptions and
 the answer text are all English. Multilingual is a separate package with its
 own speech pipeline.
 
@@ -118,7 +118,12 @@ your server or any model provider.
 {
   "status": "success",
   "type": "ranking",              // ranking | single_result | aggregation | multi_step | no_data
-  "answer": "Top 5 customers by revenue: …",   // a sentence, for display
+  "answer": "Top 5 customers by revenue: …",   // a sentence, for display. The
+                                               // dimension ("customers") is named
+                                               // only when the engine built the
+                                               // query and knows it; in
+                                               // sql_generation mode the sentence
+                                               // omits it rather than guess
   "speech_text": "Here are the …",             // phrased for reading aloud
   "rows": [ { "customer_name": "Ada", "revenue": "2028763.00" } ],
   "visualization": "bar",         // bar | table | card | steps | message
@@ -127,18 +132,24 @@ your server or any model provider.
   "parsed_query": {
     "dataset": "orders",
     "metric": "revenue",
-    "group_by": "customer_name",  // what the rows ARE
+    "group_by": "customer_name",  // what the rows ARE. `null` on an ungrouped
+                                  // total, and `null` in sql_generation mode,
+                                  // where the engine did not write the query
     "filter_column": "region",    // the column a single filter matched on
     "filters": [ { "column": "region", "value": "West" } ],   // all filters in force
-    "period": "2026-07-01 to 2026-07-31",   // the dates actually applied
+    "period": "2026-07-01 to 2026-07-31",   // the dates actually applied, or
+                                  // `null` -  never a range the query did not
+                                  // use, and never a period a model claimed
     "group_value": "West",
     "limit": 5,
     "order": "DESC",
     "query_type": "ranking"
   },
 
-  "next_steps": [                 // schema-derived; no API call was made for these
-    { "label": "Break West down by category", "query": "revenue by product_category where region is West" }
+  "next_steps": [                 // schema-derived; no API call was made for
+                                  // these, and none carries a value from your
+                                  // rows - clicking one sends it to a provider
+    { "label": "Revenue by category", "query": "revenue by product_category" }
   ],
 
   "metadata": {
@@ -148,8 +159,8 @@ your server or any model provider.
     "cache_hit": false,
 
     // What the question cost, when the provider reports it. Summed across
-    // every call the question took — a fallback, a retry, the steps of a
-    // decomposed question — because those are one question to the user.
+    // every call the question took -  a fallback, a retry, the steps of a
+    // decomposed question -  because those are one question to the user.
     // Absent on a cache hit, and absent rather than zero when unreported.
     "usage": { "prompt_tokens": 1200, "completion_tokens": 80,
                "thinking_tokens": 25, "total_tokens": 1305, "calls": 1 }
@@ -159,10 +170,10 @@ your server or any model provider.
 
 The generated SQL is **not** in the response. A browser has no use for it and
 it describes the shape of your database. Server-side, the `QuestionAnswered`
-event carries it — see [Events and cost](#events-and-cost) below.
+event carries it -  see [Events and cost](#events-and-cost) below.
 
 **Read `parsed_query` before trusting a number.** It states what the question was
-understood to mean — which measure, which breakdown, which filters, which dates.
+understood to mean -  which measure, which breakdown, which filters, which dates.
 Showing it is how a user catches a misreading instead of believing a total that
 answers a different question.
 
@@ -174,7 +185,7 @@ put it on screen rather than branch on it:
 ```
 
 The bundled widget renders it under every answer. If you have built your own
-front end, this is the single most useful string in the response — roughly one
+front end, this is the single most useful string in the response -  roughly one
 question in five is misread on an uncurated schema, and a misreading that is
 displayed is a misreading the user can correct.
 
@@ -193,7 +204,7 @@ A question needing several queries returns `type: "multi_step"`:
 ```jsonc
 {
   "type": "multi_step",
-  "answer": "Revenue is 11,503,983 (this year) versus 9,507,105 (last year) — up 21%.",
+  "answer": "Revenue is 11,503,983 (this year) versus 9,507,105 (last year) -  up 21%.",
   "steps": [
     { "n": 1, "question": "total revenue this year", "status": "success",
       "period": "2026-01-01 to 2026-12-31", "rows": [ … ], "answer": "…" }
@@ -203,7 +214,7 @@ A question needing several queries returns `type: "multi_step"`:
 }
 ```
 
-Render the steps, not just the conclusion. Each carries the `period` it used —
+Render the steps, not just the conclusion. Each carries the `period` it used - 
 "last year" can mean a calendar year or a trailing twelve months, and the
 difference is invisible in the total alone. `comparison` is `null` when the
 steps are not comparable; a percentage is never invented.
@@ -223,7 +234,7 @@ steps are not comparable; a percentage is never invented.
     { "key": "revenue", "description": "Total order value", "type": "currency", "computed": false }
   ],
 
-  // On dataset_clarification ONLY — empty on every other type. A dataset button
+  // On dataset_clarification ONLY -  empty on every other type. A dataset button
   // offered next to metric buttons re-sends the dataset the request already had
   // and redraws the same card, which reads as a broken button.
   "alternatives": [
@@ -235,7 +246,7 @@ steps are not comparable; a percentage is never invented.
 }
 ```
 
-**HTTP 200** — the user is being asked a question, not told about a failure.
+**HTTP 200** -  the user is being asked a question, not told about a failure.
 
 ---
 
@@ -250,7 +261,7 @@ steps are not comparable; a percentage is never invented.
 }
 ```
 
-Branch on `error_code`, never on `error` — the message is written for a person
+Branch on `error_code`, never on `error` -  the message is written for a person
 and gets reworded.
 
 | `error_code` | HTTP | Retryable | Meaning |
@@ -272,7 +283,7 @@ Exceeding `limits.queries_per_day` returns **429** with
 
 ## Conversation
 
-### `GET /conversation/{session}` — read the state back
+### `GET /conversation/{session}` -  read the state back
 
 ```jsonc
 {
@@ -296,14 +307,14 @@ next follow-up resolves against context the user can no longer see.
 
 Restores an earlier turn exactly, rather than re-interpreting the conversation.
 Returns the same body as `GET /conversation/{session}`, with
-`conversation.rewound: true` and a fresh `can_rewind` — so one call tells you
+`conversation.rewound: true` and a fresh `can_rewind` -  so one call tells you
 both where you landed and whether going back again is possible.
 
 `{"status": "error"}` when there is nothing behind the current turn.
 
 **Offer this, not just a reset.** If the only correction available is clearing
 the conversation, undoing "only in West" means retyping everything before it,
-and people start over instead of refining — which is the behaviour the
+and people start over instead of refining -  which is the behaviour the
 conversation endpoints exist to make unnecessary.
 
 ### Surviving a page reload
@@ -317,7 +328,7 @@ scopes it to the tab, which is usually what you want), then call
 
 The rendered answers are not stored server-side, so the thread itself cannot be
 restored. Say what is still in force rather than implying the screen was
-recovered — the next follow-up resolves against those filters either way.
+recovered -  the next follow-up resolves against those filters either way.
 
 ### `DELETE /conversation/{session}`
 
@@ -336,13 +347,13 @@ Each turn is reported as `conversation.classification`:
 | `reference` | "why is that?" | Same query, different output |
 
 A question naming its own measure is always `new_query`, whatever it starts
-with — so "only revenue by region" does not inherit last turn's filters.
+with -  so "only revenue by region" does not inherit last turn's filters.
 
 ---
 
 ## Describing the schema
 
-### `GET /datasets` — what can be asked
+### `GET /datasets` -  what can be asked
 
 ```jsonc
 {
@@ -370,10 +381,10 @@ that exist.
 
 | Route | Purpose |
 |---|---|
-| `GET /health` | Provider and database reachability. **503** when unhealthy — probe this |
+| `GET /health` | Provider and database reachability. **503** when unhealthy -  probe this |
 | `GET /cache-stats` | Cache size and hit counts |
 | `POST /clear-cache` | `{ dataset?, older_than_days?, min_hits? }` |
-| `POST /feedback` | `{ query, dataset, correction?, corrected_sql?, feedback_type? }` — fed into later prompts |
+| `POST /feedback` | `{ query, dataset, correction?, corrected_sql?, feedback_type? }` -  fed into later prompts |
 | `GET /feedback/stats` | Correction counts |
 | `GET /widget.js` | The reference widget, no publish step |
 | `GET /demo` | A working page to check a new install against before writing any front end |
@@ -392,7 +403,7 @@ phrasing it, and these cost no API call.
 **Respect `retryable`.** Retrying a `cannot_answer` will never succeed; retrying
 a `rate_limited` after `Retry-After` usually will.
 
-**Never render `rows` for a `multi_step` answer alone** — the steps carry the
+**Never render `rows` for a `multi_step` answer alone** -  the steps carry the
 working, and a combined figure nobody can trace is worth less than two they can.
 
 ---
@@ -401,7 +412,7 @@ working, and a combined figure nobody can trace is worth less than two they can.
 
 An AI feature spends money on every request and can be confidently wrong, so an
 application needs to see what its own feature is doing. Four events give it
-somewhere to stand — listen to none and nothing changes.
+somewhere to stand -  listen to none and nothing changes.
 
 ```php
 use Jayanta\NaturalQuery\Events\QuestionAnswered;
@@ -423,11 +434,11 @@ Event::listen(QuestionAnswered::class, function ($e) {
 |---|---|---|
 | `QuestionAsked` | After the input guard, before any spending | Cost attribution, your own quotas, audit |
 | `QuestionAnswered` | A successful answer | Usage dashboards, slow-query review, "answered badly" queues |
-| `QuestionFailed` | An error — **not** a clarification | Alerting. `errorCode` separates a provider outage from an unanswerable question |
+| `QuestionFailed` | An error -  **not** a clarification | Alerting. `errorCode` separates a provider outage from an unanswerable question |
 | `UnsafeSqlRejected` | The validator refused generated SQL | Security. Should be near-silent; a burst from one user is not |
 
 `QuestionAnswered` carries a **row count, never the rows**. A listener that
-wants the data can re-run the SQL — putting result rows on an event walks them
+wants the data can re-run the SQL -  putting result rows on an event walks them
 into log drivers, queue payloads and error trackers, which is the one direction
 this package exists to keep data out of.
 
@@ -441,14 +452,14 @@ this package exists to keep data out of.
            "thinking_tokens": 25, "total_tokens": 1305, "calls": 1 }
 ```
 
-Counts **accumulate across every call one question took** — a fallback, a
-retry, the steps of a decomposed question — because those are one question to
+Counts **accumulate across every call one question took** -  a fallback, a
+retry, the steps of a decomposed question -  because those are one question to
 the user. A cache hit reports nothing, which is the point of the cache, and a
 provider that returns no usage block reports nothing rather than zero: an
 omitted figure is honest, a zero understates a bill.
 
 This matters because `limits.queries_per_day` counts **questions**, which is a
-rough proxy — a question against a two-table schema and one against a
+rough proxy -  a question against a two-table schema and one against a
 fourteen-table schema differ by an order of magnitude in prompt tokens. Use the
 event to meter what you are actually spending.
 

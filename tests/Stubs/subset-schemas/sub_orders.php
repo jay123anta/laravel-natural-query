@@ -1,7 +1,7 @@
 <?php
 
 /**
- * One table discovered out of several — what you get from
+ * One table discovered out of several -  what you get from
  * `naturalquery:discover --table=orders`. It references sub_customers, which
  * has no schema file of its own.
  */

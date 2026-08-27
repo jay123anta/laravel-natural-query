@@ -8,8 +8,8 @@ use Illuminate\Routing\Controller;
  * Serves the widget asset and the demo page.
  *
  * Deliberately separate from NaturalQueryController, and deliberately free of
- * constructor dependencies. NaturalQueryController pulls in the whole engine —
- * orchestrator, prompt builder, schema introspector — which means resolving it
+ * constructor dependencies. NaturalQueryController pulls in the whole engine -
+ * orchestrator, prompt builder, schema introspector -  which means resolving it
  * fails outright on an unsupported database driver. Serving a static
  * JavaScript file must never depend on any of that: `<x-naturalquery::widget />`
  * loads {prefix}/widget.js on every page that embeds it, and a 500 there breaks

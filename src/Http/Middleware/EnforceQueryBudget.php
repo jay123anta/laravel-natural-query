@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  * every one of them is a paid API call. Rate limiting protects the server.
  * This protects the bill.
  *
- * It matters most in exactly the configuration people reach for first — the
+ * It matters most in exactly the configuration people reach for first -  the
  * widget on a public page with `auth` removed, where the visitor is anonymous
  * and the key is yours.
  *
@@ -29,7 +29,7 @@ class EnforceQueryBudget
     {
         $limit = config('naturalquery.limits.queries_per_day');
 
-        // null means no ceiling — a deliberate choice, not the default.
+        // null means no ceiling -  a deliberate choice, not the default.
         if (!$limit || (int) $limit <= 0) {
             return $next($request);
         }
@@ -44,7 +44,7 @@ class EnforceQueryBudget
             ]);
 
             // 429 so clients already handling rate limits handle this too, and
-            // the message says which limit was hit — "too many requests" with
+            // the message says which limit was hit -  "too many requests" with
             // no number is a support ticket.
             return response()->json([
                 'status' => 'error',
@@ -69,7 +69,7 @@ class EnforceQueryBudget
 
     /**
      * Who is being counted. The authenticated user if there is one, otherwise
-     * the IP — which is weak, and is the reason the docs say to keep `auth` on
+     * the IP -  which is weak, and is the reason the docs say to keep `auth` on
      * for anything public.
      */
     protected function identity(Request $request): string

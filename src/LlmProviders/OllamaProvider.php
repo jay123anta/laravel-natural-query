@@ -21,7 +21,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
      *
      * English prose runs about four characters per token, but a schema prompt
      * is mostly short identifiers, types and punctuation, which tokenize worse
-     * — nearer three and a half. Assuming four would leave no headroom on
+     * -  nearer three and a half. Assuming four would leave no headroom on
      * exactly the content this prompt is made of.
      *
      * And this counts BYTES, not characters. A Devanagari or CJK character in
@@ -66,7 +66,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
         $this->model = $config['model'] ?? 'llama3';
         // ?? alone is not enough. `OLLAMA_NUM_CTX=` with nothing after it is a
         // present-but-empty env value, Laravel hands back '', and (int) '' is
-        // 0 — which would refuse every question ever asked, with an error
+        // 0 -  which would refuse every question ever asked, with an error
         // naming the setting the user had just edited. Anything unusable falls
         // back to the default rather than bricking the driver.
         $configured = (int) ($config['num_ctx'] ?? 0);
@@ -77,7 +77,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
      * Why a prompt cannot be sent, or null if it can.
      *
      * Ollama does not reject an oversized prompt. It drops the beginning and
-     * answers from the remainder — and the beginning is where the schema is.
+     * answers from the remainder -  and the beginning is where the schema is.
      * The result is a confident answer built on table definitions the model
      * never saw, which is the failure this package exists to prevent, arriving
      * with nothing on the wire to show it happened.
@@ -94,7 +94,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
 
         return sprintf(
             'This question needs about %s tokens of context but num_ctx is %d, so Ollama '
-            . 'would silently discard the start of the prompt — the schema — and answer from '
+            . 'would silently discard the start of the prompt -  the schema -  and answer from '
             . 'what was left. Raise num_ctx (llm.providers.ollama.num_ctx, or '
             . 'OLLAMA_NUM_CTX) if the machine has the memory, use a model with a larger '
             . 'context, or describe fewer tables in config/naturalquery-schemas.',
@@ -107,7 +107,7 @@ class OllamaProvider extends AbstractProvider implements LlmProviderInterface
      * Mark a response as one that never reached the wire.
      *
      * Nothing was sent, so a retry with a smaller prompt would not be
-     * correcting a bad answer — it would be asking, and answering, a
+     * correcting a bad answer -  it would be asking, and answering, a
      * different question. QueryOrchestrator reads this to decline retrying.
      *
      * It exists as a helper because the flag belongs to the REFUSAL, not to
@@ -170,12 +170,12 @@ DATASETS:
 {$datasetInfo}
 
 query_type = "aggregation" for one number over the whole dataset ("total revenue", "how many orders"), else "ranking".
-filters = EVERY narrowing, as [{"column":..,"value":..}] — including one stated in the question: "how many invoices are pending" is [{"column":"status","value":"pending"}]. In a conversation repeat the ones still in force; omitting one switches it off.
+filters = EVERY narrowing, as [{"column":..,"value":..}] -  including one stated in the question: "how many invoices are pending" is [{"column":"status","value":"pending"}]. In a conversation repeat the ones still in force; omitting one switches it off.
 filter_column = the column group_value belongs to when it is not the grouping column ("by customer_name where product_category is Grocery").
 group_by = the column to break results down by if the user asked ("revenue BY REGION"), from that dataset's group_by list, else null.
-Never ask for clarification on a HOW MANY question — record_count always exists.
+Never ask for clarification on a HOW MANY question -  record_count always exists.
 metric = record_count when the user asks HOW MANY ("how many orders", "orders by status"), otherwise the named measure.
-Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
+Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today -  comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
 date_from / date_to = YYYY-MM-DD dates if the user named a period ("last month", "in 2025"), else null. TODAY IS {$today}.
 
 Return JSON: {"dataset":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
@@ -261,7 +261,7 @@ PROMPT;
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             // Coalesced ONCE. The old line guarded the in_array check with
             // ?? 'desc' and then re-read the key unguarded in the true branch,
-            // so a model that omits 'order' — DeepSeek does — passed the check
+            // so a model that omits 'order' -  DeepSeek does -  passed the check
             // and hit strtolower(null). Gemini always sends it, which is why
             // this survived: three providers carried it and only the tested one
             // never triggered it.

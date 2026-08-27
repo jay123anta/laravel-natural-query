@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  * with "No data found for customers in Orders."
  *
  * The intent contract lets the model name one record to filter by, and it had
- * filled that in with "customers" — the grouping dimension, not a customer.
+ * filled that in with "customers" -  the grouping dimension, not a customer.
  * The WHERE clause matched nothing, so a question with a perfectly good answer
  * became a dead end. It is non-deterministic: the same question usually parses
  * with no filter at all, which is exactly what makes it worth pinning down in

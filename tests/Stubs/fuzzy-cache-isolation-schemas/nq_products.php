@@ -1,7 +1,7 @@
 <?php
 
 /**
- * NQ-003 fuzzy-cache dataset-isolation fixture. See nq_orders.php — same
+ * NQ-003 fuzzy-cache dataset-isolation fixture. See nq_orders.php -  same
  * shape and same metric NAME (`revenue`) deliberately, so a cached SQL
  * result that leaked from nq_orders would still "look" plausible as an
  * answer about nq_products instead of failing loudly on a missing column.

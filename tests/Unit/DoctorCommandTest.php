@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
 
 /**
  * The doctor is the first thing a stuck user runs. Its job is not to be
- * pretty — it is to name the real cause and print the exact fix.
+ * pretty -  it is to name the real cause and print the exact fix.
  */
 class DoctorCommandTest extends TestCase
 {
@@ -30,7 +30,7 @@ class DoctorCommandTest extends TestCase
         // tests opt back in rather than every case tripping over it.
         $app['config']->set('naturalquery.feedback.enabled', false);
 
-        // The suite runs on in-memory SQLite, which is now a supported driver —
+        // The suite runs on in-memory SQLite, which is now a supported driver -
         // so these cases exercise the real SqliteIntrospector rather than a
         // stand-in, and doctor reports on it exactly as it would in an app.
     }
@@ -66,7 +66,7 @@ class DoctorCommandTest extends TestCase
     #[Test]
     public function it_flags_a_schema_whose_table_does_not_exist()
     {
-        // No tables created — the stub schemas point at tables that aren't there.
+        // No tables created -  the stub schemas point at tables that aren't there.
         $this->artisan('naturalquery:doctor --skip-api')
             ->assertExitCode(1)
             ->expectsOutputToContain('not found in the database')
@@ -95,8 +95,8 @@ class DoctorCommandTest extends TestCase
 
     /**
      * Discovering a subset of tables leaves foreign keys pointing at tables
-     * with no schema file. Those joins are deliberately never offered — the
-     * validator would reject the SQL — but a user seeing only the symptom
+     * with no schema file. Those joins are deliberately never offered -  the
+     * validator would reject the SQL -  but a user seeing only the symptom
      * concludes the AI cannot do joins. Doctor names the cause instead.
      */
     #[Test]
@@ -144,7 +144,7 @@ class DoctorCommandTest extends TestCase
      * its real revenue. Three sentences of system_instructions moved accuracy
      * from 79% to 86% and fixed every multi-table question.
      *
-     * The package cannot make that choice — the columns are identical in kind.
+     * The package cannot make that choice -  the columns are identical in kind.
      * It can say the choice exists.
      */
     /** rel_orders and rel_sales each carry their own measures. */
@@ -275,7 +275,7 @@ class DoctorCommandTest extends TestCase
         $this->artisan('naturalquery:doctor --skip-api')
             ->expectsOutputToContain('SSL verification is DISABLED')
             ->expectsOutputToContain('cacert.pem')
-            // A warning must not fail the command — nothing is broken
+            // A warning must not fail the command -  nothing is broken
             ->assertExitCode(0);
     }
 
@@ -294,7 +294,7 @@ class DoctorCommandTest extends TestCase
      * Verification on, but no CA store to verify against.
      *
      * This was a green tick regardless, with the truth only emerging from the
-     * live provider check — so `--skip-api`, the fast check the docs recommend,
+     * live provider check -  so `--skip-api`, the fast check the docs recommend,
      * reported a healthy setup that could not reach a provider at all. It cost
      * this project an afternoon: a benchmark run scored 0/36 and read exactly
      * like a package regression, when PHP simply had no certificates.
@@ -335,7 +335,7 @@ class DoctorCommandTest extends TestCase
         // download and a hunt for where to put it.
         $this->assertStringContainsString('curl-ca-bundle.crt', $output);
         $this->assertStringContainsString('NATURALQUERY_SSL_VERIFY', $output);
-        // Nothing is broken yet — it may still work. A warning, not a fault.
+        // Nothing is broken yet -  it may still work. A warning, not a fault.
         $this->assertSame(0, $exit);
     }
 
@@ -366,7 +366,7 @@ class DoctorCommandTest extends TestCase
      *
      * `naturalquery:install` writes the shipped template, which points at a
      * placeholder table by design. Doctor called that a red ✗ and exited
-     * non-zero — so the very first run of the command the docs recommend as a
+     * non-zero -  so the very first run of the command the docs recommend as a
      * deployment smoke test failed, on a fresh install, before the user had
      * done anything wrong. Verified against a real composer install into
      * Laravel 13.
@@ -407,8 +407,8 @@ class DoctorCommandTest extends TestCase
                 'the template was reported as a broken schema'
             );
 
-            // Nothing but the template IS a problem — there is no dataset any
-            // question could be answered from — but the reason given must be
+            // Nothing but the template IS a problem -  there is no dataset any
+            // question could be answered from -  but the reason given must be
             // that, not a phantom missing table.
             $this->assertStringContainsString('No usable schema files', $output);
             $this->assertSame(1, $exit);
@@ -420,7 +420,7 @@ class DoctorCommandTest extends TestCase
 
     /**
      * The realistic fresh install: `install` writes the template, `discover`
-     * adds a real dataset. That setup works, so doctor must pass — and must
+     * adds a real dataset. That setup works, so doctor must pass -  and must
      * still mention the template, since the engine now ignores it and the file
      * would otherwise disappear from view entirely.
      */
@@ -457,7 +457,7 @@ class DoctorCommandTest extends TestCase
      *
      * On a fresh install the template was a selectable dataset whose table is
      * a placeholder, so a plain "total amount" chose it perhaps half the time
-     * and came back "Database query failed: no such table: schema" — a name
+     * and came back "Database query failed: no such table: schema" -  a name
      * appearing nowhere the user has ever looked. Found with DeepSeek; Gemini
      * had simply been picking the other one.
      */
@@ -513,7 +513,7 @@ class DoctorCommandTest extends TestCase
      *
      * Only 'ollama', 'localhost' and '127.0.0.1' counted as keyless, so vLLM
      * on a LAN address or LM Studio behind a container name was told its API
-     * key was empty — and doctor exited non-zero — over a key that service
+     * key was empty -  and doctor exited non-zero -  over a key that service
      * does not want. Hosted was assumed; local was the exception.
      */
     public static function selfHostedUrls(): array
@@ -656,7 +656,7 @@ class DoctorCommandTest extends TestCase
         $this->createStubTables();
 
         // Point the package at a connection whose driver has no introspector.
-        // The connection itself is SQLite so it genuinely opens — which is the
+        // The connection itself is SQLite so it genuinely opens -  which is the
         // situation being tested: reachable, but not introspectable.
         config([
             'database.connections.nq_unsupported' => [
@@ -678,7 +678,7 @@ class DoctorCommandTest extends TestCase
 
     /**
      * The driver check must read the connection NaturalQuery is configured to
-     * use, not blindly the app default — `sql.database_connection` can point
+     * use, not blindly the app default -  `sql.database_connection` can point
      * the package at a different one.
      */
     #[Test]
@@ -696,8 +696,8 @@ class DoctorCommandTest extends TestCase
      * Found during a fresh-install run on Laravel 12: a new app has no route
      * named 'login' until a starter kit is added, but Laravel's auth
      * middleware redirects guests to exactly that. So the very first request
-     * an adopter makes after installing dies with RouteNotFoundException — a
-     * 500 naming neither the middleware nor the missing route — while doctor
+     * an adopter makes after installing dies with RouteNotFoundException -  a
+     * 500 naming neither the middleware nor the missing route -  while doctor
      * happily reported "Protected by auth middleware".
      */
     #[Test]

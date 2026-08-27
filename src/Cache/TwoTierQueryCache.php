@@ -29,14 +29,14 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * question share a row.
      *
      * 'a' and 'i' are NOT here, and their absence is deliberate. Both are
-     * ordinary English filler, and both are also ordinary VALUES — region A,
+     * ordinary English filler, and both are also ordinary VALUES -  region A,
      * grade A, zone I, block I. Stripping them made "total revenue for A" and
      * "total revenue" the same key, so asking about one region returned the
      * grand total, from cache, with no provider call and nothing in the answer
      * to show it. The reverse held too.
      *
      * Keeping them costs a cache miss when two phrasings differ only by an
-     * article — "give me a total" against "give me total". That is one API
+     * article -  "give me a total" against "give me total". That is one API
      * call. Dropping them costs a confidently wrong number, and §0 does not
      * rank those anywhere near each other.
      */
@@ -104,7 +104,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         //
         // The config's own `is_numeric(env(...))` expressions protect a fresh
         // install, and Laravel's one-level merge means an app that published
-        // config/naturalquery.php before 2.1.0 never evaluates them — its
+        // config/naturalquery.php before 2.1.0 never evaluates them -  its
         // older `cache` block replaces the package's wholesale. A blank
         // `NATURALQUERY_CACHE_SIMILARITY=` then arrives here as the empty
         // string, `(float) ''` is 0.0, and every fuzzy candidate clears the
@@ -133,7 +133,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * Find a cached result for a query.
      *
      * $datasetHint (NQ-003) is the dataset the ASKING question resolves to,
-     * not a filter on which row's text may match — Tier 1 and Tier 2 exact
+     * not a filter on which row's text may match -  Tier 1 and Tier 2 exact
      * stay purely hash-based, unchanged, because an identical normalized
      * question under the current contract version is already a strong
      * enough signal that this is the same question asked before. It is
@@ -143,7 +143,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * hit answers the dataset actually asked about, and re-target or refuse
      * it accordingly. Without any way to name the asking dataset there is
      * nothing to check that against, so fuzzy matching is skipped rather
-     * than guessed at — a miss costs one API call, a wrong hit costs a
+     * than guessed at -  a miss costs one API call, a wrong hit costs a
      * wrong answer (AGENTS.md §0).
      */
     public function find(string $query): ?array
@@ -159,7 +159,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // `php artisan migrate` yet queries a table that does not exist. The
         // QueryException travelled up to QueryOrchestrator's catch and every
         // single question came back "An error occurred processing your query."
-        // — no mention of a cache, a table, or a migration. That is the first
+        // -  no mention of a cache, a table, or a migration. That is the first
         // thing a new adopter sees, on the stacks Rule 0 names by name.
         //
         // Degrading to a miss costs one API call and keeps the package working;
@@ -215,8 +215,8 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // question matches only rows that were themselves cached unscoped.
         //
         // Keeping the early return on top of that filter cost every fuzzy hit
-        // for every unscoped question — the general chat box on a
-        // multi-dataset install, which is the shape most adopters ship — while
+        // for every unscoped question -  the general chat box on a
+        // multi-dataset install, which is the shape most adopters ship -  while
         // protecting against nothing the filter does not already cover.
         if (!$this->fuzzyEnabled) {
             Log::debug('[NaturalQuery:Cache] Miss (fuzzy matching is off)');
@@ -396,7 +396,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             // Tier 1 first, and for EVERY filter, not just --dataset.
             //
             // Tier 1 is checked before Tier 2, so a row deleted from the
-            // database keeps answering from memory for up to cache.ttl —
+            // database keeps answering from memory for up to cache.ttl -
             // 24 hours by default. The forget loop used to live inside
             // `if ($dataset)`, so `--all`, a bare run, `--days` and
             // `--min-hits` all deleted the durable copy and left the fast one
@@ -446,12 +446,12 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // Dropping tokens of length 1 deleted the only thing distinguishing
         // some questions from each other. "revenue for region a" and "revenue
         // for region b" normalised identically, hashed identically, and shared
-        // one row — so the second returned the first's number, with the right
+        // one row -  so the second returned the first's number, with the right
         // shape and nothing in the answer text to reveal it. The scope guard
         // cannot help: both questions resolve to the same scope.
         //
-        // Single-character values are ordinary in real schemas — grade A,
-        // block B, class C, zone 1 — and a token that changes the answer
+        // Single-character values are ordinary in real schemas -  grade A,
+        // block B, class C, zone 1 -  and a token that changes the answer
         // belongs in the key.
         $words = array_filter($words, function ($word) {
             return $word !== '' && !in_array($word, $this->fillerWords);
@@ -476,17 +476,17 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * grouping; without this they would keep doing so until the TTL expired,
      * and the upgrade would look like it had changed nothing.
      *
-     * 3 — 2.0.0 renamed the `scheme` slot to `dataset`. The stored intent is a
+     * 3 -  2.0.0 renamed the `scheme` slot to `dataset`. The stored intent is a
      * JSON blob, so the column rename does not touch what is inside it: a row
      * written by 1.0.0 still says "scheme". Served to 2.0.0 the dataset reads
      * null, and Tier 2 has no expiry, so every question asked before the
      * upgrade would have stayed broken until someone ran cache-cleanup.
      *
-     * 4 — 2.1.0 added `_asking_scope`: the dataset the ASKING question was
+     * 4 -  2.1.0 added `_asking_scope`: the dataset the ASKING question was
      * scoped to, which is not the same thing as the dataset the answer turned
      * out to be about. A row written before this carries no scope at all, and
      * reading a missing scope as "unscoped" would make every pre-upgrade row
-     * eligible for unscoped questions — which is exactly the cross-dataset
+     * eligible for unscoped questions -  which is exactly the cross-dataset
      * hit this release exists to close. Missing it must mean unknown, and
      * unknown must miss.
      */
@@ -498,14 +498,14 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * The scope has to reach the key because `query_hash` is UNIQUE and
      * store() updates the row it finds. Keyed on the text alone there is
      * exactly one row per wording, so two dataset-scoped pages asking the same
-     * words took turns overwriting each other — miss, regenerate, overwrite,
-     * miss — and neither saw a hit again. Refusing to SHARE a row across
+     * words took turns overwriting each other -  miss, regenerate, overwrite,
+     * miss -  and neither saw a hit again. Refusing to SHARE a row across
      * scopes is the point; refusing to STORE both was an accident of the key.
      *
      * It goes in HERE, in the string, rather than as a parameter on
      * generateHash(). generateHash() is `protected` on a class docs/CACHING.md
      * tells adopters to subclass, so adding even an optional parameter to it
-     * is a fatal error at class load for anyone who overrode it — the same
+     * is a fatal error at class load for anyone who overrode it -  the same
      * break this release already made once on QueryCacheInterface::find(),
      * recorded as an anti-pattern, and then made twice more here. A subclass
      * that overrides generateHash() still receives a string and still works.
@@ -569,7 +569,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * Fuzzy matching finds rows by their normalized TEXT, so it never touches
      * the hash and the contract version folded into it had no effect here at
      * all. Bumping the constant made the exact tier miss an old row and the
-     * fuzzy tier serve the very same row a moment later — which quietly
+     * fuzzy tier serve the very same row a moment later -  which quietly
      * defeated every previous bump too, not just this one.
      */
     /**
@@ -581,7 +581,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * normalizeQuery() lowercases, drops filler words, folds synonyms,
      * de-duplicates and SORTS. Two normalized strings that are equal are
      * already an exact-tier hit. So every string pair this tier ever sees
-     * differs in real, meaning-bearing tokens — and the score is dominated by
+     * differs in real, meaning-bearing tokens -  and the score is dominated by
      * the tokens they SHARE, which means it rises as the questions get longer
      * and more specific. Measured on the shipped implementation, one value
      * token swapped:
@@ -605,7 +605,7 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      *
      * The exact tiers get their scope from the hash. This one matches by TEXT,
      * so without the same filter it returns candidates from other scopes that
-     * the engine then discards — and it has already counted them as hits by
+     * the engine then discards -  and it has already counted them as hits by
      * then, so naturalquery:cache-stats reported reuse for rows that were
      * never once served.
      */

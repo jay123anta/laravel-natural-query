@@ -26,8 +26,7 @@
         "illuminate/console": "^12.0|^13.0",
         "illuminate/routing": "^12.0|^13.0",
         "illuminate/validation": "^12.0|^13.0",
-        "illuminate/view": "^12.0|^13.0",
-        "guzzlehttp/guzzle": "^7.15.1"
+        "illuminate/view": "^12.0|^13.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",
@@ -36,7 +35,7 @@
         "phpunit/phpunit": "^11.5|^12.0|^13.0"
     },
     "suggest": {
-        "jayanta/laravel-ai-guard": "Adds scoring-based prompt-injection, jailbreak and bot detection on top of the built-in input guard. Auto-detected — no wiring required. Needs a version exposing detectText(string); v2.0.0 does not, and naturalquery:doctor will say so."
+        "jayanta/laravel-ai-guard": "Adds scoring-based prompt-injection, jailbreak and bot detection on top of the built-in input guard. Auto-detected -  no wiring required. Needs a version exposing detectText(string); v2.0.0 does not, and naturalquery:doctor will say so."
     },
     "autoload": {
         "psr-4": {

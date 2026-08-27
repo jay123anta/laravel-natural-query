@@ -5,7 +5,7 @@
  *
  * Committed so the benchmark runs offline and reproducibly. Spider does not
  * distribute its SQLite files through this channel, so the tables are created
- * from the published schema and filled with synthetic rows — see
+ * from the published schema and filled with synthetic rows -  see
  * SpiderSampleTest for exactly what that lets the number be compared against,
  * and what it does not.
  *

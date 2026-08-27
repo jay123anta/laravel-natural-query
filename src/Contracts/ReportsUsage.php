@@ -5,8 +5,8 @@ namespace Jayanta\NaturalQuery\Contracts;
 /**
  * A provider that can say what its last call cost.
  *
- * Every provider API returns a usage block — Gemini's `usageMetadata`,
- * OpenAI's `usage` — and the package threw all of it away. That left an
+ * Every provider API returns a usage block -  Gemini's `usageMetadata`,
+ * OpenAI's `usage` -  and the package threw all of it away. That left an
  * adopter unable to answer the first question any finance or platform team
  * asks about an AI feature: what does it cost, and who is spending it?
  *
@@ -28,7 +28,7 @@ interface ReportsUsage
      *
      * Empty when the provider returned no usage block, which some
      * OpenAI-compatible servers do not. Absent numbers are omitted rather than
-     * reported as zero — zero is a real value and would quietly understate a
+     * reported as zero -  zero is a real value and would quietly understate a
      * bill.
      *
      * @return array{prompt_tokens?: int, completion_tokens?: int, total_tokens?: int, calls?: int}
@@ -39,7 +39,7 @@ interface ReportsUsage
      * Start counting again, at the beginning of a question.
      *
      * On the interface rather than left to implementations, because the caller
-     * has to be able to call it after an `instanceof` check — a provider that
+     * has to be able to call it after an `instanceof` check -  a provider that
      * reported usage but could not be reset would accumulate across every
      * question in the request and report a running total as a per-question
      * cost.

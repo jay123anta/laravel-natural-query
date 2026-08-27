@@ -15,14 +15,14 @@ use PHPUnit\Framework\Attributes\Test;
  * rendering into a shared, unit-testable class, proves the move is
  * behaviour-identical rather than merely "looks the same on inspection".
  * `QueryPlanner::buildPlanPrompt()` had its own, slightly different, copy
- * of this loop — that one was NOT pinned, because nothing in this codebase
+ * of this loop -  that one was NOT pinned, because nothing in this codebase
  * asserts on its exact text, and absorbing it into the same renderer is a
  * deliberate, harmless enrichment (it gains `aliases=` and
  * `default group_by=`), not a behaviour this test protects.
  */
 class DatasetInfoRenderingTest extends TestCase
 {
-    /** buildDatasetInfo() is protected — the wire format is what matters, not the access. */
+    /** buildDatasetInfo() is protected -  the wire format is what matters, not the access. */
     private function render(array $datasetList): string
     {
         $provider = new OllamaProvider(['model' => 'llama3']);

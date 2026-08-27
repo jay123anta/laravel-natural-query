@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * "Only in Guwahati" narrows. It does not choose a new measure and it does not
  * choose a new breakdown, so an intent that comes back with different ones has
- * re-guessed rather than answered — and merging those silently swaps the
+ * re-guessed rather than answered -  and merging those silently swaps the
  * question out from under the user.
  *
  * A weaker model on Groq did exactly that: after "total amount by city", the
@@ -93,7 +93,7 @@ class QueryStateMergeGuardTest extends TestCase
     }
 
     /**
-     * Called without a question — as older code and hand-built tests do — the
+     * Called without a question -  as older code and hand-built tests do -  the
      * guard cannot judge and stays out of the way.
      */
     #[Test]

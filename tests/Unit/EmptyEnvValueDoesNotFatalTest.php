@@ -56,7 +56,7 @@ class EmptyEnvValueDoesNotFatalTest extends TestCase
         unset($_ENV['NQ_PROBE_INT'], $_SERVER['NQ_PROBE_INT']);
     }
 
-    /** Unbounded stays unbounded — the default is null, not zero. */
+    /** Unbounded stays unbounded -  the default is null, not zero. */
     #[Test]
     public function an_empty_value_for_an_unbounded_setting_stays_null()
     {

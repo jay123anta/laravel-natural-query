@@ -6,11 +6,11 @@
 
 # Laravel NaturalQuery
 
-**Let people ask your database questions in English — by voice or by typing —
+**Let people ask your database questions in English -  by voice or by typing - 
 without your data ever leaving your server.**
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jay123anta/laravel-natural-query/main/docs/demo.gif" alt="Asking a database a question in English — the model receives only table and column names" width="100%">
+  <img src="https://raw.githubusercontent.com/jay123anta/laravel-natural-query/main/docs/demo.gif" alt="Asking a database a question in English -  the model receives only table and column names" width="100%">
 </p>
 
 
@@ -284,7 +284,7 @@ validator, a two-tier cache, conversation state, and a privacy wall. If you
 want to call an LLM, use Prism. If you want to let people ask your database
 questions, use this.
 
-**Hosted text-to-SQL** — the analytics products with an "ask your data" box —
+**Hosted text-to-SQL** -  the analytics products with an "ask your data" box - 
 send your schema *and usually your rows* to a third party, and price per seat.
 This runs in your application, sends schema structure only, and can run
 entirely offline against Ollama.
@@ -314,7 +314,7 @@ often you are wrong. Those took this package four adversarial review rounds and
 ```bash
 php artisan naturalquery:install        # publish config and migrations
 php artisan naturalquery:discover       # write schema files from your database
-php artisan naturalquery:audit-schema   # what the AI still has to guess — do this next
+php artisan naturalquery:audit-schema   # what the AI still has to guess -  do this next
 php artisan naturalquery:doctor         # diagnose setup problems, print the fix
 php artisan naturalquery:benchmark      # how accurate is it on YOUR schema?
 php artisan naturalquery:debug "…"      # the exact prompt, and which route it takes

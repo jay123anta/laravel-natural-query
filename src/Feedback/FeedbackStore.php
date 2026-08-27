@@ -73,7 +73,7 @@ class FeedbackStore
     }
 
     /**
-     * Record a positive signal — user confirmed the result was correct.
+     * Record a positive signal -  user confirmed the result was correct.
      */
     public function recordPositive(string $query, string $dataset, string $generatedSql): bool
     {

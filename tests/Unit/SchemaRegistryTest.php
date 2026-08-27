@@ -156,7 +156,7 @@ class SchemaRegistryTest extends TestCase
     #[Test]
     public function a_table_reached_only_through_a_foreign_key_is_not_silently_allowed()
     {
-        // Whitelisting is built from schema files, never from relationships —
+        // Whitelisting is built from schema files, never from relationships -
         // otherwise describing one table would quietly expose its neighbours.
         $this->assertFalse($this->registry->allowsTable('some_unlisted_table'));
     }

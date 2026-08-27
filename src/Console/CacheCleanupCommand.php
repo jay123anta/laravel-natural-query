@@ -42,12 +42,12 @@ class CacheCleanupCommand extends Command
 
         $dataset = $this->option('dataset');
 
-        // clear() ANDs its filters. A bare run wants the conservative pair —
+        // clear() ANDs its filters. A bare run wants the conservative pair -
         // remove what is both stale and unused. Naming a dataset is a
         // different request: purge that dataset. ANDing the defaults in behind
         // the user meant --dataset could only ever delete rows nobody was
-        // using, while the reason to run it — a schema file changed and its
-        // cached answers are now wrong — describes rows being hit daily. The
+        // using, while the reason to run it -  a schema file changed and its
+        // cached answers are now wrong -  describes rows being hit daily. The
         // documented remedy removed nothing and said "Cleaned up 0".
         //
         // Given explicitly, --days and --min-hits still narrow a dataset purge.

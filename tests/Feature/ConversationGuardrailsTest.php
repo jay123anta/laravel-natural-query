@@ -165,7 +165,7 @@ class ConversationGuardrailsTest extends TestCase
     public function a_follow_up_is_never_answered_from_cache()
     {
         // "Only in West" means one thing after a revenue question and another
-        // after an order count. Same words, different question — so a turn
+        // after an order count. Same words, different question -  so a turn
         // carrying state must not be served, or stored, by a text-keyed cache.
         config(['naturalquery.cache.enabled' => true]);
         $this->provider();

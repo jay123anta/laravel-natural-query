@@ -11,14 +11,14 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  *
  * "Compare revenue this year with last year" is two queries and a subtraction.
  * Answered as one, it returns whichever half the model happened to write SQL
- * for, and the other half is silently missing — the same failure mode as a
+ * for, and the other half is silently missing -  the same failure mode as a
  * dropped GROUP BY, with the same confident presentation.
  *
  * Planning costs an API call, so it is not run on every question. A local
  * pattern check gates it: questions with no sign of comparison or conjunction
  * go straight down the existing single-query path at exactly the cost they do
  * today. This keeps the common case free and, more importantly, keeps it
- * unchanged — a planner that fires on "top 5 customers" could only make that
+ * unchanged -  a planner that fires on "top 5 customers" could only make that
  * worse.
  *
  * PRIVACY: the planning prompt contains the question and the dataset list.
@@ -80,7 +80,7 @@ class QueryPlanner
      * Split a question into standalone sub-questions.
      *
      * Each returned question must stand on its own, because each is answered by
-     * the ordinary single-query path — the same intent parsing, the same
+     * the ordinary single-query path -  the same intent parsing, the same
      * validation, the same table whitelist. Nothing here bypasses a guard.
      *
      * @return array{success: bool, steps: array<int, string>, comparison: bool, error?: string, status?: int|null, refused_before_sending?: bool}
@@ -98,7 +98,7 @@ class QueryPlanner
             // With one exception, and the status is carried out so the caller
             // can tell: a 429 means the provider has asked for fewer calls, and
             // answering it by making another is the one response that makes
-            // things worse. The caller decides — this class just stops throwing
+            // things worse. The caller decides -  this class just stops throwing
             // the evidence away.
             return [
                 'success' => false,
@@ -129,7 +129,7 @@ class QueryPlanner
 
         $steps = array_slice(array_values(array_unique($steps)), 0, $maxSteps);
 
-        // One step is not a plan — it is the question we already had.
+        // One step is not a plan -  it is the question we already had.
         if (count($steps) < 2) {
             return ['success' => false, 'steps' => [], 'comparison' => false];
         }
@@ -164,7 +164,7 @@ USER QUESTION: "{$query}"
 AVAILABLE DATASETS:
 {$datasetList}
 
-It needs several queries when it asks about two or more separate things — two
+It needs several queries when it asks about two or more separate things -  two
 time periods, two named records, two datasets, or a total plus a breakdown.
 It needs only ONE query when a single SELECT with GROUP BY, WHERE or ORDER BY
 would answer it. "Revenue by region" is ONE query. "Revenue this year vs last
@@ -172,7 +172,7 @@ year" is TWO.
 
 Rules:
 - Each step must be a COMPLETE question that stands alone, with its own subject
-  and its own filter. Never write "and the same for last year" — write
+  and its own filter. Never write "and the same for last year" -  write
   "total revenue in 2025".
 - Use the vocabulary of the datasets above.
 - At most {$maxSteps} steps. Prefer fewer.

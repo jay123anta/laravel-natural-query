@@ -14,14 +14,14 @@ use PHPUnit\Framework\Attributes\Test;
  * NQ-002: the retry path undoes OllamaProvider's context-window refusal.
  *
  * v2.0.0 shipped OllamaProvider::willNotFit() so a prompt that would not fit
- * in num_ctx is refused BEFORE anything is sent — because Ollama does not
+ * in num_ctx is refused BEFORE anything is sent -  because Ollama does not
  * reject an oversized prompt, it silently drops the beginning (the schema)
  * and answers from what is left.
  *
  * That refusal is undone one layer up. QueryOrchestrator::handle() treats the
  * refusal exactly like any other provider failure: status 'error',
  * config('naturalquery.errors.retry_on_failure') defaults true, no
- * '_retried' or '_rate_limited' flag set — so it retries.
+ * '_retried' or '_rate_limited' flag set -  so it retries.
  * retryWithRefinedPrompt() then detects a dataset from keywords and builds a
  * SINGLE-dataset prompt, dramatically smaller than the multi-dataset prompt
  * that was just refused. That prompt clears the same num_ctx check and is
@@ -81,7 +81,7 @@ class OllamaContextGuardRetryBypassTest extends TestCase
     }
 
     /**
-     * A plausible response for the RETRY's single-dataset prompt — the
+     * A plausible response for the RETRY's single-dataset prompt -  the
      * multi-dataset prompt is never sent, so no fake is needed for it.
      */
     private function fakeSingleDatasetSqlResponse(): void
@@ -104,7 +104,7 @@ class OllamaContextGuardRetryBypassTest extends TestCase
     /**
      * Catches: the refusal is a LOCAL decision (no HTTP call). If the retry
      * fires with a smaller prompt, that prompt DOES clear num_ctx and a real
-     * request goes out — one request where a refused question should produce
+     * request goes out -  one request where a refused question should produce
      * none. Today that count is 1.
      */
     #[Test]
@@ -118,7 +118,7 @@ class OllamaContextGuardRetryBypassTest extends TestCase
     }
 
     /**
-     * Catches: the CALLER ends up with a success — a number — instead of the
+     * Catches: the CALLER ends up with a success -  a number -  instead of the
      * actionable refusal OllamaProvider tried to give them. The refusal named
      * num_ctx and how much context the question needed; none of that reaches
      * the caller once the retry has silently answered a narrower question.
@@ -138,7 +138,7 @@ class OllamaContextGuardRetryBypassTest extends TestCase
     /**
      * Pins the one workaround an adopter has today. With retries off, the
      * local refusal from willNotFit() is never overwritten, so this already
-     * passes — it is not evidence the defect is fixed, only that turning off
+     * passes -  it is not evidence the defect is fixed, only that turning off
      * naturalquery.errors.retry_on_failure avoids it.
      */
     #[Test]

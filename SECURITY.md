@@ -32,14 +32,14 @@ Reports that matter most:
 - **SQL that escapes the validator.** Anything non-`SELECT` reaching the
   database, or a query touching a table outside the schema-derived whitelist.
 - **Prompt injection with consequence.** Input that makes the engine run SQL
-  the schema forbids — not merely a strange answer.
+  the schema forbids -  not merely a strange answer.
 - **Authorisation bypass** on the HTTP routes, which spend your API key.
 - **Credential exposure** in logs, events, exceptions or cached rows.
 
 ## What does not
 
 - **A wrong answer.** The package is documented as roughly one question in
-  five wrong on an uncurated schema. Report it as a bug — please do — but it
+  five wrong on an uncurated schema. Report it as a bug -  please do -  but it
   is not a security issue.
 - **Prompt injection that only produces nonsense** and is refused or returns
   no rows.

@@ -7,10 +7,10 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
- * Query Verifier — The X Factor
+ * Query Verifier -  The X Factor
  *
  * AI verifies its own SQL before execution. Catches wrong columns,
- * wrong ORDER, wrong JOINs, wrong aggregations — BEFORE the user
+ * wrong ORDER, wrong JOINs, wrong aggregations -  BEFORE the user
  * sees bad data.
  *
  * Flow:
@@ -65,7 +65,7 @@ class QueryVerifier
                     return $recheck;
                 }
 
-                // Re-verify failed — return fix anyway with its confidence
+                // Re-verify failed -  return fix anyway with its confidence
                 return [
                     'passed' => false,
                     'confidence' => $recheck['confidence'],
@@ -75,7 +75,7 @@ class QueryVerifier
                 ];
             }
 
-            // No re-verify — trust the fix
+            // No re-verify -  trust the fix
             return [
                 'passed' => true,
                 'confidence' => max($result['confidence'], 0.6),
@@ -98,7 +98,7 @@ class QueryVerifier
             $response = $this->llm->generateSql($prompt);
 
             if (!$response['success']) {
-                // LLM call failed — graceful degradation, treat as pass
+                // LLM call failed -  graceful degradation, treat as pass
                 Log::debug('[NaturalQuery:Verifier] LLM call failed, passing through');
 
                 return $this->defaultPass();
@@ -119,7 +119,7 @@ class QueryVerifier
                 'attempt' => 1,
             ];
         } catch (\Exception $e) {
-            // Any failure — graceful degradation
+            // Any failure -  graceful degradation
             Log::warning('[NaturalQuery:Verifier] Exception, passing through', ['error' => $e->getMessage()]);
 
             return $this->defaultPass();
@@ -156,7 +156,7 @@ PROMPT;
     }
 
     /**
-     * Build compact schema — one line per table with column names only.
+     * Build compact schema -  one line per table with column names only.
      * Example: "orders(id, customer, revenue, status) JOIN customers(id, name)"
      */
     protected function buildCompactSchema(?string $datasetKey): string

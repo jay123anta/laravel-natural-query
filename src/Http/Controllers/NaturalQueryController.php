@@ -42,7 +42,7 @@ class NaturalQueryController extends Controller
      * One rule for a question, wherever it arrives.
      *
      * /text demanded three characters while /conversation accepted one, so the
-     * same follow-up — "no", "up", a bare year — was answered by one endpoint
+     * same follow-up -  "no", "up", a bare year -  was answered by one endpoint
      * and rejected by the other with a validation error the user could do
      * nothing about. Short questions are real questions.
      */
@@ -55,7 +55,7 @@ class NaturalQueryController extends Controller
      * Send a result with an HTTP status that matches what went wrong.
      *
      * The status comes from the error code, in one place, so the two cannot
-     * drift apart — a rate limit arriving as 400 told every client its request
+     * drift apart -  a rate limit arriving as 400 told every client its request
      * was malformed.
      */
     protected function respond(array $result)
@@ -144,7 +144,7 @@ class NaturalQueryController extends Controller
      * Everything a front end needs to show what can be asked.
      *
      * This used to return a key and a name, with metrics behind a second call
-     * and dimensions not exposed at all — so a "what can I ask?" panel, the
+     * and dimensions not exposed at all -  so a "what can I ask?" panel, the
      * first thing anyone builds, could not be built. The hardest part of
      * querying your own data in words is knowing which questions the data can
      * answer, and the schema already knows.
@@ -258,7 +258,7 @@ class NaturalQueryController extends Controller
      * Step back to how the query stood before the last turn.
      *
      * "No, go back to revenue" is a state restore rather than another
-     * interpretation — every turn's state is kept, so returning to one is
+     * interpretation -  every turn's state is kept, so returning to one is
      * exact instead of being re-derived from the conversation.
      */
     public function rewindConversation(Request $request, string $sessionId)
@@ -272,7 +272,7 @@ class NaturalQueryController extends Controller
      * The conversation as it currently stands.
      *
      * A front end that reloads has lost what it was showing, and the state
-     * lives on the server — without this it cannot restore the filters in
+     * lives on the server -  without this it cannot restore the filters in
      * force, and the next follow-up resolves against context the user can no
      * longer see.
      */

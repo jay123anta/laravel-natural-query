@@ -9,15 +9,15 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  *
  * Intent mode expresses a deliberately small slice of SQL: one measure, one
  * grouping, one name filter, one period, an order and a limit. That covers most
- * questions and is safer than free SQL generation — deterministic, no
+ * questions and is safer than free SQL generation -  deterministic, no
  * hallucinated columns, no clause the validator has to catch.
  *
  * The danger is what happens at the edge. A question needing something the
  * contract cannot represent did not fail: the unrepresentable part was dropped
  * and the remainder answered, with no sign that a narrower question had been
- * substituted. Four defects of exactly that shape were found in three days —
+ * substituted. Four defects of exactly that shape were found in three days -
  * a dropped GROUP BY, a dropped metric, a dropped clarification, a dropped
- * period — each fixed by widening the contract by one field.
+ * period -  each fixed by widening the contract by one field.
  *
  * Widening it one field at a time never closes the gap; there is always
  * another clause. So this asks the opposite question: does the wording show
@@ -25,8 +25,8 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  * generation, which can express arbitrary (still validated, still SELECT-only)
  * SQL.
  *
- * Escalating is close to free — intent parsing and SQL generation are one API
- * call each — so a false positive costs nothing but determinism, while a false
+ * Escalating is close to free -  intent parsing and SQL generation are one API
+ * call each -  so a false positive costs nothing but determinism, while a false
  * negative is a confidently wrong number. The patterns lean towards escalating.
  */
 class IntentCoverage
@@ -34,7 +34,7 @@ class IntentCoverage
     /**
      * Optional so an IntentCoverage built by hand keeps working. Without it,
      * the non_sum_aggregate rule cannot tell a schema that already provides an
-     * average from one that does not, and escalates either way — the safe
+     * average from one that does not, and escalates either way -  the safe
      * direction, at the cost of one extra call.
      */
     public function __construct(protected ?SchemaRegistry $registry = null) {}
@@ -44,12 +44,12 @@ class IntentCoverage
      * component it implies. Named so the metadata can say WHY it escalated.
      */
     protected const BEYOND_CONTRACT = [
-        // HAVING — filtering groups by an aggregate
+        // HAVING -  filtering groups by an aggregate
         'having' => [
             '/\b(?:with|having|that\s+have|who\s+have)\s+(?:more|less|fewer|greater|at\s+least|at\s+most|over|under)\b/i',
             '/\bmore\s+than\s+\d+\s+\w+/i',
         ],
-        // WHERE on a measure — the contract filters by name and period only
+        // WHERE on a measure -  the contract filters by name and period only
         'numeric_filter' => [
             '/\b(?:over|above|under|below|greater\s+than|less\s+than|at\s+least|at\s+most)\s+[\d£$€₹]/i',
             '/\bbetween\s+[\d£$€₹][\d,.]*\s+and\s+[\d£$€₹]/i',
@@ -59,7 +59,7 @@ class IntentCoverage
             // miss it precisely because there is no number in the sentence.
             '/\b(?:above|below|over|under|more\s+than|less\s+than|greater\s+than|higher\s+than|lower\s+than|worse\s+than|better\s+than)\s+(?:the\s+)?(?:average|mean|median|typical|maximum|minimum|max|min|overall)\b/i',
         ],
-        // Negation — no NOT anywhere in the contract
+        // Negation -  no NOT anywhere in the contract
         'exclusion' => [
             '/\b(?:excluding|except|other\s+than|apart\s+from|but\s+not|without\s+(?:the\s+)?(?:any\s+)?\w+)\b/i',
             '/\bnot\s+(?:including|counting|in)\b/i',
@@ -72,7 +72,7 @@ class IntentCoverage
             // of distinct values, not a count per country.
             '/\bdifferent\s+\w+/i',
         ],
-        // Ratios and shares — arithmetic between two aggregates
+        // Ratios and shares -  arithmetic between two aggregates
         'ratio' => [
             '/\b(?:percentage|percent|share|proportion|ratio)\s+of\b/i',
             '/\bwhat\s+(?:percent|percentage)\b/i',
@@ -95,7 +95,7 @@ class IntentCoverage
         // The intent contract names a METRIC and nothing about what to do with
         // it, and SqlBuilder wraps every aggregatable column in SUM(). So
         // "average amount" summed: 12,100 where the answer is 4,033.33. Not a
-        // refusal, not an obviously odd figure — a plausible number, three
+        // refusal, not an obviously odd figure -  a plausible number, three
         // times too large, labelled "average". Found by asking questions whose
         // answers could be checked by hand.
         //
@@ -112,7 +112,7 @@ class IntentCoverage
         ],
 
         // A list of columns to show. The contract projects one label and one
-        // measure, so "name, country and age" returned name and age — the
+        // measure, so "name, country and age" returned name and age -  the
         // missing column is not reported, it simply is not there.
         'multi_column' => [
             '/\b(?:show|list|display|give\s+me|what\s+are|return)\b[^?]{0,60}?\b\w+\s*,\s*\w+\s*,\s*(?:and\s+)?\w+/i',
@@ -123,13 +123,13 @@ class IntentCoverage
             // this from matching "revenue by region" or "orders and revenue".
             '/\b(?:show|list|display|give\s+me|what\s+(?:is|are)|return)\b[^?]{0,40}?\b\w+\s+and\s+(?:the\s+)?\w+(?:\s+\w+)?\s+(?:for|of|by|from|in)\b/i',
             // "the full name of each maker, ALONG WITH its id and how many
-            // models" — an explicit request for extra columns beside the one
+            // models" -  an explicit request for extra columns beside the one
             // being measured.
             '/\balong\s+with\b/i',
             '/\b(?:list|show|give)\b[^?]{0,50}?\b(?:its|their)\s+\w+\s+and\s+\w+/i',
         ],
 
-        // Per-group superlatives — a window function or correlated subquery
+        // Per-group superlatives -  a window function or correlated subquery
         'per_group_top' => [
             '/\btop\s+\d+\s+\w+\s+(?:in|for|per)\s+each\b/i',
             '/\b(?:for|in)\s+each\s+\w+.*\b(?:top|best|highest|lowest)\b/i',
@@ -149,7 +149,7 @@ class IntentCoverage
 
         foreach (self::BEYOND_CONTRACT as $component => $patterns) {
             // A schema that defines the aggregate as a computed metric can
-            // express it perfectly well — computed_metrics is precisely the
+            // express it perfectly well -  computed_metrics is precisely the
             // place a schema says "average order value means ROUND(AVG(amount),
             // 2)". Escalating those would spend a second call to reach the same
             // answer, and lose the determinism intent mode is for.
@@ -170,7 +170,7 @@ class IntentCoverage
     /**
      * Does a schema define this aggregate as a metric of its own?
      *
-     * computed_metrics is how a schema expresses anything SUM cannot — an
+     * computed_metrics is how a schema expresses anything SUM cannot -  an
      * average, a rate, a ratio. If the question names one, intent mode answers
      * it correctly and there is nothing to escalate.
      *

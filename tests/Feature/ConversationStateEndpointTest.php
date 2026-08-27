@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  * The state lives on the server, so a front end that reloads the page has lost
  * everything it was showing while the filters remain in force. Without a way to
  * read them, the next follow-up resolves against context the user can no longer
- * see — and the "reading this as" line, which exists precisely so a misreading
+ * see -  and the "reading this as" line, which exists precisely so a misreading
  * is visible, disappears at the moment it matters most.
  */
 class ConversationStateEndpointTest extends TestCase
@@ -132,7 +132,7 @@ class ConversationStateEndpointTest extends TestCase
 
     /**
      * Session ids are scoped to the authenticated user inside the manager. Two
-     * people guessing the same id must not read each other's conversation —
+     * people guessing the same id must not read each other's conversation -
      * the state carries what they asked about, which is a data leak of a
      * different kind from the row values the privacy wall protects.
      */

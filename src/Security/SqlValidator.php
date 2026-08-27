@@ -127,7 +127,7 @@ class SqlValidator implements SqlValidatorInterface
             // Matching rules:
             //   - exact match ('public.orders' vs 'public.orders', 'orders' vs 'orders')
             //   - a BARE reference may match a schema-qualified whitelist entry
-            //     ('orders' matches allowed 'public.orders' — the DB resolves it
+            //     ('orders' matches allowed 'public.orders' -  the DB resolves it
             //     via search_path to the same table)
             //   - a SCHEMA-QUALIFIED reference must match exactly. It must NOT
             //     match a bare whitelist entry: if 'users' is whitelisted,
@@ -200,7 +200,7 @@ class SqlValidator implements SqlValidatorInterface
         // FROM is not always a table reference. EXTRACT(YEAR FROM order_date),
         // TRIM(BOTH ' ' FROM name) and SUBSTRING(name FROM 1 FOR 3) all use the
         // keyword inside a function call, and reading the argument as a table
-        // refused ordinary SQL with "Unauthorized table: order_date" — a column
+        // refused ordinary SQL with "Unauthorized table: order_date" -  a column
         // name, reported as an unauthorised table, on a question as plain as
         // "total revenue this year".
         //
@@ -228,7 +228,7 @@ class SqlValidator implements SqlValidatorInterface
             $tables = array_merge($tables, $matches[1]);
         }
 
-        // Remove CTE names (WITH x AS ...) — these are not real tables
+        // Remove CTE names (WITH x AS ...) -  these are not real tables
         if (preg_match_all('/\bWITH\s+([a-zA-Z_]\w*)\s+AS\s*\(/i', $sql, $cteMatches)) {
             $tables = array_diff($tables, $cteMatches[1]);
         }
@@ -250,7 +250,7 @@ class SqlValidator implements SqlValidatorInterface
      *
      * EXTRACT(YEAR FROM col), TRIM(BOTH ' ' FROM col), SUBSTRING(col FROM 1 FOR
      * 2) and OVERLAY(... FROM ...) are standard SQL. Only the keyword is
-     * replaced — the argument is left in place, so nothing that follows can
+     * replaced -  the argument is left in place, so nothing that follows can
      * shift position and nothing real is hidden.
      */
     protected function neutraliseFunctionKeywords(string $sql): string

@@ -65,7 +65,7 @@ class MysqlIntrospectorTest extends TestCase
             ) ENGINE=InnoDB COMMENT='Stock movements per bin'
         ");
         // 'DECOY' is deliberately the top-ranked bin. If a lookup ever loses
-        // its filter and falls back to a ranking query, it returns DECOY —
+        // its filter and falls back to a ranking query, it returns DECOY -
         // which is how the "specific record answered with the top row" bug
         // stays visible instead of passing by coincidence.
         //
@@ -174,7 +174,7 @@ class MysqlIntrospectorTest extends TestCase
 
     /**
      * A value containing digits used to be rejected by the sanitiser, and a
-     * rejected value meant no filter — so this question was answered with the
+     * rejected value meant no filter -  so this question was answered with the
      * top-ranked bin instead. DECOY exists to make that visible.
      */
     #[Test]
@@ -238,7 +238,7 @@ class MysqlIntrospectorTest extends TestCase
         $this->assertSame(
             'group_detail',
             $built['query_type'],
-            "'{$value}' did not produce a filtered lookup — it became a ranking query"
+            "'{$value}' did not produce a filtered lookup -  it became a ranking query"
         );
 
         $rows = DB::connection(self::CONNECTION)->select($built['sql'], $built['bindings']);

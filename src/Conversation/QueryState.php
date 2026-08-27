@@ -8,8 +8,8 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  * What the conversation currently means, as slots rather than sentences.
  *
  * A follow-up used to be resolved by rewriting it into a new sentence and
- * handing that back to the model. Every rewrite lost something — "only in West"
- * became "show only in West details in Orders" and the metric disappeared — and
+ * handing that back to the model. Every rewrite lost something -  "only in West"
+ * became "show only in West details in Orders" and the metric disappeared -  and
  * every turn re-parsed the whole dialogue, so a misread early on propagated
  * unpredictably through the ones after it.
  *
@@ -26,7 +26,7 @@ class QueryState
         'dataset', 'metric', 'group_by', 'filter_column', 'group_value',
         // Filters ACCUMULATE. "Only in West" then "and what about
         // Electronics?" means both, and holding one at a time made the second
-        // silently replace the first — the answer covered every region and
+        // silently replace the first -  the answer covered every region and
         // read exactly like a correct answer to the question asked.
         'filters',
         'date_from', 'date_to', 'order', 'limit', 'query_type',
@@ -34,6 +34,29 @@ class QueryState
 
     /** @var array<string, mixed> */
     protected array $slots;
+
+    /**
+     * The period this ONE answer covered, as a label, for summary() only.
+     *
+     * Deliberately NOT a slot. It is a rendered string like "July 2026" rather
+     * than a range that can be intersected with a follow-up's, so carrying it
+     * forward would caption the next answer with a window that answer never
+     * applied.
+     *
+     * The first attempt made it a slot and excluded it inside merge() and
+     * toIntent(). That failed twice over, in both directions at once. It still
+     * carried, because merge() begins by copying every slot and only ITERATES
+     * the carrying list, and because drillDown() and withoutFilters() copy the
+     * slots too and were never touched. And it was simultaneously destroyed on
+     * the conversation route, because StateValidator rebuilds the state from
+     * toIntent(), so the label never survived to reach state_summary at all.
+     *
+     * Keeping it off the slot array makes both impossible rather than
+     * remembered: nothing that copies slots can move it, and nothing that
+     * rebuilds from slots can lose what it never held. A comment asserting an
+     * invariant is not an invariant.
+     */
+    protected ?string $period = null;
 
     /** Which turn produced this state, for rewinding. */
     public int $seq;
@@ -50,13 +73,13 @@ class QueryState
 
     public static function fromIntent(array $intent, int $seq = 1): self
     {
-        return new self([
+        return (new self([
             'dataset' => $intent['dataset'] ?? null,
             'metric' => $intent['metric'] ?? null,
             'group_by' => $intent['group_by'] ?? null,
             'filter_column' => $intent['filter_column'] ?? null,
             // Carried, because summary() reads this slot and every path that
-            // builds a state from an intent was leaving it empty — so a
+            // builds a state from an intent was leaving it empty -  so a
             // question that narrowed to one status described itself exactly
             // like the unnarrowed total, and a follow-up inherited a filter
             // the state had never recorded.
@@ -67,7 +90,29 @@ class QueryState
             'order' => $intent['order'] ?? null,
             'limit' => $intent['limit'] ?? null,
             'query_type' => $intent['query_type'] ?? null,
-        ], $seq);
+        ], $seq))->withPeriod(
+            // Descriptive only, and never a slot: see the property docblock.
+            isset($intent['period']) ? (string) $intent['period'] : null
+        );
+    }
+
+    /**
+     * A copy labelled with the period THIS answer covered.
+     *
+     * Returns a new instance rather than mutating, so a state held for the
+     * conversation cannot acquire a label from the answer being rendered.
+     */
+    public function withPeriod(?string $period): self
+    {
+        $clone = clone $this;
+        $clone->period = ($period === null || $period === '') ? null : $period;
+
+        return $clone;
+    }
+
+    public function period(): ?string
+    {
+        return $this->period;
     }
 
     public function get(string $slot): mixed
@@ -89,13 +134,15 @@ class QueryState
      */
     public function merge(array $intent, int $seq, ?string $question = null): self
     {
+        // Every derivation here returns a NEW instance, so the period label
+        // never travels with it — it is not a slot, and this copies slots.
         $merged = $this->slots;
 
         // What the instruction is actually allowed to change.
         //
         // "Only in Guwahati" narrows. It does not choose a new measure and it
         // does not choose a new breakdown, so an intent that came back with
-        // different ones has re-guessed rather than answered — and merging
+        // different ones has re-guessed rather than answered -  and merging
         // those silently swaps the question. A weaker model on Groq did exactly
         // that: after "total amount by city", the narrowing turn returned
         // record_count by client, and the answer counted invoices per client
@@ -144,7 +191,7 @@ class QueryState
      * Does the instruction pick a measure of its own?
      *
      * Anything naming a quantity or an aggregate is choosing one; "only in
-     * West" is not. Deliberately generous — a false positive merely allows a
+     * West" is not. Deliberately generous -  a false positive merely allows a
      * change the model asked for, while a false negative pins the wrong
      * measure in place.
      */
@@ -167,7 +214,7 @@ class QueryState
      * Add this turn's filter to the ones already in force.
      *
      * Narrowing twice narrows twice: West, then Electronics, means Electronics
-     * within West. Naming the SAME column again replaces that one — "actually,
+     * within West. Naming the SAME column again replaces that one -  "actually,
      * East" is a correction, not a second region.
      *
      * @return array<int, array{column: string, value: mixed}>
@@ -180,14 +227,14 @@ class QueryState
         // Merged by column, never taken as the complete set.
         //
         // The model is asked to restate every filter still in force, and it
-        // does not reliably do so — asked to add Electronics to an existing
+        // does not reliably do so -  asked to add Electronics to an existing
         // region filter it returns Electronics alone. Treating that as the
         // whole truth silently dropped the region and widened the answer.
         //
         // Merging by column gets both cases right without depending on the
         // model's memory: a NEW column is added, a REPEATED column is
         // corrected. What it cannot express is removing a filter, which is
-        // deliberate — that happens explicitly, through withoutFilters(),
+        // deliberate -  that happens explicitly, through withoutFilters(),
         // rewind, or New topic, never as a side effect of a model omission.
         if (!$incoming && ($intent['filter_column'] ?? null) && ($intent['group_value'] ?? null)) {
             $incoming = [['column' => $intent['filter_column'], 'value' => $intent['group_value']]];
@@ -223,7 +270,7 @@ class QueryState
         return new self($slots, $seq, $this->refinements + 1);
     }
 
-    /** A fresh state — a new question inherits nothing. */
+    /** A fresh state -  a new question inherits nothing. */
     public function replace(array $intent, int $seq): self
     {
         return self::fromIntent($intent, $seq);
@@ -241,7 +288,13 @@ class QueryState
         return new self($merged, $seq, $this->refinements + 1);
     }
 
-    /** @return array<string, mixed> the intent this state represents */
+    /**
+     * @return array<string, mixed> the intent this state represents
+     *
+     * Descriptive slots are excluded: this feeds the state block of the next
+     * turn's prompt, and a label describing the previous answer is not an
+     * instruction the model should carry forward.
+     */
     public function toIntent(): array
     {
         return array_filter($this->slots, fn ($v) => $v !== null && $v !== '');
@@ -302,8 +355,14 @@ class QueryState
                 : 'for ' . $value;
         }
 
+        // A resolved range when the intent route worked one out, otherwise the
+        // label the SQL routes report. Without the fallback, every answer that
+        // wrote its own WHERE printed no period at all -  so a month's total
+        // and an all-time total were one indistinguishable sentence.
         if ($this->get('date_from') || $this->get('date_to')) {
             $parts[] = trim(($this->get('date_from') ?? '') . ' to ' . ($this->get('date_to') ?? 'now'), ' to ');
+        } elseif ($this->period !== null) {
+            $parts[] = $this->period;
         }
 
         return implode(' · ', $parts);

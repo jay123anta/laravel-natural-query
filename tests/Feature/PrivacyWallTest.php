@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\Test;
 
 /**
  * The privacy wall is the product: only schema structure and the user's own
- * question may ever reach an LLM provider — never data values, never result
+ * question may ever reach an LLM provider -  never data values, never result
  * rows, never anything derived from them.
  *
  * Until now that was guaranteed by design and checked by hand in a browser's
@@ -27,7 +27,7 @@ use PHPUnit\Framework\Attributes\Test;
  * searched for those sentinels.
  *
  * Two rules for anything added here:
- *   1. The sentinels must exist ONLY in the database — never in the schema
+ *   1. The sentinels must exist ONLY in the database -  never in the schema
  *      stub, the question text, or a test name. Otherwise a "leak" is just the
  *      test finding its own fixture.
  *   2. Every test must prove the query actually returned sentinel-bearing rows.
@@ -77,7 +77,7 @@ class PrivacyWallTest extends TestCase
 
         // The package supports Postgres and MySQL; SQLite introspection was
         // deliberately dropped. SQLite is used here only as an executable store
-        // for the seeded rows — the data flow under test is engine-independent,
+        // for the seeded rows -  the data flow under test is engine-independent,
         // and this keeps the suite service-free in CI. PromptBuilder asks the
         // introspector for one thing, `getDialect()`, so the real MySQL
         // introspector is bound and the prompt path stays genuine.
@@ -127,7 +127,7 @@ class PrivacyWallTest extends TestCase
     public function self_verification_sends_the_sql_but_no_row_data()
     {
         // The verifier re-contacts the provider with the question and the SQL.
-        // SQL text is not data — but a verifier that ever showed the model a
+        // SQL text is not data -  but a verifier that ever showed the model a
         // sample of the rows would breach the privacy wall, so it is checked
         // explicitly.
         config()->set('naturalquery.query_mode', 'sql_generation');
@@ -210,7 +210,7 @@ class PrivacyWallTest extends TestCase
 
         $result = $this->orchestrator()->query('show me the numbers');
 
-        // The fixture deliberately omits 'metric' and 'district' — a provider
+        // The fixture deliberately omits 'metric' and 'district' -  a provider
         // only has to return what it resolved, and a clarification must still
         // come back rather than a generic error.
         $this->assertSame('clarification_needed', $result['status'] ?? null);
@@ -221,7 +221,7 @@ class PrivacyWallTest extends TestCase
      * A spoken question is a text question by the time the package sees it.
      *
      * The browser does the listening and posts words, so there is no separate
-     * audio path to police — which is itself a privacy property worth stating:
+     * audio path to police -  which is itself a privacy property worth stating:
      * no recording of anyone's voice ever reaches this server, let alone a
      * model provider. The package used to accept uploaded audio; that is gone,
      * and this replaces the test that covered it.
@@ -303,7 +303,7 @@ class PrivacyWallTest extends TestCase
             $this->assertStringNotContainsString(
                 $sentinel,
                 $transmitted,
-                "PRIVACY WALL BREACH — the value '{$sentinel}' exists only in the database, "
+                "PRIVACY WALL BREACH -  the value '{$sentinel}' exists only in the database, "
                 . 'and it was sent to the LLM provider'
             );
         }

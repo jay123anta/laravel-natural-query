@@ -12,8 +12,8 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * A 429 must reach the caller as a 429, from wherever it happens.
  *
- * The package promises this in docs/TROUBLESHOOTING.md — it "fails fast on 429,
- * it deliberately does not fall back or retry the whole query" — and
+ * The package promises this in docs/TROUBLESHOOTING.md -  it "fails fast on 429,
+ * it deliberately does not fall back or retry the whole query" -  and
  * docs/API.md tells clients to branch on error_code, with rate_limited mapped
  * to HTTP 429, retryable, Retry-After set. A rate limit reported as anything
  * else is an active instruction to every SDK and queue worker NOT to back off,
@@ -26,10 +26,10 @@ use PHPUnit\Framework\Attributes\Test;
  *   intent call ............... guarded
  *   SQL generation ............ guarded via providerFailure()
  *   refinement retry .......... guarded via providerFailure()
- *   dataset identification .... NOT GUARDED — the response was read only for
+ *   dataset identification .... NOT GUARDED -  the response was read only for
  *                               ['dataset'], so a 429 was discarded and
  *                               generateSql called immediately afterwards
- *   step loop in runSteps ..... NOT GUARDED — every step ran regardless, so
+ *   step loop in runSteps ..... NOT GUARDED -  every step ran regardless, so
  *                               one rate limit became N more calls, and the
  *                               multi-step envelope carried no error_code at
  *                               all, so the controller produced HTTP 500 with
@@ -67,7 +67,7 @@ class RateLimitSurvivesEveryPathTest extends TestCase
      * shape of a per-minute quota: the small plan prompt gets through and the
      * two full-schema step prompts do not. A provider that is limited from the
      * first call never reaches the loop at all, because the plan-429 guard
-     * added earlier in this release catches it — which is exactly how the loop
+     * added earlier in this release catches it -  which is exactly how the loop
      * came to be missed.
      */
     private function limitedAfterPlanning(): RecordingProvider
@@ -92,7 +92,7 @@ class RateLimitSurvivesEveryPathTest extends TestCase
 
     /**
      * The dataset-identification call. Its response was consumed as
-     * `$intent['dataset'] ?? null` — a 429 has no dataset, so it read null and
+     * `$intent['dataset'] ?? null` -  a 429 has no dataset, so it read null and
      * fell through to generateSql, spending a second call on a provider that
      * had just said stop.
      */

@@ -30,7 +30,7 @@ class QuestionAnswered
 
         public readonly int $rowCount,
 
-        /** intent | sql_generation — which strategy actually answered. */
+        /** intent | sql_generation -  which strategy actually answered. */
         public readonly ?string $modeUsed,
 
         public readonly bool $cacheHit,

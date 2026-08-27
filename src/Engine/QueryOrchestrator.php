@@ -30,7 +30,7 @@ use Jayanta\NaturalQuery\Security\InputGuard;
  *    Safest, but limited to predefined metrics in schema config.
  *
  * 2. SQL GENERATION MODE: AI receives full table structure and generates
- *    SQL directly. More flexible — works with any query. SQL is validated
+ *    SQL directly. More flexible -  works with any query. SQL is validated
  *    before execution.
  *
  * 3. AUTO MODE (default): Tries intent mode first. If intent parsing
@@ -42,7 +42,7 @@ use Jayanta\NaturalQuery\Security\InputGuard;
 class QueryOrchestrator
 {
     /**
-     * Shown when the LLM provider answers 429. Kept honest and actionable —
+     * Shown when the LLM provider answers 429. Kept honest and actionable -
      * a rate limit must never surface as "could not understand the query".
      */
     public const RATE_LIMIT_MESSAGE =
@@ -79,7 +79,7 @@ class QueryOrchestrator
     // resolveAskingDataset() below) as well as dataset detection in
     // processWithSqlGeneration(); PromptBudget is the bare `prompts.max_chars`
     // size bound the G1-round-3 ruling kept. Both optional and nullable, same
-    // pattern as the four above — a hand-built orchestrator (existing unit
+    // pattern as the four above -  a hand-built orchestrator (existing unit
     // tests construct one directly) keeps working exactly as today, with the
     // bound simply never engaging.
     protected ?DatasetSeeder $seeder;
@@ -128,8 +128,8 @@ class QueryOrchestrator
         $this->inputGuard = $inputGuard;
         $this->verifier = $verifier;
 
-        // Optional so an orchestrator built by hand — in a test, or in code
-        // written against the previous constructor — keeps working, simply
+        // Optional so an orchestrator built by hand -  in a test, or in code
+        // written against the previous constructor -  keeps working, simply
         // without chat features.
         $this->planner = $planner;
         $this->synthesizer = $synthesizer;
@@ -157,7 +157,7 @@ class QueryOrchestrator
         // provider is a singleton for the request; without this, the second
         // question of a conversation reports the first one's tokens too.
         //
-        // Not reset for the steps of a decomposed question — those are one
+        // Not reset for the steps of a decomposed question -  those are one
         // question to the user and should be billed as one.
         if (!$this->inStepExecution) {
             $this->lastSql = null;
@@ -187,7 +187,7 @@ class QueryOrchestrator
             // Announced after the guard and before any spending, so a listener
             // can attribute cost, enforce a quota the package knows nothing
             // about, or record who asked what. Steps of a decomposed question
-            // stay silent — the user asked one question.
+            // stay silent -  the user asked one question.
             if (!$this->inStepExecution) {
                 Event::dispatch(new QuestionAsked(
                     $naturalLanguageQuery,
@@ -219,7 +219,7 @@ class QueryOrchestrator
                     return $this->runSteps($naturalLanguageQuery, $plan, $datasetHint, $metadata, $startTime, $context);
                 }
 
-                // A plan that could not be built is not a reason to stop — the
+                // A plan that could not be built is not a reason to stop -  the
                 // question is still answerable the ordinary way, and falling
                 // through is the whole point of planning being an enhancement.
                 //
@@ -249,7 +249,7 @@ class QueryOrchestrator
                 if (($plan['status'] ?? null) === 429) {
                     // No `_rate_limited` flag. It exists to stop the refined
                     // retry, and this returns from above that block, so here it
-                    // would only leak an internal name into the JSON body —
+                    // would only leak an internal name into the JSON body -
                     // which query()'s tail strips and this exit skips.
                     $limited = $this->formatter->formatError(
                         self::RATE_LIMIT_MESSAGE,
@@ -275,14 +275,14 @@ class QueryOrchestrator
             // Check cache first (works for all modes).
             //
             // The dataset THIS question resolves to, at zero API cost, so the
-            // cache knows what a candidate row would have to match (NQ-003) —
+            // cache knows what a candidate row would have to match (NQ-003) -
             // see resolveAskingDataset() and TwoTierQueryCache::findForDataset().
             $cacheHit = false;
             $askingDataset = $this->resolveAskingDataset($naturalLanguageQuery, $datasetHint, $context);
 
             // Not looked up at all mid-conversation. Both readers refuse a row
             // when conversation state is present, so the lookup was pure cost
-            // — and worse than free: TwoTierQueryCache counts a hit the moment
+            // -  and worse than free: TwoTierQueryCache counts a hit the moment
             // it returns a row, so every follow-up incremented hit_count on a
             // row it was never going to use, and naturalquery:cache-stats
             // reported reuse that had not happened.
@@ -291,7 +291,7 @@ class QueryOrchestrator
                 : null;
 
             // An entry belonging to a different dataset is not a hit, and it is
-            // discarded HERE — at the one place a cached result enters — rather
+            // discarded HERE -  at the one place a cached result enters -  rather
             // than downstream where the mismatch is finally acted on.
             //
             // Discovering it downstream was too late. `cache_hit` is set the
@@ -305,7 +305,7 @@ class QueryOrchestrator
             // Null counts as a mismatch on EITHER side. The first version of
             // this guard read `$askingDataset !== null && ...`, which skipped
             // the check entirely whenever the asking dataset could not be
-            // placed — and resolveAskingDataset() returns null routinely, any
+            // placed -  and resolveAskingDataset() returns null routinely, any
             // time more than one dataset is registered and neither a hint, the
             // conversation state, nor a keyword names one. So a row cached from
             // a dataset-scoped page was served verbatim to the same wording
@@ -317,23 +317,23 @@ class QueryOrchestrator
             // Compared against the scope the CACHED question was asked under,
             // not against the dataset its answer turned out to be about. Those
             // are different values, and the first version of this guard used
-            // the second one — which is the only value the row had.
+            // the second one -  which is the only value the row had.
             //
             // The consequence was that a question naming no dataset never
             // matched its own row: the asking side resolved to null, the row
             // carried whatever dataset the model had chosen, and they could
             // never agree. On a multi-dataset install that is most questions,
             // so the cache was off for precisely the ones people repeat.
-            // Comparing scope to scope keeps the cross-dataset hit closed —
-            // an explicitly scoped row is still refused to an unscoped ask —
+            // Comparing scope to scope keeps the cross-dataset hit closed -
+            // an explicitly scoped row is still refused to an unscoped ask -
             // without charging for it on every ordinary repeat.
             // FAILS CLOSED. A missing scope is UNKNOWN, not "unscoped".
             //
             // `?? null` read both the same way, and the difference matters
             // because `_asking_scope` rides inside an opaque blob that a
             // third-party QueryCacheInterface was never asked to round-trip.
-            // An implementation that drops keys it does not recognise — which
-            // the 2.0.0 contract permitted — handed back rows with no scope,
+            // An implementation that drops keys it does not recognise -  which
+            // the 2.0.0 contract permitted -  handed back rows with no scope,
             // every one of which then looked eligible for any unscoped
             // question. The cross-dataset hit this release exists to close,
             // reopened for exactly the adopters who wrote their own cache.
@@ -341,7 +341,7 @@ class QueryOrchestrator
             // The same test also catches a blob that is not an array at all.
             // Those used to reach normalizeIntent(array $intent) and throw; the
             // \Throwable catch added earlier turned the crash into an error
-            // response, which was still wrong — Tier 2 rows never expire, so
+            // response, which was still wrong -  Tier 2 rows never expire, so
             // that question stayed permanently unanswerable with no remedy in
             // the message. An unreadable row is a MISS. The question is
             // answered, the row is rewritten on the way past, and it costs one
@@ -362,8 +362,8 @@ class QueryOrchestrator
             // Deliberately NOT flagging a hit here.
             //
             // Finding a row is not using one. Every reader below has its own
-            // reasons to refuse the row it was handed — mid-conversation,
-            // wrong dataset, wrong shape — and a flag set at the entry cannot
+            // reasons to refuse the row it was handed -  mid-conversation,
+            // wrong dataset, wrong shape -  and a flag set at the entry cannot
             // know about any of them. It used to be set here, and so a
             // conversation turn that both readers declined still reported
             // itself as cached: the provider generated the SQL, the audit log
@@ -380,18 +380,18 @@ class QueryOrchestrator
             } elseif ($queryMode === 'intent') {
                 $result = $this->processWithIntent($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
             } else {
-                // AUTO mode: intent first — unless the question plainly needs
+                // AUTO mode: intent first -  unless the question plainly needs
                 // SQL the intent contract cannot express.
                 //
                 // Falling back on ERROR is not enough, and that was the whole
                 // problem: intent mode did not fail on these questions, it
                 // succeeded at a narrower one. "Customers with more than 10
                 // orders" quietly became "customers", ranked. Deciding up front
-                // costs nothing — both modes are a single API call.
+                // costs nothing -  both modes are a single API call.
                 // A cached SQL recipe settles it before the coverage check
                 // does. Only processWithSqlGeneration can replay one; intent
-                // mode declines it, pays for a parseIntent, and — because both
-                // readers store under the same key — then OVERWRITES the recipe
+                // mode declines it, pays for a parseIntent, and -  because both
+                // readers store under the same key -  then OVERWRITES the recipe
                 // with an intent row. The next repeat finds an intent row,
                 // clarifies, falls back, regenerates, and overwrites the intent
                 // row with a recipe again. The cache oscillated between one and
@@ -413,7 +413,7 @@ class QueryOrchestrator
                 } else {
                     $result = $this->processWithIntent($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
 
-                    // Fall back when intent mode could not answer — whether it
+                    // Fall back when intent mode could not answer -  whether it
                     // failed outright, or asked a question it should not have
                     // needed to ask. A clarification is only offered here when
                     // the dataset chosen cannot express the breakdown but a
@@ -432,7 +432,7 @@ class QueryOrchestrator
                         $metadata['cache_hit'] = false;
                         $generated = $this->processWithSqlGeneration($naturalLanguageQuery, $datasetHint, $cachedResult, $metadata, $context);
 
-                        // Keep the clarification if generation did no better —
+                        // Keep the clarification if generation did no better -
                         // a usable question beats a bare failure.
                         if (($generated['status'] ?? '') === 'success'
                             || ($result['status'] ?? '') === 'error') {
@@ -443,13 +443,13 @@ class QueryOrchestrator
             }
 
             // Retry with refined prompt on failure (if enabled).
-            // Never retry a rate-limited request — it would only add load.
+            // Never retry a rate-limited request -  it would only add load.
             // Never retry a request the provider refused before sending
             // anything (NQ-002): Strategy 1 below retries with a SMALLER,
             // single-dataset prompt, which is exactly the wrong move for a
-            // refusal caused by prompt SIZE — the smaller prompt can clear
+            // refusal caused by prompt SIZE -  the smaller prompt can clear
             // the same guard and be answered for real, but as a narrower
-            // question than the one that was refused. isProviderFailure()
+            // question than the one that was refused. rewordingCannotHelp()
             // already recognises this class of result; it just used to be
             // consulted too late, after Strategy 1 had already fired.
             if (($result['status'] ?? '') === 'error'
@@ -482,7 +482,7 @@ class QueryOrchestrator
 
             // What this answer cost. Absent for a cache hit, which is the
             // point of the cache, and absent for providers that report no
-            // usage — an omitted figure is honest, a zero is not.
+            // usage -  an omitted figure is honest, a zero is not.
             if ($usage = $this->usageForThisQuestion()) {
                 $result['metadata']['usage'] = $usage;
             }
@@ -504,7 +504,7 @@ class QueryOrchestrator
             // NaturalQuery error response, and the HTTP layer's error_code,
             // retryable and Retry-After never happened.
             //
-            // Reachable from ordinary data rather than from a bug in the caller —
+            // Reachable from ordinary data rather than from a bug in the caller -
             // a cache row whose `intent` column is present but not an array
             // reaches normalizeIntent(array $intent) and throws. Tier 2 rows have
             // no expiry, so once one exists that question is a hard 500 forever.
@@ -534,7 +534,7 @@ class QueryOrchestrator
         // A follow-up is meaningless on its own: "only in West" means one thing
         // after a revenue question and another after an order count. So a turn
         // carrying conversation state is never answered from cache and never
-        // written to it — the words are the same and the question is not.
+        // written to it -  the words are the same and the question is not.
         $inConversation = !empty($context['state']);
 
         $intent = null;
@@ -542,7 +542,7 @@ class QueryOrchestrator
         // shares. processWithSqlGeneration() caches those rows with the
         // finished SQL in `_sql_result`, and it replays that SQL verbatim.
         // Handed the same row, this reader instead passes it to normalizeIntent()
-        // and SqlBuilder — and the intent contract has no slot for a WHERE
+        // and SqlBuilder -  and the intent contract has no slot for a WHERE
         // predicate, so a cached "revenue for pending orders" came back as the
         // revenue for every row: right shape, wrong number, status success,
         // no provider call, and no TTL on tier-2 rows to make it stop.
@@ -554,7 +554,7 @@ class QueryOrchestrator
         // Eligibility itself is not re-checked here. query() already discarded
         // any row asked under a different scope, and the check that used to sit
         // on this line compared the asking scope against the row's ANSWER
-        // dataset — the same conflation, one level down, rejecting a row that
+        // dataset -  the same conflation, one level down, rejecting a row that
         // had just been cleared on the correct grounds. NQ-003's original
         // version of it was worse still: it reconciled the mismatch by
         // overwriting $intent['dataset'], so an identical repeat could be
@@ -573,7 +573,7 @@ class QueryOrchestrator
 
             // Never overwrite a SQL recipe with an intent. Both readers store
             // under the same key, and the recipe is the row that can actually
-            // answer this question — it exists because the intent contract
+            // answer this question -  it exists because the intent contract
             // could not. Clobbering it throws away the better answer and
             // guarantees the next repeat pays to rebuild it.
             $wouldClobberARecipe = isset($cached['intent']['_sql_result']);
@@ -607,7 +607,7 @@ class QueryOrchestrator
         // The state was previously used only as prompt context: the SQL was
         // built from THIS turn's intent alone, so "and what about Electronics?"
         // executed with the Electronics filter and without the West one, while
-        // the state — and the line shown to the user — claimed both. A summary
+        // the state -  and the line shown to the user -  claimed both. A summary
         // that promises a narrowing the query does not apply is worse than no
         // summary at all.
         //
@@ -624,7 +624,7 @@ class QueryOrchestrator
         // Handle parse failure.
         //
         // success:false from a provider never means "the question was unclear"
-        // — an unclear question comes back as a successful call carrying a
+        // -  an unclear question comes back as a successful call carrying a
         // clarification. It means the call itself failed: no route to the host,
         // a rejected key, a reply that was not JSON. Reporting that as
         // not_understood sends the user off rewording a perfectly good question
@@ -643,7 +643,7 @@ class QueryOrchestrator
             // A refusal that never reached the wire is NOT fallback-eligible.
             //
             // Falling back means trying SQL generation, and on a schema with
-            // no linked datasets that builds the single-dataset prompt — which
+            // no linked datasets that builds the single-dataset prompt -  which
             // is SMALLER, clears the very guard that just refused, and gets
             // answered. The user asked a question the context could not hold
             // and receives a confident number computed from one table.
@@ -674,7 +674,7 @@ class QueryOrchestrator
 
         // With exactly one dataset there is nothing to choose between, so a
         // model that says "which dataset?" is really saying "I could not tell
-        // what you meant" — about the metric, usually.
+        // what you meant" -  about the metric, usually.
         if (empty($intent['dataset']) && count($availableDatasets) === 1) {
             $intent['dataset'] = $availableDatasets[0]['key'];
         }
@@ -684,18 +684,18 @@ class QueryOrchestrator
         // Asking which dataset is only meaningful when the dataset is genuinely
         // unresolved AND there is more than one to pick from. Asking it once
         // the dataset is known produced a card whose only button re-sent the
-        // same question and redrew the same card — indistinguishable, from the
+        // same question and redrew the same card -  indistinguishable, from the
         // outside, from the widget being broken.
         if (!$hasDataset && count($availableDatasets) > 1) {
             return $this->formatter->formatClarification($intent, $availableDatasets);
         }
 
         if ($hasDataset && $hasGroupValue && empty($intent['metric'])) {
-            // District detail — SqlBuilder handles this
+            // District detail -  SqlBuilder handles this
         } elseif (($intent['needs_clarification'] ?? false) || !$hasDataset) {
             // Why the model asked, before it is rewritten below. The prompt
             // tells it to answer 'ambiguous' when the requested breakdown is
-            // not available on the dataset it chose — which, across related
+            // not available on the dataset it chose -  which, across related
             // tables, usually means the answer needs a JOIN rather than a
             // question. "Revenue by region" is line_total in one table and
             // region in another: perfectly answerable, just not by a builder
@@ -716,8 +716,8 @@ class QueryOrchestrator
             // related tables and answer it outright.
             //
             // 'ambiguous' means the breakdown does not exist on the chosen
-            // dataset. But a question that states its own measure — "how many
-            // continents are there", "average horsepower" — is not ambiguous
+            // dataset. But a question that states its own measure -  "how many
+            // continents are there", "average horsepower" -  is not ambiguous
             // whatever the model labelled it, and on a schema of mostly
             // dimension tables it labelled almost everything 'metric' and
             // asked. A whole Spider database scored zero that way.
@@ -757,7 +757,7 @@ class QueryOrchestrator
      * a question typed on its own. Decomposition adds a planning call; it does
      * not add a second way into the database.
      *
-     * A step that fails does not fail the whole answer — three of four numbers
+     * A step that fails does not fail the whole answer -  three of four numbers
      * is more useful than none, provided the response says so, which it does.
      */
     protected function runSteps(
@@ -777,8 +777,8 @@ class QueryOrchestrator
             foreach ($plan['steps'] as $i => $question) {
                 // $context, not nothing. Re-entering without it dropped the
                 // conversation at the door: the steps could not see the metric,
-                // period or filters established in earlier turns, and — because
-                // the cache guard is keyed on !empty($context['state']) — each
+                // period or filters established in earlier turns, and -  because
+                // the cache guard is keyed on !empty($context['state']) -  each
                 // step looked like a standalone question and WROTE itself to
                 // the shared, session-less cache. Another session asking those
                 // words then read this conversation's rows back, which is
@@ -806,7 +806,7 @@ class QueryOrchestrator
 
                 // A rate limit ends the run. Each step is a full query() and
                 // guards its own 429 correctly, but the loop then carried on
-                // and asked again — so one rate limit authorised N more calls
+                // and asked again -  so one rate limit authorised N more calls
                 // against a provider that had just said stop, which is the
                 // one response that makes a quota problem worse.
                 //
@@ -830,7 +830,7 @@ class QueryOrchestrator
         // A rate limit is reported as a rate limit, decomposed question or not.
         //
         // This envelope carried no error_code at all, and the controller reads
-        // `$result['error_code'] ?? null` — ErrorCode::httpStatus(null) is 500
+        // `$result['error_code'] ?? null` -  ErrorCode::httpStatus(null) is 500
         // and isRetryable(null) is false. So the identical fault that returns
         // 429 + Retry-After + retryable:true for a one-part question returned
         // 500 + retryable:false for a two-part one: an explicit instruction to
@@ -894,7 +894,7 @@ class QueryOrchestrator
 
         // The fields query()'s tail adds to every other answer, which this
         // path returns straight past. A decomposed answer was arriving with no
-        // `provider`, no `cache_hit` and no `usage` — and docs/API.md documents
+        // `provider`, no `cache_hit` and no `usage` -  and docs/API.md documents
         // usage as accumulating specifically across "the steps of a decomposed
         // question", which is the one shape where it was absent.
         //
@@ -921,7 +921,7 @@ class QueryOrchestrator
      *
      * A structured summary, not a transcript. The model is asked to resolve ONE
      * instruction against a handful of named slots, rather than to re-read four
-     * turns of dialogue and work out for itself what still applies — which is
+     * turns of dialogue and work out for itself what still applies -  which is
      * both more to get wrong and more that changes when any earlier turn is
      * worded differently.
      */
@@ -945,13 +945,13 @@ class QueryOrchestrator
 
         // The narrowing rule is spelled out because leaving it implicit lost
         // it. "Only in Guwahati" after "total amount by city" came back from
-        // one provider with no filter at all — every city returned, the
-        // instruction silently discarded — and from two others as a request for
+        // one provider with no filter at all -  every city returned, the
+        // instruction silently discarded -  and from two others as a request for
         // one record's detail rows. Naming the slot removes the guess.
         return "CURRENT QUERY STATE (carry these forward unless the instruction changes them):\n"
             . '  ' . implode('; ', $slots) . "\n"
             . "NEW INSTRUCTION: \"{$query}\"\n"
-            . 'A narrowing — "only in X", "just for X", "in X" — goes in filters as '
+            . 'A narrowing -  "only in X", "just for X", "in X" -  goes in filters as '
             . '{"column":"<the column X belongs to>","value":"X"}, and the existing '
             . 'group_by STAYS. Do not put it in group_value: that means one named record '
             . "and returns its detail rows instead of the narrowed answer.\n"
@@ -961,8 +961,8 @@ class QueryOrchestrator
     /**
      * Does the question already say what to measure?
      *
-     * "How many continents are there" names its own measure — every dataset
-     * can be counted — so a request to choose a metric is not a real question,
+     * "How many continents are there" names its own measure -  every dataset
+     * can be counted -  so a request to choose a metric is not a real question,
      * it is a dead end. "Which is the best?" names nothing and deserves to be
      * asked about.
      */
@@ -978,7 +978,7 @@ class QueryOrchestrator
      * Bring an intent onto the current contract.
      *
      * The field naming a single record to filter to used to be called
-     * `district` — vocabulary from the project this package came out of, which
+     * `district` -  vocabulary from the project this package came out of, which
      * meant nothing on anyone else's database and which models mis-filled on
      * other domains. It is `group_value` now, matching the builder's own
      * group_column terminology.
@@ -997,7 +997,7 @@ class QueryOrchestrator
      * Both Gemini and DeepSeek answered that question with
      * query_type=ranking and group_by=client, producing "Rekha Stores: 1
      * records" where the answer is "1". Two providers agreeing means the
-     * prompt is not carrying it, so this is decided locally instead — the same
+     * prompt is not carrying it, so this is decided locally instead -  the same
      * reasoning as every other guard here: a rule that must hold is cheaper to
      * enforce than to ask for.
      *
@@ -1008,7 +1008,7 @@ class QueryOrchestrator
      *
      * Only fires when the sentence asks for a total AND names no breakdown. A
      * breakdown that was asked for is never touched, and neither is a question
-     * that did not ask for a total — "top clients by amount" has no total
+     * that did not ask for a total -  "top clients by amount" has no total
      * wording and keeps its grouping.
      *
      * @param  array<string, mixed>  $intent
@@ -1023,7 +1023,7 @@ class QueryOrchestrator
         // exactly as it was, because Gemini names none and the default supplies
         // it downstream. Saying "aggregation" is what stops that fallback.
 
-        // "by region", "per customer", "for each status", "breakdown by" — any
+        // "by region", "per customer", "for each status", "breakdown by" -  any
         // of these and the grouping was requested.
         if (preg_match('/\b(?:by|per|each|breakdown|split|grouped)\b/i', $query)) {
             return $intent;
@@ -1058,7 +1058,7 @@ class QueryOrchestrator
      * "Only in Guwahati" narrows the answer; it does not ask for a file card.
      *
      * A bare `group_value` means "one named record" and routes to the detail
-     * view — every column of the matching rows. That is a reasonable reading of
+     * view -  every column of the matching rows. That is a reasonable reading of
      * "revenue for Guwahati" asked cold. It is the wrong reading of "only in
      * Guwahati" said straight after "total amount by city", where the user is
      * plainly narrowing the answer they are looking at.
@@ -1120,7 +1120,68 @@ class QueryOrchestrator
 
         unset($intent['district']);
 
+        $intent['query_type'] = $this->normalizeQueryType($intent['query_type'] ?? null);
+
         return $this->dropDuplicatedGroupValue($intent);
+    }
+
+    /**
+     * One of 'aggregation', 'ranking' or 'group_detail', or null.
+     *
+     * `query_type` decides whether a question is answered as ONE number or as
+     * a list, and every consumer compares it with `===` (SqlBuilder,
+     * ResponseFormatter, dropUnaskedBreakdown). Nothing normalised it, so a
+     * model answering "Aggregation" instead of "aggregation" fell through to
+     * the ranking default: "what is the overall figure" came back as a league
+     * table, and parsed_summary then announced a breakdown nobody asked for.
+     *
+     * HERE rather than in AbstractProvider, which is where the identical fix
+     * for `order` lives. A provider is not required to extend AbstractProvider
+     * — implementing LlmProviderInterface is the documented way to add one, and
+     * the package's own test double does exactly that. Normalising per provider
+     * would leave every third-party implementation on the broken path, which is
+     * this project's oldest mistake: attaching a guard to the callers instead
+     * of to the thing guarded. Every intent reaches the engine through here.
+     *
+     * CASE AND WHITESPACE ONLY. A synonym table was tried and removed.
+     *
+     * Mapping `total`, `sum` and `aggregate` onto `aggregation` looks like the
+     * same repair and is not: those words describe a MEASURE as often as a
+     * shape. "Top 3 customers by revenue", answered by a model that omits
+     * `group_by` and says `query_type: "total"`, became a single number where
+     * it had correctly been a two-row ranking — a different question answered,
+     * with a number, at `status: success`. `dropUnaskedBreakdown()` cannot
+     * catch it either: it returns early the moment the question contains "by".
+     *
+     * The measured benefit was near zero, because the wording that would gain
+     * from the map ("total", "sum") is already matched by that method's own
+     * regex. So the map cost real rankings and bought nothing.
+     *
+     * Anything unrecognised is left to fall back to `ranking` exactly as before
+     * this method existed: every `===` comparison already treated an unknown
+     * value as neither aggregation nor group_detail.
+     *
+     * `is_scalar` because the parameter is genuinely `mixed`: providers pass
+     * `$parsed['query_type']` through raw, and a small model answering
+     * `["aggregation"]` made `(string)` raise "Array to string conversion",
+     * which Laravel promotes to an ErrorException and the engine reported as
+     * `internal_error` — a 500 on a question the package used to answer.
+     */
+    protected function normalizeQueryType(mixed $queryType): ?string
+    {
+        if (!is_scalar($queryType)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim((string) $queryType));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        return in_array($normalized, ['aggregation', 'ranking', 'group_detail'], true)
+            ? $normalized
+            : 'ranking';
     }
 
     /**
@@ -1128,14 +1189,14 @@ class QueryOrchestrator
      *
      * Models sometimes put the same value in `group_value` AND in `filters`.
      * "How many invoices are pending" came back with filters=[status:pending]
-     * and group_value="pending" — the same narrowing said two ways.
+     * and group_value="pending" -  the same narrowing said two ways.
      *
      * That is not harmless. `group_value` matches against the GROUP column, so
      * the copy asks for a *client* named "pending"; and its mere presence
      * disqualifies the query from being a total, which is how a question with
      * a plain numeric answer came back as a one-row league table.
      *
-     * `filters` is the better of the two — it names the column — so the bare
+     * `filters` is the better of the two -  it names the column -  so the bare
      * copy goes. Compared case-insensitively, since the two rarely agree on
      * capitalisation.
      *
@@ -1174,8 +1235,8 @@ class QueryOrchestrator
      *
      * The intent contract lets the model name a single record to filter by.
      * It sometimes fills that in with a word that is really the grouping
-     * dimension — "top 5 customers by revenue" occasionally comes back with
-     * the filter set to "customers" — and the resulting WHERE clause matches
+     * dimension -  "top 5 customers by revenue" occasionally comes back with
+     * the filter set to "customers" -  and the resulting WHERE clause matches
      * no rows. The user then gets "No data found for customers", which is a
      * dead end and simply wrong: drop the filter and the question answers
      * perfectly.
@@ -1249,19 +1310,19 @@ class QueryOrchestrator
         //
         // Intent mode had carried state since conversations were built. This
         // path never did, and only showed it when a follow-up happened to
-        // escalate — which depends on the provider, so it hid behind whichever
+        // escalate -  which depends on the provider, so it hid behind whichever
         // one was being tested.
         $stated = $this->withState($query, $context);
 
         // Check if we have a cached SQL result.
         //
         // NQ-003-FIX: the cached SQL names whatever dataset the ORIGINAL
-        // question resolved to, which is not necessarily this one — replaying
+        // question resolved to, which is not necessarily this one -  replaying
         // it verbatim would silently answer the wrong table. NQ-003 handled a
         // disagreement by retargeting the cached recipe (metric, query_type,
         // group_value, limit, order) through SqlBuilder for the dataset THIS
         // question resolves to, at zero API cost. That recipe is exactly the
-        // fields the INTENT contract can express — this cached result exists
+        // fields the INTENT contract can express -  this cached result exists
         // in the first place because the question needed SQL generation, i.e.
         // something beyond that contract, most often a WHERE predicate with
         // no slot to carry it. Retargeting silently dropped it and reported
@@ -1272,7 +1333,7 @@ class QueryOrchestrator
         // processWithIntent has always done and what docs/CONVERSATIONS.md
         // promises in as many words. The key is the question's TEXT and carries
         // no session, so "and the total there" is the same key for every
-        // conversation in the application — a follow-up only means anything
+        // conversation in the application -  a follow-up only means anything
         // relative to the turns before it, and those are not in the key.
         $inConversation = !empty($context['state']);
 
@@ -1280,7 +1341,7 @@ class QueryOrchestrator
         // question was asked under. The comparison that used to sit here
         // measured the asking scope against the row's ANSWER dataset instead,
         // and threw away rows that had just been cleared on the correct
-        // grounds — the same conflation as in processWithIntent, in the other
+        // grounds -  the same conflation as in processWithIntent, in the other
         // reader. What is left is a shape check: this reader replays finished
         // SQL, so it wants the rows that carry some.
         if ($cached && !$inConversation && isset($cached['intent']['_sql_result'])) {
@@ -1303,7 +1364,7 @@ class QueryOrchestrator
             $intent = $this->llmProvider->parseIntent($query, $datasetList);
 
             // The response was read only for ['dataset'], and a failure has no
-            // dataset — so a 429 here read as "could not place the question"
+            // dataset -  so a 429 here read as "could not place the question"
             // and generateSql was called a line later, against a provider that
             // had just reported it was over quota. Same fall-through as the
             // planner's, on the call beside it.
@@ -1337,13 +1398,13 @@ class QueryOrchestrator
         // correctly replies that it does not know which metric is meant.
         //
         // So when the tables are linked by foreign keys, any question may
-        // legitimately span them and the multi-table prompt — which lists every
-        // table, their relationships, and permission to join — is the only one
+        // legitimately span them and the multi-table prompt -  which lists every
+        // table, their relationships, and permission to join -  is the only one
         // that can answer. Fall back to the focused prompt when there is one
         // dataset, or when nothing is related and a join is impossible anyway.
         // $stated, not $query: the SQL must reflect the conversation, not just
         // the last sentence of it. Dataset detection above deliberately still
-        // uses the bare question — the state block would match every dataset
+        // uses the bare question -  the state block would match every dataset
         // name it mentions.
         if ($dataset && $this->registry->has($dataset) && !$this->registry->hasLinkedSchemas()) {
             $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $stated);
@@ -1353,7 +1414,7 @@ class QueryOrchestrator
             $datasetsRendered = count($this->registry->all());
         }
 
-        // R4: over budget refuses BEFORE any provider call — never a smaller
+        // R4: over budget refuses BEFORE any provider call -  never a smaller
         // prompt answering a narrower question. _unretriable per R5: the only
         // retry strategy this package has (retryWithRefinedPrompt) sends a
         // SMALLER, single-dataset prompt, which is exactly the wrong move for
@@ -1403,28 +1464,15 @@ class QueryOrchestrator
         }
 
         // A required_filter is a RULE, not a hint, and this route was treating
-        // it as a hint.
+        // it as a hint: PromptBuilder writes "REQUIRED FILTER (always include
+        // in WHERE)" into the prompt and hopes, while SqlBuilder appends it to
+        // the SQL on the intent route so the model cannot omit it.
         //
-        // PromptBuilder writes "REQUIRED FILTER (always include in WHERE)" into
-        // the prompt and hopes; SqlBuilder, on the intent route, appends it to
-        // the SQL so the model cannot omit it. Same setting, guaranteed on one
-        // path and requested on the other — and the whole reason someone writes
-        // one is that the answer is WRONG without it. A model that skipped the
-        // line returned every cancelled order in the total, reported success,
-        // and nothing downstream re-checked.
+        // The check no longer lives here. It sits in validateAndExecute, the
+        // single place SQL executes, because a guard on the generation sites
+        // missed the verifier's rewrite, the cached recipe replayed from that
+        // rewrite, and the steps of a decomposed question.
         $schemaData = $dataset ? $this->registry->get($dataset) : null;
-
-        // _unretriable, because the retry regenerates from the same prompt with
-        // the same REQUIRED FILTER line the model has just ignored. Without
-        // this the refusal simply bounced into retryWithRefinedPrompt, which
-        // produced the same unfiltered SQL and returned it as a success — the
-        // first version of this fix did exactly that and the test stayed red.
-        if ($refusal = $this->requiredFilterMissing($sql, $schemaData)) {
-            return array_merge(
-                $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
-                ['_unretriable' => true]
-            );
-        }
 
         // Build query result
         $queryResult = [
@@ -1444,7 +1492,7 @@ class QueryOrchestrator
             // Intent mode derives this from date_from/date_to; SQL
             // generation writes the WHERE itself, so it had nothing to
             // report and every step of a decomposed question came back
-            // with a blank period — while the README promises each one
+            // with a blank period -  while the README promises each one
             // states the range it used. The model knows; it just was not
             // being asked.
             'time_filter' => $data['period'] ?? null,
@@ -1481,7 +1529,7 @@ class QueryOrchestrator
             }
         }
 
-        // Cache the VERIFIED SQL result for future identical queries — but
+        // Cache the VERIFIED SQL result for future identical queries -  but
         // never a conversation turn. Writing one poisons the shared, text-keyed
         // store for every other session that asks the same follow-up words,
         // and it is the write, not the read, that does the damage: the row
@@ -1498,7 +1546,7 @@ class QueryOrchestrator
             ], $this->resolveAskingDataset($query, $datasetHint, $context));
         }
 
-        // Validate and execute — THEN cache, and only what worked.
+        // Validate and execute -  THEN cache, and only what worked.
         //
         // The store used to run first, so SQL that SqlValidator rejected, or
         // that the database refused, was written to a cache with no expiry and
@@ -1507,7 +1555,7 @@ class QueryOrchestrator
         // user was told their question could not be understood, forever, and
         // rewording it slightly was the only escape.
         //
-        // Identical in shape to the recipe defect this release opened with —
+        // Identical in shape to the recipe defect this release opened with -
         // a row cached in a state nothing downstream re-checks.
         $result = $this->validateAndExecute($queryResult, $dataset, $metadata);
 
@@ -1521,7 +1569,7 @@ class QueryOrchestrator
     /**
      * The single dataset THIS question resolves to, at zero API cost
      * (NQ-003): an explicit hint, conversation state, then keyword/alias
-     * detection on the question's own text via DatasetSeeder — the same
+     * detection on the question's own text via DatasetSeeder -  the same
      * priority `processWithSqlGeneration()`'s own dataset-identification
      * step already uses, minus its final LLM fallback, which costs a call
      * and is not needed just to sanity-check a cache hit.
@@ -1529,18 +1577,18 @@ class QueryOrchestrator
      * A cache row is written for whatever dataset the ORIGINAL question
      * resolved to. Replaying it for a DIFFERENT dataset than the one THIS
      * question resolves to answers the wrong table with no error, no
-     * latency, and no log entry to suggest anything happened — the
+     * latency, and no log entry to suggest anything happened -  the
      * confidently-wrong-number failure mode §0 exists to rule out. Both
      * cached-result branches (processWithIntent(), processWithSqlGeneration())
      * compare this against the cached row's own dataset before reusing it.
      *
      * Null when none of the free signals resolve one AND more than one
-     * dataset is registered — the caller then trusts the cached row's own
+     * dataset is registered -  the caller then trusts the cached row's own
      * dataset as-is: an exact-hash hit is the identical question asked
      * before, and a fuzzy hit already refused to reach this point without
      * one of these same signals (TwoTierQueryCache::find()). With exactly
      * one dataset registered there is nothing for a cached row to cross
-     * INTO, so that one is resolved unconditionally — the same reasoning
+     * INTO, so that one is resolved unconditionally -  the same reasoning
      * `processWithIntent()` already applies when a parsed intent names no
      * dataset and there is only one to choose from.
      */
@@ -1560,7 +1608,7 @@ class QueryOrchestrator
         // itself is decided in query() against `_asking_scope`, which rides
         // inside the intent blob that every implementation stores and returns.
         // So a cache that cannot scope is safe to read, and the bypass that
-        // used to sit here — returning null whenever a dataset was known —
+        // used to sit here -  returning null whenever a dataset was known -
         // was not protecting anything.
         //
         // It was, however, silently disabling every custom cache on the most
@@ -1572,7 +1620,7 @@ class QueryOrchestrator
         // A subclass that overrides find() is the other half. Overriding
         // find() is the obvious way to bolt a tenant or permission gate onto
         // the bundled cache, and it inherits ScopesCacheByDataset, so calling
-        // findForDataset() would route around the gate without a word — a
+        // findForDataset() would route around the gate without a word -  a
         // cross-tenant read that looks like a cache hit. Where the override
         // exists and the scoped method has not been overridden with it, the
         // override wins: one fuzzy tier is worth one API call, and a gate that
@@ -1587,7 +1635,7 @@ class QueryOrchestrator
     /**
      * Whether the injected cache overrides find() but inherits findForDataset().
      *
-     * Reflection once per instance, memoised — the answer cannot change for a
+     * Reflection once per instance, memoised -  the answer cannot change for a
      * given object, and this runs on every question.
      */
     private function cacheOverridesFindOnly(): bool
@@ -1597,8 +1645,8 @@ class QueryOrchestrator
         }
 
         // Only meaningful for subclasses of the bundled cache. The question
-        // this answers — "did the author gate find() and not realise
-        // findForDataset() bypasses it?" — presupposes inheriting both from
+        // this answers -  "did the author gate find() and not realise
+        // findForDataset() bypasses it?" -  presupposes inheriting both from
         // TwoTierQueryCache.
         //
         // Applied to any implementation, the comparison misfires: a cache that
@@ -1628,9 +1676,9 @@ class QueryOrchestrator
             // and costs them EVERY cache hit, not just the fuzzy tier: find()
             // looks up with no scope, while rows are stored under the scope
             // their question was asked with, so the exact tier cannot match
-            // either. That is the right way round — a 0% hit rate is a
+            // either. That is the right way round -  a 0% hit rate is a
             // performance loss and a skipped tenant gate is a cross-tenant
-            // read — but it is far too expensive to discover from a debug log.
+            // read -  but it is far too expensive to discover from a debug log.
             Log::warning(
                 '[NaturalQuery:Cache] ' . get_class($this->cache) . ' overrides find() but not '
                 . 'findForDataset(). find() is being called so the override still runs, which means NO '
@@ -1647,8 +1695,8 @@ class QueryOrchestrator
      * Record that this answer came from a cached row.
      *
      * Call it where a row is USED, never where one is found. Four things read
-     * this flag — the response metadata, auditLog(), the QuestionAnswered
-     * event, and verification.skip_on_cache_hit — and the last of those turns
+     * this flag -  the response metadata, auditLog(), the QuestionAnswered
+     * event, and verification.skip_on_cache_hit -  and the last of those turns
      * QueryVerifier off, so a false positive disables the self-check on exactly
      * the SQL that was generated a moment earlier.
      *
@@ -1668,7 +1716,7 @@ class QueryOrchestrator
      *
      * `_asking_scope` rides inside the intent blob deliberately. Passing it as
      * an argument would mean widening QueryCacheInterface::store(), and adding
-     * a parameter to an interface method — even an optional one — is a fatal
+     * a parameter to an interface method -  even an optional one -  is a fatal
      * error at class load for every third-party implementation that already
      * exists. That mistake was made once already on find(); the capability
      * became ScopesCacheByDataset instead. A reserved key inside a payload the
@@ -1676,24 +1724,45 @@ class QueryOrchestrator
      * normalizeIntent() drops unknown keys, so it never reaches SqlBuilder.
      */
     /**
-     * Why generated SQL cannot be trusted for this dataset, or null.
+     * Why this SQL cannot be trusted, or null.
+     *
+     * Keyed on the tables the SQL NAMES, not on the dataset the model reported
+     * about itself. A self-reported label is not a trust boundary: it made the
+     * rule both too weak (a mislabelled response disarmed it) and too strong
+     * (a correct query against a neighbouring table was refused for omitting a
+     * filter that does not apply to it).
      *
      * REFUSES rather than injects, deliberately. SqlBuilder can splice the
      * filter into its own SQL because it wrote that SQL and knows its shape.
-     * Model-generated SQL is arbitrary — a derived table, a CTE, a subquery in
-     * the FROM clause — and the splice is a regex on the first WHERE, which on
+     * Model-generated SQL is arbitrary -  a derived table, a CTE, a subquery in
+     * the FROM clause -  and the splice is a regex on the first WHERE, which on
      * `SELECT … FROM (SELECT … WHERE x) sub` lands inside the subquery and
      * narrows the wrong thing. Silently. That is a worse failure than the one
      * being fixed, and "reconcile rather than refuse" is the exact habit this
      * release spent four review rounds removing.
      *
-     * The comparison is deliberately literal — whitespace collapsed and `<>`
+     * The comparison is deliberately literal -  whitespace collapsed and `<>`
      * folded to `!=`, nothing more. A model writing an EQUIVALENT filter in
      * different words (`status NOT IN ('cancelled')`) is refused even though
      * its SQL was correct. That is a false refusal, it costs an error message
      * on a good answer, and it is still the right trade: the alternative is
      * accepting text that merely mentions the column, which passes
      * `GROUP BY status` and hands back the unfiltered total.
+     *
+     * AND ITS LIMIT, stated plainly because an overstated guard is worse than
+     * a modest one: this tests that the filter is PRESENT, not that it
+     * COVERS. The same arbitrariness that makes splicing unsafe makes a
+     * substring check incomplete -  a filter sitting in a subquery while the
+     * outer aggregate runs unfiltered, or defeated by an `OR` beside it, reads
+     * as present here. Detecting that needs a real parser, not a bigger
+     * regex. So this raises the floor from "the model was asked nicely" to
+     * "the text must be there", and `query_mode` "intent" remains the only
+     * route where the filter is applied rather than checked. docs/SCHEMA.md
+     * says so.
+     *
+     * Armed by the dataset being answered, so a model that reports the wrong
+     * one is not caught here — see the note in docs/SCHEMA.md rather than
+     * assuming otherwise.
      */
     private function requiredFilterMissing(string $sql, ?array $schemaData): ?string
     {
@@ -1704,7 +1773,7 @@ class QueryOrchestrator
         }
 
         $normalise = static fn (string $s) => strtolower(preg_replace(
-            ['/\s+/', '/<>/'],
+            ["/\s+/", '/<>/'],
             [' ', '!='],
             trim($s)
         ) ?? '');
@@ -1713,16 +1782,16 @@ class QueryOrchestrator
             return null;
         }
 
-        Log::warning('[NaturalQuery] Generated SQL omitted a required filter', [
+        Log::warning('[NaturalQuery] SQL omitted a required filter', [
             'dataset' => $schemaData['name'] ?? null,
             'required_filter' => $required,
         ]);
 
         return sprintf(
-            'This dataset has a required filter (%s) that the generated query did not apply, so the '
-            . 'answer would have counted rows your schema says must never be counted. Ask again, or use '
-            . 'query_mode "intent" for this question — that route applies the filter itself instead of '
-            . 'asking the model to.',
+            'This dataset has a required filter (%s) that the query did not apply, so the '
+            . 'answer would have counted rows your schema says must never be counted. Rephrase the '
+            . 'question, or ask your administrator to set query_mode "intent" for this dataset - '
+            . 'that route applies the filter itself instead of asking the model to.',
             $required
         );
     }
@@ -1777,7 +1846,7 @@ class QueryOrchestrator
      *
      * A failed request is not a failure to understand, and reporting it as one
      * sends the user off rewording a perfectly good question while the real
-     * fault — an expired key, a rate limit, no route to the host — goes
+     * fault -  an expired key, a rate limit, no route to the host -  goes
      * unmentioned. The benchmark suite lost a CA bundle and every single case
      * came back "Could not understand the query. Try mentioning a dataset
      * name", which is a lie that costs an afternoon.
@@ -1801,7 +1870,7 @@ class QueryOrchestrator
             ErrorCode::PROVIDER_ERROR
         );
 
-        // A provider can refuse BEFORE sending anything — OllamaProvider's
+        // A provider can refuse BEFORE sending anything -  OllamaProvider's
         // context-window guard does, because Ollama does not reject an
         // oversized prompt, it silently truncates the schema and answers
         // anyway. That refusal is tied to prompt SIZE, not to what the model
@@ -1831,12 +1900,12 @@ class QueryOrchestrator
 
         if ($dataset && $this->registry->has($dataset)) {
             Log::info('[NaturalQuery] Retry: detected dataset from keywords', ['dataset' => $dataset]);
-            // Use single-dataset SQL prompt — much more reliable
+            // Use single-dataset SQL prompt -  much more reliable
             $prompt = $this->promptBuilder->buildSqlPrompt($dataset, $query);
 
             // Measured like any other. This is the same builder the bounded
             // path uses, and it was the one prompt in the package that went
-            // out unchecked — so an install that set prompts.max_chars
+            // out unchecked -  so an install that set prompts.max_chars
             // precisely to stop oversized prompts being sent still sent one
             // here, on the retry, where nobody was looking.
             if ($refusal = $this->budget?->check($prompt, 1)) {
@@ -1871,19 +1940,10 @@ class QueryOrchestrator
             $data = $response['data'];
             $schemaData = $this->registry->get($dataset);
 
-            // The second place generated SQL enters the engine, and therefore
-            // the second place a required_filter can be dropped. Guarding only
-            // the first one would have left the rule unenforced here — which is
-            // precisely how this defect existed in the first place, and how the
-            // first attempt at fixing it still failed: the refusal below sent
-            // the question into this retry, which re-generated the same
-            // unfiltered SQL and returned it as a success.
-            if ($refusal = $this->requiredFilterMissing($data['sql'], $schemaData)) {
-                return array_merge(
-                    $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
-                    ['_unretriable' => true]
-                );
-            }
+            // The required_filter check that used to sit here has moved to
+            // validateAndExecute, which this path reaches too. Counting the
+            // sites where SQL is generated is how the rule ended up enforced on
+            // some of them; there is one place it is executed.
 
             $queryResult = [
                 'success' => true,
@@ -1902,7 +1962,7 @@ class QueryOrchestrator
                 // Intent mode derives this from date_from/date_to; SQL
                 // generation writes the WHERE itself, so it had nothing to
                 // report and every step of a decomposed question came back
-                // with a blank period — while the README promises each one
+                // with a blank period -  while the README promises each one
                 // states the range it used. The model knows; it just was not
                 // being asked.
                 'time_filter' => $data['period'] ?? null,
@@ -1915,7 +1975,7 @@ class QueryOrchestrator
             return $result;
         }
 
-        // Strategy 2: say we could not read the question — but only when that
+        // Strategy 2: say we could not read the question -  but only when that
         // is what happened.
         //
         // Everything upstream funnels here, so this message was the last word
@@ -1923,13 +1983,13 @@ class QueryOrchestrator
         // no route to the host, a provider returning nonsense. Phase 9 fixed
         // the two places that mislabelled such failures, and they still ended
         // up overwritten here whenever no dataset could be guessed from the
-        // words — which is exactly what happens when the provider never
+        // words -  which is exactly what happens when the provider never
         // answered and there is no intent to guess from.
         //
         // Caught by pointing a real install at a provider with no API key: the
         // transcription was perfect, and the answer was "Try mentioning a
         // dataset name."
-        if ($this->isProviderFailure($previous)) {
+        if ($this->rewordingCannotHelp($previous)) {
             return array_merge($previous, ['_retried' => true]);
         }
 
@@ -1944,15 +2004,35 @@ class QueryOrchestrator
     }
 
     /**
-     * Did this failure come from the provider rather than from the question?
+     * Did this failure come from somewhere the question cannot fix?
+     *
+     * Rewording is the remedy this path offers, so replacing an error with
+     * "Could not understand the query. Try mentioning a dataset name" is only
+     * honest when the words were actually the problem.
+     *
+     * DATABASE_ERROR is on the list because it is the case where the advice is
+     * not merely unhelpful but a loop: a schema naming a table that does not
+     * exist produced "Could not understand the query … Available: Orders
+     * (orders)" while the log recorded `no such table: shop_ordrs`. The dataset
+     * IS named, and it is the broken thing, so following the advice can never
+     * work. `naturalquery:doctor` diagnoses this exactly; the query path was
+     * discarding what it already knew.
+     *
+     * Renamed from `isProviderFailure()` when DATABASE_ERROR joined the list.
+     * A database fault is not a provider fault, and the old name invited an
+     * obvious refactor — hoisting this check into the retry gate above — that
+     * would have killed a recovery which works today: model SQL naming a
+     * column that does not exist is regenerated by the refined prompt and
+     * answers correctly on the second call. This is consulted only after that
+     * strategy has already declined.
      *
      * @param  array<string, mixed>  $result
      */
-    protected function isProviderFailure(array $result): bool
+    protected function rewordingCannotHelp(array $result): bool
     {
         return in_array(
             $result['error_code'] ?? null,
-            [ErrorCode::PROVIDER_ERROR, ErrorCode::RATE_LIMITED],
+            [ErrorCode::PROVIDER_ERROR, ErrorCode::RATE_LIMITED, ErrorCode::DATABASE_ERROR],
             true
         );
     }
@@ -1968,9 +2048,25 @@ class QueryOrchestrator
     {
         $sql = $queryResult['sql'];
 
+        // `query_type` decides how the answer is WORDED, and every route ends
+        // up here, so this is where it is made canonical for presentation.
+        //
+        // normalizeIntent() covers the intent route, but only that route: it
+        // is reached from processWithIntent alone, so sql_generation, the
+        // refinement retry and the cached `_sql_result` replay all handed
+        // ResponseFormatter whatever the model said. A model answering
+        // "Aggregation" on the SQL route produced a row labelled with the
+        // no-label sentinel — "- : 800 (revenue)" — and the recipe was then
+        // cached, so that wording survived every later ask of the question.
+        //
+        // The package's own SQL prompts asked for `overview`, which is not a
+        // value anything here supports; that is fixed in PromptBuilder, and
+        // this catches whatever a model invents regardless.
+        $queryResult['query_type'] = $this->normalizeQueryType($queryResult['query_type'] ?? null);
+
         // Remembered for the QuestionAnswered event, which is server-side.
-        // The SQL is deliberately kept OUT of the HTTP response — a browser has
-        // no use for it and it describes the shape of the database — but it is
+        // The SQL is deliberately kept OUT of the HTTP response -  a browser has
+        // no use for it and it describes the shape of the database -  but it is
         // the single most useful field a listener can log.
         $this->lastSql = $sql;
 
@@ -1998,6 +2094,31 @@ class QueryOrchestrator
             ));
 
             return $this->formatter->formatError('Query validation failed: ' . $validation['reason'], $metadata, ErrorCode::UNSAFE_SQL);
+        }
+
+        // A required_filter is a RULE, and it is checked HERE because this is
+        // the only place SQL is executed.
+        //
+        // It was checked at the two sites where SQL is generated, which left
+        // three ways past it. QueryVerifier rewrites `sql` AFTER generation and
+        // its fix is trusted unchecked, so a rewrite could drop the filter; the
+        // rewritten SQL is then stored as the `_sql_result` recipe, and the
+        // replay branch hands that straight to this method with no guard on the
+        // way; and a step of a decomposed question re-enters by yet another
+        // path. Every one of them arrives here.
+        //
+        // Placed after validation so genuinely unsafe SQL is still reported as
+        // unsafe, and before execution because the whole point of the setting
+        // is that the answer is wrong without it. _unretriable, because the
+        // retry regenerates from the same prompt carrying the same REQUIRED
+        // FILTER line the model has already ignored -  the first version of this
+        // fix bounced into retryWithRefinedPrompt and returned the unfiltered
+        // total as a success.
+        if ($refusal = $this->requiredFilterMissing($sql, $dataset ? $this->registry->get($dataset) : null)) {
+            return array_merge(
+                $this->formatter->formatError($refusal, $metadata, ErrorCode::CANNOT_ANSWER),
+                ['_unretriable' => true]
+            );
         }
 
         // Execute SQL (with parameterized bindings when available)
@@ -2033,7 +2154,7 @@ class QueryOrchestrator
         //   "Orders · revenue · by region · status is pending"
         //
         // `parsed_query` has carried all of this since 1.0.0, as structure a
-        // client has to assemble itself — and the bundled widget did not, so
+        // client has to assemble itself -  and the bundled widget did not, so
         // the one thing that makes a misreading visible was visible only to
         // people writing their own front end. A conversation turn got a
         // summary from ConversationManager; an ordinary question, which is the
@@ -2043,9 +2164,56 @@ class QueryOrchestrator
         // Rendering the interpretation next to the number is the cheapest
         // defence there is against the failure §0 names as the worst: not that
         // the package is sometimes wrong, but that it is wrong without saying
-        // so. The same builder the conversation path uses, so the two lines
-        // cannot drift apart.
-        $summary = QueryState::fromIntent($queryResult)->summary($this->registry);
+        // so.
+        //
+        // The slots are mapped EXPLICITLY rather than by handing the result
+        // array straight to fromIntent(). The two shapes look alike and are
+        // not: fromIntent() reads `group_by`, `date_from` and `date_to`, and a
+        // result array carries `group_column` and `time_filter` instead. It
+        // was handed over whole, so the breakdown and the period were not
+        // merely sometimes missing -  they could never appear, and a month's
+        // total printed the same sentence as an all-time one.
+        // The breakdown and the period come from the BUILDER, which wrote the
+        // SQL and therefore knows what it did. Both are absent on the
+        // sql_generation route, where the statement is the model's.
+        //
+        // An earlier version recovered them by pattern-matching the finished
+        // SQL, and that cannot be done safely: a GROUP BY inside a CTE was
+        // read as the answer's dimension and printed "by region" over a single
+        // ungrouped total, and any mention of the date column after WHERE —
+        // including an ORDER BY — was read as a period, so an all-time total
+        // was captioned with a month the model had merely claimed. Under
+        // Rule 8 the honest move is to report what is known and stay silent
+        // otherwise; a caption that might be false is worse than none, because
+        // this line exists to be trusted.
+        $dimension = $queryResult['grouped_by'] ?? null;
+
+        // `time_filter` is only trustworthy when the builder resolved the
+        // period itself, and `time_column` is set on exactly that path.
+        $period = isset($queryResult['time_column'])
+            ? ($queryResult['time_filter'] ?? null)
+            : null;
+
+        // Both surfaces get the same two values. docs/API.md describes
+        // `group_by` as what the rows ARE and `period` as the dates actually
+        // applied; they were the schema default and the model's claim.
+        if (isset($response['parsed_query'])) {
+            $response['parsed_query']['group_by'] = $dimension;
+            $response['parsed_query']['period'] = $period;
+        }
+
+        $summary = QueryState::fromIntent([
+            'dataset' => $queryResult['dataset'] ?? null,
+            'metric' => $queryResult['metric'] ?? null,
+            'group_by' => $dimension,
+            'filter_column' => $queryResult['filter_column'] ?? null,
+            'filters' => $queryResult['filters'] ?? [],
+            'group_value' => $queryResult['group_value'] ?? null,
+            'period' => $period,
+            'order' => $queryResult['order'] ?? null,
+            'limit' => $queryResult['limit'] ?? null,
+            'query_type' => $queryResult['query_type'] ?? null,
+        ])->summary($this->registry);
 
         if ($summary !== '') {
             $response['parsed_summary'] = $summary;
@@ -2241,8 +2409,8 @@ class QueryOrchestrator
     /**
      * The schema registry this orchestrator resolves against.
      *
-     * Exposed so callers describing what can be asked — the /datasets endpoint,
-     * a custom front end — read the same registry the engine answers from,
+     * Exposed so callers describing what can be asked -  the /datasets endpoint,
+     * a custom front end -  read the same registry the engine answers from,
      * rather than a copy that can disagree with it.
      */
     public function registry(): SchemaRegistry

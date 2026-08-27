@@ -13,16 +13,16 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * A decomposed question inside a conversation is still inside the conversation.
  *
- * runSteps() re-enters query() as `$this->query($question, $datasetHint)` —
- * no third argument — so the conversation context is dropped at the door.
+ * runSteps() re-enters query() as `$this->query($question, $datasetHint)` -
+ * no third argument -  so the conversation context is dropped at the door.
  * Two consequences, and the second is the one that outlives the request.
  *
  * The steps cannot see the conversation. A follow-up like "compare those two
  * regions" is decomposed into sub-questions that are then answered with no
  * knowledge of the metric, period or filters established in earlier turns.
  *
- * And every step WRITES to the query cache. The guard added in this release —
- * "a conversation turn is neither read from nor written to this cache" — is
+ * And every step WRITES to the query cache. The guard added in this release -
+ * "a conversation turn is neither read from nor written to this cache" -  is
  * keyed on `!empty($context['state'])`, and with the context gone each step
  * looks like an ordinary standalone question. The cache key is the question's
  * text and carries no session, so a row written by one conversation's step is

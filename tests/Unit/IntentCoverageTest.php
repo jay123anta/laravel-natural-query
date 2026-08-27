@@ -10,13 +10,13 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Four wrong-number defects in three days shared one shape: intent mode could
  * not represent part of the question, dropped it, and answered the remainder
- * without saying so. Each was fixed by adding a field — dimension, metric,
+ * without saying so. Each was fixed by adding a field -  dimension, metric,
  * clarification target, period.
  *
  * Adding fields one at a time never closes the gap, because there is always
  * another SQL clause. This closes it from the other side: if the wording shows
  * the question needs more than the contract holds, use the mode that can
- * express it. Both modes cost one API call, so escalating is close to free —
+ * express it. Both modes cost one API call, so escalating is close to free -
  * a false positive loses determinism, a false negative is a confident lie.
  */
 class IntentCoverageTest extends TestCase
@@ -95,7 +95,7 @@ class IntentCoverageTest extends TestCase
     #[Test]
     public function a_per_group_superlative_escalates()
     {
-        // Needs a window function or a correlated subquery — the contract has
+        // Needs a window function or a correlated subquery -  the contract has
         // one ORDER BY and one LIMIT for the whole result, not per group.
         $this->assertSame('per_group_top', $this->coverage()->exceeds('top 2 customers in each region'));
         $this->assertSame('per_group_top', $this->coverage()->exceeds('for each region the highest revenue customer'));
@@ -104,7 +104,7 @@ class IntentCoverageTest extends TestCase
     /**
      * Found by running real Spider dev questions rather than questions written
      * here. Every failure in that run was intent mode and every SQL-generation
-     * run passed — the contract carries ONE metric and ONE label, while people
+     * run passed -  the contract carries ONE metric and ONE label, while people
      * routinely ask for several of each.
      */
     #[Test]
@@ -138,7 +138,7 @@ class IntentCoverageTest extends TestCase
     public function a_single_measure_by_a_single_dimension_still_stays_in_intent_mode()
     {
         // The new patterns must not swallow the questions intent mode handles
-        // well — it is cheaper, deterministic, and cannot invent a column.
+        // well -  it is cheaper, deterministic, and cannot invent a column.
         foreach ([
             'revenue by region',
             'top 5 customers by revenue',
@@ -188,7 +188,7 @@ class IntentCoverageTest extends TestCase
      *
      * The intent contract names a METRIC and says nothing about what to do
      * with it, and SqlBuilder wraps every aggregatable column in SUM(). On a
-     * schema discovered without --ai — no computed metrics at all — "average
+     * schema discovered without --ai -  no computed metrics at all -  "average
      * amount" therefore returned 12,100 where the answer was 4,033.33. A
      * plausible number, three times too large, labelled "average". Found by
      * asking questions whose answers could be checked by hand.

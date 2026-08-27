@@ -22,7 +22,7 @@ class InstallCommandTest extends TestCase
      * Run the installer, then put everything back.
      *
      * This command writes real files, and in Testbench `config_path()` and
-     * `database_path()` point INSIDE vendor/orchestra/testbench-core — a
+     * `database_path()` point INSIDE vendor/orchestra/testbench-core -  a
      * directory that survives between runs. Two things had already gone wrong
      * because of that:
      *
@@ -30,7 +30,7 @@ class InstallCommandTest extends TestCase
      *      counted three datasets where it expected two.
      *   2. A published config/naturalquery.php sat in the skeleton and SHADOWED
      *      the package config for the entire suite. Every test after it ran
-     *      against a stale snapshot — which is how a changed middleware default
+     *      against a stale snapshot -  which is how a changed middleware default
      *      went unnoticed until a test asserted on it directly.
      *
      * The second is the dangerous kind: nothing failed, the suite just stopped
@@ -83,8 +83,8 @@ class InstallCommandTest extends TestCase
 
     /**
      * A key name that does not match the config sends the new user to set an
-     * environment variable nothing reads, and the failure that follows —
-     * "API key is empty" — points at the variable they just set. The installer
+     * environment variable nothing reads, and the failure that follows -
+     * "API key is empty" -  points at the variable they just set. The installer
      * said CLAUDE_API_KEY while the config read ANTHROPIC_API_KEY.
      */
     #[Test]
@@ -93,7 +93,7 @@ class InstallCommandTest extends TestCase
         preg_match_all('/\b([A-Z][A-Z0-9_]*_API_KEY)\b/', $this->install(), $matches);
 
         $named = array_unique($matches[1]);
-        $this->assertNotEmpty($named, 'no key names found — the installer text changed shape');
+        $this->assertNotEmpty($named, 'no key names found -  the installer text changed shape');
 
         $config = (string) file_get_contents(__DIR__ . '/../../config/naturalquery.php');
 
@@ -110,7 +110,7 @@ class InstallCommandTest extends TestCase
      * Running a model yourself must be presented as an ordinary choice.
      *
      * Step 1 used to name GEMINI_API_KEY and nothing else, which made one
-     * hosted vendor the default for every new install — an accident of where
+     * hosted vendor the default for every new install -  an accident of where
      * this package was extracted from, not a decision anyone made. Plenty of
      * adopters run Ollama or a self-hosted server, and some cannot send data
      * to a third party at all.

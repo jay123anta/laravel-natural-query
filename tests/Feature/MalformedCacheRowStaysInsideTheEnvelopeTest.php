@@ -15,13 +15,13 @@ use PHPUnit\Framework\Attributes\Test;
  * A bad row in the cache must not become a framework 500.
  *
  * query() wrapped everything in `catch (\Exception)`. A TypeError extends
- * \Error, not \Exception, so it went straight past — taking the whole error
+ * \Error, not \Exception, so it went straight past -  taking the whole error
  * envelope with it. The caller got a stack trace instead of a NaturalQuery
  * response: no `error_code` to branch on, no `retryable`, no Retry-After, and
  * the QuestionFailed event never fired.
  *
  * Reaching it needs no bug in the caller, only a row whose `intent` column is
- * present and is not an array — a truncated write, a hand-edited row, a
+ * present and is not an array -  a truncated write, a hand-edited row, a
  * restored backup from a different schema, a third-party cache returning the
  * decoded blob in a different shape. normalizeIntent(array $intent) then
  * throws. Tier 2 rows have no expiry, so that question stays a hard 500
@@ -72,7 +72,7 @@ class MalformedCacheRowStaysInsideTheEnvelopeTest extends TestCase
         // `$cached['intent']['_asking_scope'] ?? null`, which on a string
         // intent yields null, matches a null asking scope, and passes the row
         // straight to normalizeIntent(array $intent). With a hint the guard
-        // discards it first and the crash never happens — which is why this
+        // discards it first and the crash never happens -  which is why this
         // has to be the unhinted route.
         //
         // Warm the cache the ordinary way, then corrupt the stored blob so the

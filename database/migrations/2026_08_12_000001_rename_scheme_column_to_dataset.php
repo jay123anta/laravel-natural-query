@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
  * 2.0.0 renamed "scheme" to "dataset" throughout, including these two columns.
  *
  * The create migrations were updated in place, so a fresh install already
- * arrives with `dataset` and every step here is a no-op — hence the guards.
+ * arrives with `dataset` and every step here is a no-op -  hence the guards.
  * This exists for installs made against 1.0.0, where the tables carry `scheme`
  * and the 2.0.0 code would query a column that is not there.
  *
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  * point, the corrections a user took the trouble to submit.
  *
  * The indexes need explicit attention. `ALTER TABLE ... RENAME COLUMN` moves an
- * index onto the new column but leaves its NAME alone, on every engine — so an
+ * index onto the new column but leaves its NAME alone, on every engine -  so an
  * upgraded install would keep `..._scheme_index` while a fresh one has
  * `..._dataset_index`. The two populations would then be indistinguishable from
  * code, and the first future migration to write `dropIndex(['dataset', ...])`
@@ -58,7 +58,7 @@ return new class extends Migration
      *
      * They cannot simply be back-filled with the old version number, because
      * the intent JSON inside them still says "scheme" and would be read as a
-     * null dataset. Unreachable is the correct outcome — the question is
+     * null dataset. Unreachable is the correct outcome -  the question is
      * re-asked once and re-cached under the new shape.
      */
     private function addContractVersion(string $table): void

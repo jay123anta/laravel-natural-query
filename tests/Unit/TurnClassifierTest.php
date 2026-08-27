@@ -19,8 +19,8 @@ use PHPUnit\Framework\Attributes\Test;
  * answer wrong, not just the badge.
  *
  * Found in a browser: "total amount by city" then "breakdown by client" was
- * reported as a refinement. Nothing had been narrowed — the totals matched at
- * 12,100 — and the sentence is plainly a drill-down. The cause was one space:
+ * reported as a refinement. Nothing had been narrowed -  the totals matched at
+ * 12,100 -  and the sentence is plainly a drill-down. The cause was one space:
  * every drill pattern read `break\s+…`, so the one-word spelling people
  * actually type fell through to the refinement default.
  */
@@ -72,8 +72,8 @@ class TurnClassifierTest extends TestCase
 
     /**
      * The words also appear in self-contained questions, and those are new.
-     * This one names its own measure — it is asking something, not adjusting
-     * something — and inheriting the last turn's filters would quietly narrow
+     * This one names its own measure -  it is asking something, not adjusting
+     * something -  and inheriting the last turn's filters would quietly narrow
      * an answer nobody asked to narrow.
      *
      * 'revenue' because it is a real metric on the fixture. A word the schema

@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\Test;
  * NQ-003-FIX made a cached entry belonging to a different dataset fall
  * through to fresh generation instead of being retargeted. Correct. But
  * `metadata['cache_hit']` is set the moment the cache returns ANYTHING, before
- * anything downstream decides whether that entry is usable — so the fall-through
+ * anything downstream decides whether that entry is usable -  so the fall-through
  * left the flag reading true for a question that in fact went to the provider.
  *
  * Two consequences, one cosmetic and one not:
@@ -139,7 +139,7 @@ class CacheMissIsNotReportedAsAHitTest extends TestCase
         );
     }
 
-    /** A genuine repeat must still be a hit — the fix must not blanket-clear it. */
+    /** A genuine repeat must still be a hit -  the fix must not blanket-clear it. */
     #[Test]
     public function an_identical_repeat_is_still_reported_as_a_hit()
     {

@@ -13,8 +13,8 @@ use PHPUnit\Framework\Attributes\Test;
  * The conversation carries a structured state rather than a transcript.
  *
  * Resolving a follow-up by rewriting it into a new sentence lost something on
- * every turn — "only in West" became "show only in West details in Orders" and
- * the metric disappeared — and made every turn a fresh interpretation of the
+ * every turn -  "only in West" became "show only in West details in Orders" and
+ * the metric disappeared -  and made every turn a fresh interpretation of the
  * whole dialogue, so an early misreading propagated unpredictably.
  *
  * With slots, the merge is deterministic PHP, the model resolves one
@@ -61,7 +61,7 @@ class ConversationStateTest extends TestCase
     /**
      * A correction changes one thing and leaves the rest standing. Read as a
      * new question, "actually make that East" silently dropped every other
-     * narrowing in force — the user corrected the region and lost the category.
+     * narrowing in force -  the user corrected the region and lost the category.
      */
     #[Test]
     public function a_correction_is_a_refinement_not_a_new_question()

@@ -5,4 +5,4 @@ contact_links:
     about: Report privately. Never open a public issue for a vulnerability.
   - name: Setup problem
     url: https://github.com/jay123anta/laravel-natural-query/blob/main/docs/TROUBLESHOOTING.md
-    about: Run naturalquery:doctor first — it names the cause and prints the fix.
+    about: Run naturalquery:doctor first -  it names the cause and prints the fix.

@@ -71,7 +71,7 @@ class SqlBuilderTest extends TestCase
         ]);
 
         $this->assertTrue($result['success']);
-        // Expression already aggregates — must be grouped, never SUM-wrapped
+        // Expression already aggregates -  must be grouped, never SUM-wrapped
         $this->assertStringContainsString('GROUP BY customer_name', $result['sql']);
         $this->assertStringContainsString('ROUND(AVG(amount), 2)', $result['sql']);
         $this->assertStringNotContainsString('SUM(ROUND', $result['sql']);
@@ -155,7 +155,7 @@ class SqlBuilderTest extends TestCase
      * `district` was the pre-1.0 name for this field. A cached intent, a
      * custom prompt override or a third-party provider can still send it, and
      * dropping it silently would turn a filtered question into an unfiltered
-     * one — the wrong answer, confidently.
+     * one -  the wrong answer, confidently.
      */
     #[Test]
     public function the_legacy_district_key_is_still_honoured()
@@ -283,7 +283,7 @@ class SqlBuilderTest extends TestCase
 
     /**
      * ILIKE is PostgreSQL-only. The named-record lookup used it unconditionally,
-     * so on MySQL and MariaDB — both officially supported — every "details for
+     * so on MySQL and MariaDB -  both officially supported -  every "details for
      * X" query died with a syntax error. Nothing caught it because the builder
      * never consulted the dialect and MySQL had no integration coverage.
      */
@@ -308,7 +308,7 @@ class SqlBuilderTest extends TestCase
         $this->assertStringContainsString('LIKE', $result['sql']);
     }
 
-    /** The value must stay a binding — never interpolated into the SQL. */
+    /** The value must stay a binding -  never interpolated into the SQL. */
     #[Test]
     public function the_named_record_lookup_parameterises_the_value()
     {
@@ -352,7 +352,7 @@ class SqlBuilderTest extends TestCase
      *
      * The sanitiser rejected anything that was not ASCII letters, spaces,
      * hyphens or dots. A rejected value became null, null meant no filter, and
-     * no filter meant the builder quietly produced a ranking query — so "units
+     * no filter meant the builder quietly produced a ranking query -  so "units
      * in bin A-01" returned whichever bin had the most units, presented as the
      * answer, with no warning. Digits alone were enough to trigger it, which
      * covers most real identifiers.

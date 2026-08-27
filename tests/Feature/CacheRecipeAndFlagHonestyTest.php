@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  * processWithSqlGeneration() caches {dataset, metric, group_value, limit,
  * order, query_type, _sql_result}. Two readers exist. The SQL-generation one
  * replays _sql_result verbatim. processWithIntent() hands the same row to
- * normalizeIntent() and then SqlBuilder — and the intent contract has no slot
+ * normalizeIntent() and then SqlBuilder -  and the intent contract has no slot
  * for a WHERE predicate. That predicate exists ONLY inside _sql_result['sql'],
  * which this reader never opens.
  *
@@ -31,7 +31,7 @@ use PHPUnit\Framework\Attributes\Test;
  * B. cache_hit IS TRUE WHEN NO ROW WAS USED.
  * It is set the moment a row is found. Both readers then independently refuse
  * to use one mid-conversation. So a conversation turn reports cache_hit true
- * while the provider generated the answer — and verification.skip_on_cache_hit
+ * while the provider generated the answer -  and verification.skip_on_cache_hit
  * reads that flag and skips QueryVerifier on brand-new SQL. The same wrong flag
  * reaches auditLog() and the QuestionAnswered event.
  */
@@ -106,7 +106,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
 
     /**
      * B. A conversation turn is never served from cache, so it must never
-     * report itself as cached — the verifier, the audit log and the
+     * report itself as cached -  the verifier, the audit log and the
      * QuestionAnswered event all read that flag.
      */
     #[Test]
@@ -135,7 +135,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
         $orchestrator->query($question, 'nq_orders');
 
         // The same words inside a conversation. Both readers refuse the row,
-        // so the provider answers — and the flag must say so.
+        // so the provider answers -  and the flag must say so.
         $inConv = $orchestrator->query($question, 'nq_orders', ['state' => ['dataset' => 'nq_orders']]);
 
         $this->assertSame('success', $inConv['status'] ?? null, json_encode($inConv));
@@ -146,7 +146,7 @@ class CacheRecipeAndFlagHonestyTest extends TestCase
         );
     }
 
-    /** And a real hit must still say so — the fix must not blanket-clear. */
+    /** And a real hit must still say so -  the fix must not blanket-clear. */
     #[Test]
     public function a_genuine_repeat_still_reports_a_cache_hit()
     {

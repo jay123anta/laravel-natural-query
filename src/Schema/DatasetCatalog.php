@@ -9,12 +9,12 @@ namespace Jayanta\NaturalQuery\Schema;
  * datasets exist without paying for every column of every one of them.
  *
  * A PURE function of the dataset-list array `SchemaRegistry::getDatasetListForLlm()`
- * produces — no registry, no config, no I/O — so it can be unit-tested with a
+ * produces -  no registry, no config, no I/O -  so it can be unit-tested with a
  * hand-built array and reused anywhere that list already exists.
  *
  * One caller today: `AbstractProvider::buildDatasetInfo()`, the intent-parsing
  * prompt every provider sends. `QueryPlanner::buildPlanPrompt()` has its own
- * near-identical loop and deliberately still does — pointing it here changed
+ * near-identical loop and deliberately still does -  pointing it here changed
  * the planning prompt on every provider, which is a prompt change needing a
  * live conformance run, not a refactor. Merge them when someone is willing to
  * pay for that run.
@@ -28,7 +28,7 @@ class DatasetCatalog
      * Render one line per dataset.
      *
      * @param  array<int, array<string, mixed>>  $datasetList  as returned by
-     *                                                         SchemaRegistry::getDatasetListForLlm() — each entry carries
+     *                                                         SchemaRegistry::getDatasetListForLlm() -  each entry carries
      *                                                         key, name, aliases, metrics, dimensions, default_dimension.
      * @param  array<int, string>|null  $onlyKeys  restrict the index to these
      *                                             dataset keys, in $datasetList's own order; null renders all of

@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 
 /**
  * "Revenue last month" had nowhere in the intent to put the period, so the
- * filter was dropped and the answer covered all time — correctly totalled,
+ * filter was dropped and the answer covered all time -  correctly totalled,
  * confidently worded, and about a period nobody asked for.
  *
  * The fourth defect of that family in three days, after the dimension, the
@@ -81,7 +81,7 @@ class TimeFilterTest extends TestCase
     #[Test]
     public function a_malformed_date_is_refused_rather_than_ignored()
     {
-        // Ignoring it would answer over all time — the original bug exactly.
+        // Ignoring it would answer over all time -  the original bug exactly.
         foreach (['last month', '2026-13-45', "2026-01-01' OR 1=1--", '01/07/2026'] as $bad) {
             $result = $this->build(['date_from' => $bad]);
 
@@ -119,7 +119,7 @@ class TimeFilterTest extends TestCase
     /**
      * The name match is an OR. Without parentheses around it, AND-ing the
      * period on binds only to the second half and the period is effectively
-     * lost — silently, and only for filtered questions.
+     * lost -  silently, and only for filtered questions.
      */
     #[Test]
     public function a_period_survives_alongside_a_name_filter()

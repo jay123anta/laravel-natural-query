@@ -11,7 +11,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Upgrading a 1.0.0 install to 2.0.0, where `scheme` became `dataset`.
  *
- * The rename itself is mechanical and the suite covers it by construction —
+ * The rename itself is mechanical and the suite covers it by construction -
  * every fixture was renamed alongside the code, which is exactly why a green
  * suite proves nothing here. What a rename actually breaks is the data written
  * by the previous version: a column that still has the old name, and a cached
@@ -81,7 +81,7 @@ class DatasetRenameUpgradeTest extends TestCase
     /**
      * Every other consumer resolves the table name from config. A migration
      * that hardcodes it skips a renamed install in silence, leaving the cache
-     * writing to a column that is not there — an error the cache swallows and
+     * writing to a column that is not there -  an error the cache swallows and
      * logs, so caching simply stops working forever with nothing user-visible.
      */
     #[Test]
@@ -120,7 +120,7 @@ class DatasetRenameUpgradeTest extends TestCase
 
     /**
      * The column rename does not reach inside the stored intent, which is JSON
-     * and still says "scheme". Serving one to 2.0.0 yields a null dataset — a
+     * and still says "scheme". Serving one to 2.0.0 yields a null dataset -  a
      * "which dataset?" card for a question that used to work, and Tier 2 has no
      * expiry, so it would never age out on its own.
      *
@@ -140,7 +140,7 @@ class DatasetRenameUpgradeTest extends TestCase
      * the fuzzy tier returns early whenever the asking scope is null, so it
      * returned null no matter what the contract filter did. It would have
      * passed with the filter deleted, which is the worst state a regression
-     * test can be in — the exact anti-pattern AGENTS.md §10 opens with.
+     * test can be in -  the exact anti-pattern AGENTS.md §10 opens with.
      *
      * So it now goes through the fuzzy tier deliberately, and asserts BOTH
      * directions: an old row is refused, and an otherwise identical current

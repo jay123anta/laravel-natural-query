@@ -29,14 +29,14 @@ class TurnClassifier
 
     public const REFERENCE = 'reference';
 
-    /** "Why is that?" — reuse the state, change what is shown. */
+    /** "Why is that?" -  reuse the state, change what is shown. */
     protected const REFERENCE_PATTERNS = [
         '/^\s*(?:why|how come|explain|what does (?:that|this) mean|tell me more|say more|elaborate)\b/i',
         '/^\s*(?:what|who|which)\s+(?:is|are|was|were)\s+(?:that|those|it|they)\b/i',
     ];
 
     /**
-     * "Break THAT down by category" — points at the last answer in so many
+     * "Break THAT down by category" -  points at the last answer in so many
      * words, so it is a drill-down whatever else it mentions. "Break that down
      * by revenue" names a measure and is still plainly about the answer on
      * screen.
@@ -49,7 +49,7 @@ class TurnClassifier
     ];
 
     /**
-     * "Breakdown by client" — names a breakdown but not what to break down, so
+     * "Breakdown by client" -  names a breakdown but not what to break down, so
      * it only makes sense against the previous answer. Checked AFTER
      * standsAlone(), because these words also appear in self-contained
      * questions: "what is the breakdown of revenue by city" names its own
@@ -57,7 +57,7 @@ class TurnClassifier
      *
      * The one-word spelling is here because it was missing, and that is the
      * spelling people type. "breakdown by client" fell past every drill pattern
-     * — `break\s+…` needs whitespace — and landed on the refinement default. It
+     * -  `break\s+…` needs whitespace -  and landed on the refinement default. It
      * still inherited correctly, so the answer was right; it was reported as a
      * narrowing when nothing had been narrowed, and it let the model's
      * re-reading of the measure overwrite the one already established.
@@ -69,7 +69,7 @@ class TurnClassifier
         '/^\s*group(?:ed)?\s+by\b/i',
     ];
 
-    /** "Only in West" — same question, narrower. */
+    /** "Only in West" -  same question, narrower. */
     protected const REFINEMENT_PATTERNS = [
         '/^\s*(?:only|just|now|and|but|also|then|instead|rather)\b/i',
         // Corrections. "Actually make that East" changes one filter and leaves

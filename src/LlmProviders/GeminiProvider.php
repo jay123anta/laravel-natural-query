@@ -20,7 +20,7 @@ class GeminiProvider extends AbstractProvider implements LlmProviderInterface
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
     /**
-     * Thinking budget for Gemini 2.5+ models. 0 = thinking disabled (default —
+     * Thinking budget for Gemini 2.5+ models. 0 = thinking disabled (default -
      * SQL/intent extraction at low temperature does not need extended
      * reasoning). Without this, 2.5-model "thinking" tokens consume
      * maxOutputTokens internally and TRUNCATE the JSON answer mid-response.
@@ -184,22 +184,22 @@ AVAILABLE DATASETS WITH THEIR METRICS:
 
 TASK: Extract:
 1. dataset: One of the available dataset keys
-2. metric: What measurement the user wants (use exact metric names). When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status", "ticket volume by month" — the measurement is a count of records, so use record_count. Only pick a money or quantity metric when the user actually names one.
+2. metric: What measurement the user wants (use exact metric names). When the user asks HOW MANY -  "how many orders", "number of tickets", "orders by status", "ticket volume by month" -  the measurement is a count of records, so use record_count. Only pick a money or quantity metric when the user actually names one.
 3. query_type: "aggregation" when the user wants ONE number for the whole
-   dataset — "total revenue", "how many orders are there", "what is the average
-   order value" — with no breakdown and no named record. "ranking" when they
+   dataset -  "total revenue", "how many orders are there", "what is the average
+   order value" -  with no breakdown and no named record. "ranking" when they
    want a list, which is the usual case. "group_detail" when they named one
    record. Getting this wrong turns "what is the total revenue" into a list of
    every individual row.
 4. limit: Number of results requested (default 10)
 5. order: "desc" for highest/top/most or "asc" for lowest/bottom/least
 6. group_value: A specific record name to filter to, if the user named one (or null). Never the name of a category or column.
-7c. filters: EVERY narrowing that applies, as [{"column":"region","value":"East"}]. This includes one stated in the question itself — "how many invoices are pending" is [{"column":"status","value":"pending"}], "sales in the West" is [{"column":"region","value":"West"}]. Match the value to the column it belongs to. In a conversation, also repeat the ones still in force — a filter you leave out is switched off.
+7c. filters: EVERY narrowing that applies, as [{"column":"region","value":"East"}]. This includes one stated in the question itself -  "how many invoices are pending" is [{"column":"status","value":"pending"}], "sales in the West" is [{"column":"region","value":"West"}]. Match the value to the column it belongs to. In a conversation, also repeat the ones still in force -  a filter you leave out is switched off.
 7b. filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
-7. group_by: The column to break the results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
-Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
-8. date_from / date_to: If the user named a period — "last month", "in 2025",
-   "since April", "this quarter" — resolve it to actual dates in YYYY-MM-DD
+7. group_by: The column to break the results down by when the user asks for one -  "revenue BY REGION", "orders PER STATUS". Must be one of that dataset's group_by columns. Use null when no breakdown is named, and the default is used.
+Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today -  comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
+8. date_from / date_to: If the user named a period -  "last month", "in 2025",
+   "since April", "this quarter" -  resolve it to actual dates in YYYY-MM-DD
    form, using TODAY'S DATE below. Both null when no period is mentioned.
    Never guess a period the user did not ask for.
 9. confidence: Your confidence 0.0 to 1.0

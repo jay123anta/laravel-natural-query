@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\Test;
  * What is measured here is deliberately narrower than a public benchmark: the
  * intent is supplied rather than parsed, so this grades SQL CONSTRUCTION, not
  * language understanding. That separation is the point. When an answer is
- * wrong, this says whether the builder or the model was at fault — and the
+ * wrong, this says whether the builder or the model was at fault -  and the
  * builder is the half that must never be wrong, because no amount of prompt
  * work can compensate for SQL that computes the wrong thing.
  *
@@ -49,14 +49,14 @@ class GoldSqlAccuracyTest extends TestCase
         });
 
         DB::table('tf_sales')->insert([
-            // June — outside the July window every dated case asks for.
+            // June -  outside the July window every dated case asks for.
             ['region' => 'West', 'order_date' => '2026-06-15', 'shipped_at' => '2026-07-02', 'revenue' => 1000],
             ['region' => 'East', 'order_date' => '2026-06-20', 'shipped_at' => '2026-07-05', 'revenue' => 900],
-            // July — inside it.
+            // July -  inside it.
             ['region' => 'West', 'order_date' => '2026-07-01', 'shipped_at' => '2026-07-10', 'revenue' => 300],
             ['region' => 'West', 'order_date' => '2026-07-31', 'shipped_at' => '2026-08-02', 'revenue' => 200],
             ['region' => 'East', 'order_date' => '2026-07-15', 'shipped_at' => '2026-07-20', 'revenue' => 400],
-            // August — after it.
+            // August -  after it.
             ['region' => 'West', 'order_date' => '2026-08-01', 'shipped_at' => '2026-08-03', 'revenue' => 5000],
         ]);
     }
@@ -72,7 +72,7 @@ class GoldSqlAccuracyTest extends TestCase
     {
         $built = $this->app->make(SqlBuilder::class)->buildQuery($intent + ['dataset' => 'tf_sales']);
 
-        $this->assertTrue($built['success'], 'build failed: ' . ($built['error'] ?? '') . " — {$because}");
+        $this->assertTrue($built['success'], 'build failed: ' . ($built['error'] ?? '') . " -  {$because}");
 
         $actual = DB::select($built['sql'], $built['bindings'] ?? []);
         $gold = DB::select($goldSql);
@@ -108,7 +108,7 @@ class GoldSqlAccuracyTest extends TestCase
     #[Test]
     public function total_for_a_closed_period()
     {
-        // "revenue in July 2026" — 300 + 200 + 400 = 900. June and August must
+        // "revenue in July 2026" -  300 + 200 + 400 = 900. June and August must
         // not be counted; the August row alone (5000) would swamp the answer.
         $this->assertMatchesGold(
             ['metric' => 'revenue', 'date_from' => '2026-07-01', 'date_to' => '2026-07-31', 'group_by' => 'region'],
@@ -122,7 +122,7 @@ class GoldSqlAccuracyTest extends TestCase
     #[Test]
     public function an_open_ended_period_from_a_date()
     {
-        // "revenue since July" — July and August, not June.
+        // "revenue since July" -  July and August, not June.
         $this->assertMatchesGold(
             ['metric' => 'revenue', 'date_from' => '2026-07-01', 'group_by' => 'region'],
             "SELECT region, SUM(revenue) AS revenue FROM tf_sales
@@ -162,7 +162,7 @@ class GoldSqlAccuracyTest extends TestCase
      *
      * The name match is an OR. AND-ing the period onto it unparenthesised
      * binds the date to only half the condition, so West would come back with
-     * its all-time total — 1500 instead of 500 — and only filtered questions
+     * its all-time total -  1500 instead of 500 -  and only filtered questions
      * would be affected.
      */
     #[Test]
@@ -197,7 +197,7 @@ class GoldSqlAccuracyTest extends TestCase
     {
         // Every row shipped in a different month from when it was ordered. If
         // the period were applied to shipped_at instead of the declared
-        // order_date, the total changes — so this distinguishes them.
+        // order_date, the total changes -  so this distinguishes them.
         $ours = $this->app->make(SqlBuilder::class)->buildQuery([
             'dataset' => 'tf_sales',
             'metric' => 'revenue',

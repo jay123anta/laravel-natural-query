@@ -43,7 +43,7 @@ class ApiDocsMatchCodeTest extends TestCase
 
         $this->assertNotEmpty(
             $found,
-            'no error rows parsed from the API reference — the table format changed and this test '
+            'no error rows parsed from the API reference -  the table format changed and this test '
                 . 'would silently pass on an empty set'
         );
 

@@ -34,7 +34,7 @@ return [
     // Built-in drivers: 'gemini', 'openai', 'claude', 'ollama'
     // PLUS any OpenAI-compatible service (hosted or self-hosted): add a block
     // under 'providers' with a 'base_url' and set the driver to that block's
-    // name — see the 'deepseek' and 'selfhosted' examples below. No particular
+    // name -  see the 'deepseek' and 'selfhosted' examples below. No particular
     // model is ever required; every provider's model is your choice.
     'llm' => [
         'driver' => env('NATURALQUERY_LLM_DRIVER', 'gemini'),
@@ -42,13 +42,13 @@ return [
         'providers' => [
             'gemini' => [
                 'api_key' => env('GEMINI_API_KEY'),
-                // gemini-2.0-flash was RETIRED by Google (returns 404) — keep
+                // gemini-2.0-flash was RETIRED by Google (returns 404) -  keep
                 // this default on a live model.
                 'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
                 'timeout' => is_numeric(env('NATURALQUERY_TIMEOUT')) ? (int) env('NATURALQUERY_TIMEOUT') : 30,
                 'max_retries' => 3,
                 // Gemini 2.5+ internal "thinking" budget. 0 (default) disables
-                // thinking — low-temperature SQL/intent extraction doesn't need
+                // thinking -  low-temperature SQL/intent extraction doesn't need
                 // it, and with thinking ON its tokens silently consume
                 // maxOutputTokens and truncate the JSON response. Set to -1 in
                 // env to restore provider-default thinking.
@@ -65,12 +65,12 @@ return [
                 'timeout' => is_numeric(env('NATURALQUERY_TIMEOUT')) ? (int) env('NATURALQUERY_TIMEOUT') : 30,
                 'max_retries' => 3,
                 'max_tokens' => is_numeric(env('NATURALQUERY_MAX_OUTPUT_TOKENS')) ? (int) env('NATURALQUERY_MAX_OUTPUT_TOKENS') : 2048,
-                // Some self-hosted servers reject response_format — set false there.
+                // Some self-hosted servers reject response_format -  set false there.
                 'force_json' => true,
             ],
 
             // ------------------------------------------------------------------
-            // BRING YOUR OWN MODEL — hosted or self-hosted
+            // BRING YOUR OWN MODEL -  hosted or self-hosted
             // ------------------------------------------------------------------
             // Any service speaking the OpenAI chat-completions protocol plugs in
             // by adding a block here and setting NATURALQUERY_LLM_DRIVER to its
@@ -79,7 +79,7 @@ return [
             // server, text-generation-webui. (For Ollama, the dedicated
             // 'ollama' driver below is preferred.)
             //
-            // No model is ever fixed by this package — you choose the model on
+            // No model is ever fixed by this package -  you choose the model on
             // every provider via config/env.
             'deepseek' => [
                 'api_key' => env('DEEPSEEK_API_KEY'),
@@ -149,14 +149,14 @@ return [
                 // How much context the model may READ, in tokens.
                 //
                 // Ollama does not reject a prompt that exceeds this. It drops
-                // the beginning and answers from the rest — and the beginning
+                // the beginning and answers from the rest -  and the beginning
                 // is the schema, so you get a confident answer built on table
                 // definitions the model never saw. Nothing in the response
                 // says this happened.
                 //
                 // Ollama's own default is 4096, and 2048 in older builds. Once
                 // the schema block is included, a multi-table app can exceed
-                // that on an ordinary question — so leaving it to the server
+                // that on an ordinary question -  so leaving it to the server
                 // means silent truncation on a normal install.
                 //
                 // Raising it costs memory for the KV cache, and the model has
@@ -165,7 +165,7 @@ return [
                 // truncated, so if you see that error, this is the setting it
                 // is talking about.
                 //
-                // Values below 1024 are treated as unset — an empty
+                // Values below 1024 are treated as unset -  an empty
                 // OLLAMA_NUM_CTX would otherwise read as 0 and refuse
                 // everything.
                 'num_ctx' => (int) env('OLLAMA_NUM_CTX', 8192),
@@ -182,7 +182,7 @@ return [
     //                     constructs the query. Safer, but limited to predefined metrics.
     //
     // 'sql_generation'  - AI receives full table structure and generates SQL directly.
-    //                     More flexible — works with any query pattern. SQL is validated
+    //                     More flexible -  works with any query pattern. SQL is validated
     //                     before execution to prevent dangerous operations.
     //
     // 'auto'            - Uses intent mode for known datasets with defined metrics.
@@ -194,7 +194,7 @@ return [
     // DEFAULT DATASET
     // ==========================================================================
     // If your project has only ONE dataset (or a primary one), set it here.
-    // This eliminates dataset detection errors — the AI always knows which tables to use.
+    // This eliminates dataset detection errors -  the AI always knows which tables to use.
     //
     // Examples:
     //   'sales'          → all queries go to the 'sales' dataset
@@ -247,7 +247,7 @@ return [
     // cross-dataset concepts. These are included in multi-dataset prompts.
     //
     // Per-dataset examples go in that dataset's schema file.
-    // Global examples go here — for routing/disambiguation.
+    // Global examples go here -  for routing/disambiguation.
     'global_examples' => [
         // ['natural' => 'Compare support load and revenue', 'note' => 'Use support_tickets for load, orders for revenue'],
         // ['natural' => 'Show overall status of everything', 'note' => 'Query each dataset separately and combine results'],
@@ -283,7 +283,7 @@ return [
         // Bound the SQL-generation prompt, in characters. Both forms of it:
         // the focused single-dataset prompt and the multi-dataset one are
         // measured the same way, whichever a given question builds.
-        // null (default) = unbounded — every dataset always goes in the
+        // null (default) = unbounded -  every dataset always goes in the
         // prompt, exactly as before this setting existed. This is safe on
         // small schemas and is why upgrading never changes behaviour unless
         // you set this yourself.
@@ -291,13 +291,13 @@ return [
         // This is a SIZE BOUND ONLY. When a question's prompt
         // would exceed it, the call is refused with an actionable message
         // (bytes needed, bytes allowed, this config key) BEFORE any request
-        // reaches the AI — never a narrower prompt built from fewer tables,
+        // reaches the AI -  never a narrower prompt built from fewer tables,
         // and never a silently truncated one. It does NOT narrow which
         // datasets go into the prompt; every dataset is always rendered, so
         // on a LARGE schema (dozens to hundreds of tables) that outgrows a
         // budget your provider's context window can hold, the fix is a
         // smaller schema/system_instructions footprint, a query_mode of
-        // 'intent' for the affected questions, or raising this value — not
+        // 'intent' for the affected questions, or raising this value -  not
         // scoping, which this package deliberately does not attempt (a
         // dimension table one join away from the question's own tables
         // cannot be told apart from one that is genuinely irrelevant without
@@ -310,7 +310,7 @@ return [
         // That does not make intent mode wholly immune, and the distinction is
         // worth stating precisely because two earlier versions of this comment
         // got it wrong. A question that fails in intent mode is retried with a
-        // refined SQL prompt, and THAT prompt is measured — so on a schema
+        // refined SQL prompt, and THAT prompt is measured -  so on a schema
         // large enough to exceed the bound, an intent-mode failure can surface
         // as a refusal naming this key rather than as the original failure.
         // Same in 'auto' (the default) once it escalates to SQL generation.
@@ -318,7 +318,7 @@ return [
         // What holds unconditionally: a question ANSWERED by intent parsing
         // never consults this setting, whatever you set it to.
         //
-        // Not named "budget" — that word already means milliseconds in
+        // Not named "budget" -  that word already means milliseconds in
         // retry.total_budget_ms and a request count in
         // Http/Middleware/EnforceQueryBudget.
         'max_chars' => is_numeric(env('NATURALQUERY_PROMPT_MAX_CHARS')) ? (int) env('NATURALQUERY_PROMPT_MAX_CHARS') : null,
@@ -329,7 +329,7 @@ return [
     // ==========================================================================
     // How the package waits before re-calling an LLM provider that returned a
     // transient failure (429 rate limit, 5xx, connection error). Waiting is
-    // BLOCKING — the PHP worker is held — so all three caps below matter:
+    // BLOCKING -  the PHP worker is held -  so all three caps below matter:
     // per-wait (max_delay_ms), cumulative (total_budget_ms), and attempt count
     // (each provider's own 'max_retries' above).
     //
@@ -342,8 +342,8 @@ return [
     // identically every time), and anything once the budget is spent.
     'retry' => [
         // Seconds advertised in the Retry-After header when an endpoint answers
-        // 429. This is the signal to the CALLER — a browser, a queue worker, a
-        // React app — about when to come back. The waits below are the
+        // 429. This is the signal to the CALLER -  a browser, a queue worker, a
+        // React app -  about when to come back. The waits below are the
         // package's own internal retries against the provider, which happen
         // inside a single request and are a different thing entirely.
         'retry_after_seconds' => 60,
@@ -357,7 +357,7 @@ return [
         // Set to 0 to disable the cumulative cap (not recommended on FPM).
         'total_budget_ms' => 4000,
         // Honour the provider's Retry-After header when present. It still has
-        // to fit total_budget_ms — a "come back in 60s" hint fails fast.
+        // to fit total_budget_ms -  a "come back in 60s" hint fails fast.
         'respect_retry_after' => true,
         // Randomise each wait within [delay/2, delay] so concurrent workers
         // don't retry in lockstep and re-trigger the same rate limit.
@@ -380,7 +380,7 @@ return [
     // SELF-VERIFICATION (X Factor)
     // ==========================================================================
     // AI verifies its own SQL before execution. Catches wrong columns,
-    // wrong ORDER, wrong JOINs — before the user sees bad data.
+    // wrong ORDER, wrong JOINs -  before the user sees bad data.
     // Cost: ~200 tokens per verification (fraction of generation cost).
     // Skipped for cache hits and intent mode.
     'verification' => [
@@ -397,7 +397,7 @@ return [
 
         // Skip verification for cached queries (already proven correct).
         // Reads metadata.cache_hit, which is set only where a cached row is
-        // actually replayed — never merely because one was found and then
+        // actually replayed -  never merely because one was found and then
         // declined. Freshly generated SQL is always verified.
         'skip_on_cache_hit' => true,
     ],
@@ -417,12 +417,12 @@ return [
         'max_limit' => null,
 
         // In 'auto' query mode, send a question straight to SQL generation when
-        // its wording needs SQL the intent contract cannot express — a HAVING
+        // its wording needs SQL the intent contract cannot express -  a HAVING
         // ("customers with more than 10 orders"), a numeric filter ("orders
         // over 5000"), an exclusion ("excluding cancelled"), a ratio, a
         // DISTINCT, or a per-group top-N.
         //
-        // Intent mode does not FAIL on these — it answers a narrower question
+        // Intent mode does not FAIL on these -  it answers a narrower question
         // and says nothing about the part it dropped, which is the most
         // dangerous thing this package can do. Escalating costs nothing: intent
         // parsing and SQL generation are one API call each.
@@ -437,7 +437,7 @@ return [
         // reporting, say, revenue per status instead.
         //
         // A schema that declares its own 'count' or 'record_count' metric
-        // always wins — set this to false only to remove the built-in entirely.
+        // always wins -  set this to false only to remove the built-in entirely.
         'implicit_count_metric' => true,
 
         // SQL keywords that are NEVER allowed in generated queries
@@ -460,7 +460,7 @@ return [
         // null = use default connection from config/database.php.
         //
         // Set this to point NaturalQuery at a different connection from the
-        // rest of the app — a read replica, or a database it can introspect
+        // rest of the app -  a read replica, or a database it can introspect
         // when the app's own driver has no introspector.
         'database_connection' => null,
 
@@ -471,7 +471,7 @@ return [
         // The built-ins live in code rather than in this file on purpose:
         // Laravel merges package config only one level deep, so an app that
         // published this file under an older version would never receive new
-        // nested keys — and a missing driver map would break every query.
+        // nested keys -  and a missing driver map would break every query.
         //
         // To support another database, implement
         // Contracts\SchemaIntrospectorInterface and register it here:
@@ -491,7 +491,7 @@ return [
     // ==========================================================================
     'schema' => [
         // Directory containing per-schema configuration files.
-        // Each .php file here defines one queryable dataset — this is how the
+        // Each .php file here defines one queryable dataset -  this is how the
         // package adapts to ANY application: no code changes, just config.
         // Generate the files from your live database with:
         //     php artisan naturalquery:discover --ai
@@ -499,7 +499,7 @@ return [
         'config_path' => config_path('naturalquery-schemas'),
 
         // Tables that naturalquery:discover skips. These are framework and
-        // plumbing tables nobody asks business questions about — without this,
+        // plumbing tables nobody asks business questions about -  without this,
         // a first run buries the two tables you care about under migrations,
         // jobs and sessions. A trailing '*' matches a prefix.
         // Override with --all-tables, or edit this list for your app.
@@ -528,7 +528,7 @@ return [
     // query, and suggested follow-ups so a bot can offer the user somewhere to
     // go next.
     'chat' => [
-        // Answer questions that need several queries — "revenue this year vs
+        // Answer questions that need several queries -  "revenue this year vs
         // last year" runs two and reports both plus the change.
         //
         // Costs ONE extra API call, and only for questions whose wording
@@ -542,26 +542,31 @@ return [
         'max_steps' => 4,
 
         // Suggested follow-up questions on every answer. Derived from your
-        // schema — no API call, no added latency — and they can only suggest
+        // schema -  no API call, no added latency -  and they can only suggest
         // breakdowns the validator would allow.
         'suggest_next_steps' => true,
         'max_next_steps' => 4,
 
-        // Whether a suggestion may name a value from the results, e.g.
-        // "Break West down by category" after West came top.
+        // NO LONGER READ, since 2.1.1. Kept so that an existing published
+        // config keeps working unchanged.
         //
-        // These are built and returned locally like every other suggestion.
-        // Clicking one sends that question to the provider as the user's own
-        // query text — the same as typing it. Set false if you would rather no
-        // value from your data ever reach a prompt, even by the user's hand.
+        // A suggestion could name a value from the results ("Break West down
+        // by category"), gated by this setting. But a suggestion is sent to the
+        // provider the moment it is clicked, so the value left the building -
+        // and on a discovered schema the top row's value can be a
+        // `remember_token`, because introspection marks every string column
+        // groupable and the suggester cannot know which hold secrets.
+        //
+        // The privacy wall is not a setting. No suggestion carries a value out
+        // of your data now, whatever this is set to.
         'suggest_drilldown_values' => true,
     ],
 
     // ==========================================================================
     // QUERY CACHE (Two-Tier)
     // ==========================================================================
-    // Caches what the AI worked out about a question — the parsed intent, or
-    // the generated SQL when the question needed SQL generation — so asking it
+    // Caches what the AI worked out about a question -  the parsed intent, or
+    // the generated SQL when the question needed SQL generation -  so asking it
     // again costs no API call. The SQL still runs every time, so the numbers
     // are always current; it is the AI step that is skipped, not the query.
     //
@@ -580,7 +585,7 @@ return [
 
         // Fuzzy match threshold (0.0 to 1.0) for reusing a cached intent.
         //
-        // This is a LEXICAL comparison — shared words and edit distance. It
+        // This is a LEXICAL comparison -  shared words and edit distance. It
         // catches re-runs and near-identical wording ("top 5 customers" vs
         // "top five customers"), which is what it is for. It does NOT
         // understand meaning, so genuine paraphrases mostly miss the cache and
@@ -588,7 +593,7 @@ return [
         //
         // Do not lower this to try to catch paraphrases. Measured on this
         // implementation, "top 10 customers by revenue" and "bottom 10
-        // customers by revenue" score 0.65 — higher than most real
+        // customers by revenue" score 0.65 -  higher than most real
         // paraphrases. Any threshold low enough to catch the paraphrases is
         // also low enough to answer a question with its opposite, from cache,
         // with no API call to correct it. Raise it if you want fewer reuses;
@@ -599,8 +604,8 @@ return [
         // than identical. OFF by default since 2.1.0, and the reason is
         // structural rather than a threshold that wants tuning.
         //
-        // Queries are normalised before comparison — lowercased, filler words
-        // dropped, synonyms folded, de-duplicated, sorted — so two that come
+        // Queries are normalised before comparison -  lowercased, filler words
+        // dropped, synonyms folded, de-duplicated, sorted -  so two that come
         // out equal are already an exact hit. Every pair this ever judges
         // therefore differs in real, meaning-bearing tokens, and the score is
         // dominated by the tokens they SHARE. Swap one value and measure:
@@ -654,7 +659,7 @@ return [
         //
         // Ambiguity compounds. Past a handful of "only this", "and that",
         // nobody remembers which filters are still live, and resolution
-        // degrades faster than anyone notices — so the honest move is to say
+        // degrades faster than anyone notices -  so the honest move is to say
         // so rather than to keep resolving into something confident and wrong.
         // Every state is kept, so /conversation/{id}/rewind still steps back.
         //
@@ -669,11 +674,11 @@ return [
     // SPENDING LIMITS
     // ==========================================================================
     // Every question is a paid API call, so the routes above have a ceiling as
-    // well as a rate. 'throttle:60,1' stops a burst; this stops a slow drain —
+    // well as a rate. 'throttle:60,1' stops a burst; this stops a slow drain -
     // sixty a minute sustained is roughly 86,000 questions a day.
     'limits' => [
         // Questions per person per day. Counted per authenticated user, or per
-        // IP when the routes are public. Set to null for no ceiling — a
+        // IP when the routes are public. Set to null for no ceiling -  a
         // deliberate choice rather than the default.
         //
         // 200/day is generous for a person and ruinous for a script.
@@ -707,7 +712,7 @@ return [
         //
         // 'auth' is deliberately NOT in the list below. A fresh Laravel app has
         // no login route, so 'auth' turned an unauthenticated visit into
-        // "Route [login] not defined" — a 500 on the demo page, before the
+        // "Route [login] not defined" -  a 500 on the demo page, before the
         // adopter had done anything wrong. Add it back if your app has auth
         // scaffolding and you want the redirect.
         //
@@ -715,7 +720,7 @@ return [
         //
         // 'web' means session cookies, which is right for a Blade app or an
         // SPA served from the same domain (Laravel Sanctum's stateful mode).
-        // A separate origin — a Vite dev server on :3000, a mobile app —
+        // A separate origin -  a Vite dev server on :3000, a mobile app -
         // needs token auth and CORS instead:
         //
         //     'middleware' => ['api', 'auth:sanctum', 'throttle:60,1'],
@@ -727,7 +732,7 @@ return [
         //
         // Without both, the browser blocks the response before your code sees
         // it and the failure looks like a network error rather than a policy
-        // one — which is why it is written here rather than left to be
+        // one -  which is why it is written here rather than left to be
         // discovered.
         'middleware' => ['web', 'throttle:60,1'],
 
@@ -757,7 +762,7 @@ return [
         // Every question always passes through the built-in InputGuard
         // (prompt injection, SQL-in-text, exfiltration, resource abuse).
         // If ai-guard is ALSO installed it is detected automatically and adds
-        // its scoring-based detector on top — no wiring required:
+        // its scoring-based detector on top -  no wiring required:
         //
         //     composer require jayanta/laravel-ai-guard
         //
@@ -768,13 +773,13 @@ return [
 
             // How an ai-guard detection is enforced here:
             //
-            //   'auto'   — obey ai-guard's own config. It blocks only in its
+            //   'auto'   -  obey ai-guard's own config. It blocks only in its
             //              'block' mode, and only at/above its
             //              confidence_threshold. Its shipped default mode is
             //              'log_only', so out of the box a detection is logged
             //              and the built-in checks decide the outcome.
             //
-            //   'always' — block on any ai-guard detection at/above its
+            //   'always' -  block on any ai-guard detection at/above its
             //              confidence_threshold, whatever mode ai-guard is in.
             //
             // Detections that do not block are logged at info level, so the
@@ -816,7 +821,7 @@ return [
     //
     // Speech is recognised IN THE BROWSER and posted as text, which is the
     // whole voice design: nothing to configure, no audio leaves the device,
-    // and it works with every LLM — local or hosted — because by the time the
+    // and it works with every LLM -  local or hosted -  because by the time the
     // model is involved it is only reading a sentence. Browsers without
     // speech recognition (Firefox) hide the microphone; typing always works.
     'widget' => [
@@ -828,7 +833,7 @@ return [
 
         // Which ENGLISH accent the browser listens for and speaks back:
         // en-US, en-GB, en-IN, en-AU, en-CA. It changes recognition accuracy
-        // noticeably — en-IN hears Indian English far better than en-US does.
+        // noticeably -  en-IN hears Indian English far better than en-US does.
         //
         // null follows the page's <html lang>, then the browser, which is
         // right for most apps.
@@ -873,7 +878,7 @@ return [
         'footer_note' => 'AI-generated · please verify important figures',
 
         // Enable the built-in demo page at {prefix}/demo.
-        // Defaults to local environment only — NEVER enable blindly in
+        // Defaults to local environment only -  NEVER enable blindly in
         // production; the demo page is unauthenticated by default route config.
         'demo_page' => env('NATURALQUERY_DEMO_PAGE', null) !== null
             ? (bool) env('NATURALQUERY_DEMO_PAGE')

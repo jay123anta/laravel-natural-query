@@ -12,7 +12,7 @@
         </testsuite>
         <!--
             Accuracy benchmark. Self-skips unless NATURALQUERY_BENCHMARK=1,
-            because it makes real API calls — a suite that quietly spends money
+            because it makes real API calls -  a suite that quietly spends money
             on every run is a bad neighbour.
         -->
         <testsuite name="Benchmark">
@@ -24,7 +24,7 @@
             NATURALQUERY_CONFORMANCE=1, because it makes real API calls.
             Every expected value is arithmetic on three rows of seeded
             data, so a failure is a defect and not a model having an off
-            day. Run it per provider — that is the point.
+            day. Run it per provider -  that is the point.
         -->
         <testsuite name="Conformance">
             <directory>tests/Conformance</directory>

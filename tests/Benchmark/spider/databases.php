@@ -4,8 +4,8 @@
  * Spider database definitions, built from the published schemas.
  *
  * Spider does not distribute its SQLite files through the channel available
- * here, so each database is created from its real schema — real table names,
- * real column names and casing, real foreign keys — and filled with synthetic
+ * here, so each database is created from its real schema -  real table names,
+ * real column names and casing, real foreign keys -  and filled with synthetic
  * rows written to make the dev questions answerable.
  *
  * Column names are Spider's and are deliberately not tidied. Half the

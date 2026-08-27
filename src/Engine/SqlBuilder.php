@@ -49,7 +49,7 @@ class SqlBuilder
 
             // "revenue by region" asks for a different breakdown than the
             // schema's default. Without this the dimension was dropped and the
-            // answer came back grouped by group_column — correctly formatted,
+            // answer came back grouped by group_column -  correctly formatted,
             // confidently worded, and about a question nobody asked.
             $requestedDimension = $intent['group_by'] ?? null;
             $groupColumn = $requestedDimension
@@ -73,7 +73,7 @@ class SqlBuilder
             // refusal, not a reason to reach for the default. "Top 3 customers
             // by revenue" against a customers table has no revenue in it, and
             // quietly ranking by whatever the default is returns the right
-            // shape of answer to a different question — the same silent
+            // shape of answer to a different question -  the same silent
             // substitution as a dropped breakdown or a dropped period. Failing
             // here lets auto mode try SQL generation, which can join to the
             // table the measure actually lives in.
@@ -123,7 +123,7 @@ class SqlBuilder
             // If JOIN is needed, the group column reference comes from the
             // joined table. select_override maps the schema's DEFAULT group
             // column through that join, so it must not be applied when the user
-            // asked to group by something else — doing so would label region
+            // asked to group by something else -  doing so would label region
             // totals with district names.
             $fromClause = $tableName . ($joinClause ? ' ' . $joinClause : '');
             $useOverride = $selectOverride && !$requestedDimension;
@@ -150,7 +150,7 @@ class SqlBuilder
 
             // "Revenue last month" narrows on a date. Without this the filter
             // had nowhere to live in the intent, was dropped, and the answer
-            // came back covering all time — correctly totalled, confidently
+            // came back covering all time -  correctly totalled, confidently
             // worded, and about a period nobody asked for.
             $time = $this->resolveTimeFilter($datasetKey, $intent);
 
@@ -160,7 +160,7 @@ class SqlBuilder
 
             // Determine query type and build SQL
             // "What is the total revenue" is one number, not a ranking of every
-            // row. The model says so — query_type comes back as 'aggregation' —
+            // row. The model says so -  query_type comes back as 'aggregation' -
             // and this branch was missing, so the field was read in the
             // SQL-generation path and ignored here. The answer came back as a
             // list of individual line items, which is not what was asked and
@@ -177,13 +177,13 @@ class SqlBuilder
             //
             // group_value alone always matched against the group column, so
             // "quantity by customer_name for Grocery" looked for a CUSTOMER
-            // called Grocery, found none, and fell back to every customer —
+            // called Grocery, found none, and fell back to every customer -
             // with the category filter silently gone. The package's own
             // drill-down suggestions generate exactly that shape, so it was
             // offering questions it could not answer.
             // A conversation accumulates filters. "Only in West" then "and what
             // about Electronics?" means BOTH, and holding one at a time made the
-            // second silently replace the first — the region vanished and the
+            // second silently replace the first -  the region vanished and the
             // answer covered every region, which reads exactly like a correct
             // answer to the question that was asked.
             $filters = $this->resolveFilters($datasetKey, $intent, $groupColumn);
@@ -206,13 +206,13 @@ class SqlBuilder
 
             $bindings = [];
             if ($wantsTotal) {
-                // Before the filter branch, because a filter NARROWS a total —
+                // Before the filter branch, because a filter NARROWS a total -
                 // it does not turn it into a league table. "How many invoices
                 // are pending" is one number over the pending ones.
                 //
                 // The other order shipped, and that question came back grouped
                 // by client: "Rekha Stores: 1 records" where the answer is "1".
-                // Right count, wrong question — and the wrong question is the
+                // Right count, wrong question -  and the wrong question is the
                 // one a reader believes, because nothing about it looks broken.
                 //
                 // wantsTotal is already narrow: the model said aggregation AND
@@ -222,8 +222,11 @@ class SqlBuilder
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'aggregation';
+                // One number over everything. No dimension to report, whatever
+                // the schema's default group column happens to be.
+                $groupedBy = null;
             } elseif ($filtersAnotherColumn) {
-                // Still a ranking — "quantity by customer for Grocery" wants
+                // Still a ranking -  "quantity by customer for Grocery" wants
                 // every customer within that category, not one row.
                 $result = $this->buildFilteredRankingQuery(
                     $fromClause,
@@ -240,16 +243,21 @@ class SqlBuilder
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'ranking';
+                $groupedBy = $groupColumn;
             } elseif ($groupValue) {
                 $result = $this->buildGroupValueQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $groupValue, $datasetKey, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'group_detail';
+                // One named value, not a breakdown across values. The value
+                // itself is already reported as group_value.
+                $groupedBy = null;
             } else {
                 $result = $this->buildRankingQuery($fromClause, $groupColumnSelect, $groupColumnRef, $metricExpr, $metric, $order, $limit, $aggregate, $time);
                 $sql = $result['sql'];
                 $bindings = $result['bindings'];
                 $queryType = 'ranking';
+                $groupedBy = $groupColumn;
             }
 
             // Apply required filter if defined
@@ -273,7 +281,23 @@ class SqlBuilder
                 'order' => $order,
                 'query_type' => $queryType,
                 'group_column' => $groupColumn,
+                // The dimension the rows ARE broken down by, as opposed to
+                // `group_column`, which is the schema's default dimension and
+                // is set on every result including a single ungrouped total.
+                //
+                // Reported by the builder because the builder WROTE the SQL and
+                // took the branch — this is the artifact, not a plan. The
+                // orchestrator previously tried to recover it by regex over the
+                // finished statement, which announced a breakdown over a total
+                // whenever a CTE or subquery contained a GROUP BY.
+                //
+                // Absent on the sql_generation route, where the SQL is the
+                // model's and nothing here can honestly say what it did.
+                'grouped_by' => $groupedBy,
                 'time_filter' => $time['label'] ?? null,
+                // Set only when a period was actually resolved and written into
+                // the WHERE clause, so its presence is what makes `time_filter`
+                // trustworthy.
                 'time_column' => $time['column'] ?? null,
                 'filter_column' => $filtersAnotherColumn ? ($filters['columns'][0] ?? null) : null,
                 'filter_columns' => $filters['columns'] ?? [],
@@ -361,7 +385,7 @@ class SqlBuilder
     /**
      * Every column filter the intent carries, as bound WHERE fragments.
      *
-     * Accepts a list — `filters: [{column, value}, …]` — because a
+     * Accepts a list -  `filters: [{column, value}, …]` -  because a
      * conversation accumulates them, and also the single filter_column /
      * group_value pair a one-shot question produces. Filters on the column
      * being grouped by are left out: those are a detail view, handled
@@ -410,7 +434,7 @@ class SqlBuilder
             // skipping it here silently discarded the narrowing.
             //
             // "Total amount by city" then "only in Guwahati" produces exactly
-            // that shape — group_by=city, filters=[city:Guwahati] — and every
+            // that shape -  group_by=city, filters=[city:Guwahati] -  and every
             // city came back, the instruction gone without trace. All three
             // providers were emitting the filter correctly; it was thrown away
             // here. GROUP BY city WHERE city = 'Guwahati' is well-formed and
@@ -437,7 +461,7 @@ class SqlBuilder
 
         // Columns and values must travel together. Reported apart, a caller
         // pairing the first column with the newest value produced "region is
-        // Electronics" — a filter that was never applied and never existed.
+        // Electronics" -  a filter that was never applied and never existed.
         return ['clauses' => $clauses, 'bindings' => $bindings, 'columns' => $columns, 'pairs' => $resolvedPairs];
     }
 
@@ -445,7 +469,7 @@ class SqlBuilder
      * Turn a requested period into a bound WHERE fragment.
      *
      * Dates arrive from a model, so they are checked against a strict ISO
-     * pattern AND passed as bindings — the pattern keeps a malformed value from
+     * pattern AND passed as bindings -  the pattern keeps a malformed value from
      * reaching the database at all, the bindings mean nothing is interpolated
      * even if the pattern were ever loosened.
      *
@@ -465,7 +489,7 @@ class SqlBuilder
 
         // Rejection is checked BEFORE "no period requested". A period that was
         // asked for but could not be parsed must be refused, not quietly
-        // treated as absent — treating it as absent answers over all time,
+        // treated as absent -  treating it as absent answers over all time,
         // which is the exact bug this exists to prevent.
         if ($this->wasRequested($requestedFrom) && $from === null) {
             return ['error' => 'Could not understand the start of that period.'];
@@ -565,7 +589,7 @@ class SqlBuilder
         array $time = []
     ): array {
         // Transactional tables need per-group aggregation for the detail view
-        // too — otherwise "revenue for <customer>" returns one arbitrary row.
+        // too -  otherwise "revenue for <customer>" returns one arbitrary row.
         $plainMetrics = $this->registry->getMetrics($datasetKey);
         $computedMetrics = $this->registry->getComputedMetrics($datasetKey);
 
@@ -600,11 +624,11 @@ class SqlBuilder
         $columnsStr = $groupColumnSelect . ', ' . implode(', ', $metricColumns);
         $groupBy = $aggregate ? " GROUP BY {$groupColumnRef}" : '';
 
-        // Use parameterized queries — NEVER interpolate user values into SQL.
+        // Use parameterized queries -  NEVER interpolate user values into SQL.
         //
         // LOWER(col) LIKE LOWER(?) rather than ILIKE: ILIKE is PostgreSQL-only
         // and is a hard syntax error on MySQL and MariaDB, which this package
-        // also supports — every named-record lookup failed there. The LOWER()
+        // also supports -  every named-record lookup failed there. The LOWER()
         // form is ANSI and behaves identically on all of them. It does forgo
         // an index, but this query is a single-record lookup with LIMIT 1.
         // The name match is parenthesised before AND-ing the period on, or the
@@ -630,7 +654,7 @@ class SqlBuilder
      * @return array{sql: string, bindings: array}
      */
     /**
-     * One number over the whole set — narrowed, if the question narrowed it.
+     * One number over the whole set -  narrowed, if the question narrowed it.
      *
      * Filters used to be missing here, and the branch that handles them ran
      * first, so "how many invoices are pending" never reached this method at
@@ -650,7 +674,7 @@ class SqlBuilder
     ): array {
         // By this point an aggregatable column is already wrapped in SUM() and
         // a computed metric may aggregate on its own. Only a bare column still
-        // needs wrapping — and wrapping an aggregate twice is invalid SQL.
+        // needs wrapping -  and wrapping an aggregate twice is invalid SQL.
         $expr = ($aggregate || $this->isAggregateExpression($metricExpr))
             ? $metricExpr
             : "SUM({$metricExpr})";
@@ -674,7 +698,7 @@ class SqlBuilder
     /**
      * Totals, as their own entry point.
      *
-     * Kept because it is public API, but it no longer builds SQL of its own —
+     * Kept because it is public API, but it no longer builds SQL of its own -
      * it goes through buildQuery so that the time filter, required filters,
      * metric resolution and response shape are the same ones every other query
      * gets. The separate implementation had drifted: it applied no period and
@@ -737,13 +761,13 @@ class SqlBuilder
      *
      * This used to strip quotes, %, _ and backslashes, then reject anything
      * that was not purely ASCII letters, spaces, hyphens and dots. That threw
-     * away most real identifiers — "A-01", "Bin 7", "3M", "H&M",
+     * away most real identifiers -  "A-01", "Bin 7", "3M", "H&M",
      * "INV-2024-88", "Zürich" were all rejected, and "ACME_CORP" was silently
      * rewritten to "ACMECORP".
      *
      * Rejecting was the dangerous part. A null value means no filter, so the
      * builder fell through to a ranking query and answered a question about
-     * one specific record with the top-ranked row instead — confidently, with
+     * one specific record with the top-ranked row instead -  confidently, with
      * no warning. That is the worst thing this package can do.
      *
      * Injection is already prevented by binding the value as a parameter, not

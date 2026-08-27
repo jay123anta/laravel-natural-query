@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * The assertion that matters most here is the count of planning calls. Each
  * step re-enters the orchestrator, and if a step could be planned in turn the
- * recursion has no floor — the first comparison question would spend API calls
+ * recursion has no floor -  the first comparison question would spend API calls
  * until something ran out.
  */
 class MultiStepOrchestrationTest extends TestCase
@@ -108,7 +108,7 @@ class MultiStepOrchestrationTest extends TestCase
         $result = $this->app->make(QueryOrchestrator::class)
             ->query('compare revenue in West vs revenue in East');
 
-        // West totals 500, East 400 — 25% higher.
+        // West totals 500, East 400 -  25% higher.
         $this->assertSame(500.0, $result['comparison']['first_value']);
         $this->assertSame(400.0, $result['comparison']['second_value']);
         $this->assertSame(25.0, $result['comparison']['change_pct']);
@@ -160,7 +160,7 @@ class MultiStepOrchestrationTest extends TestCase
 
     /**
      * Decomposition adds a planning call, which is a new thing leaving the
-     * server. It carries the question and the dataset list — never a value
+     * server. It carries the question and the dataset list -  never a value
      * read out of the database.
      */
     #[Test]

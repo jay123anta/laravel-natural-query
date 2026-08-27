@@ -12,8 +12,8 @@ use PHPUnit\Framework\Attributes\Test;
  * The package has to work against any application's database, so nothing in it
  * may assume a particular domain.
  *
- * Deciding whether a short utterance names a DIFFERENT dataset — and so starts
- * a new question — or is a value to filter the current one by used to match a
+ * Deciding whether a short utterance names a DIFFERENT dataset -  and so starts
+ * a new question -  or is a value to filter the current one by used to match a
  * hardcoded list of dataset names from the project this package was extracted
  * from. On every other application that list matched nothing, so short
  * follow-ups were always treated as record lookups, and an unrelated app that

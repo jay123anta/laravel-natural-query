@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
  * What a front end needs to show people what they can ask.
  *
  * The hardest part of querying your own data in words is not phrasing a
- * question — it is knowing which questions the data can answer. An empty text
+ * question -  it is knowing which questions the data can answer. An empty text
  * box offers no clue, so the first thing anyone builds is a panel of available
  * measures, breakdowns and examples.
  *

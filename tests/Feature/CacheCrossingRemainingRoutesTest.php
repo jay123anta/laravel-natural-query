@@ -18,20 +18,20 @@ use PHPUnit\Framework\Attributes\Test;
  * reproduced each with a cache-on/cache-off counterfactual rather than by
  * reading.
  *
- * ROUTE 1 — the dataset guard is skipped when the asking dataset is unknown.
+ * ROUTE 1 -  the dataset guard is skipped when the asking dataset is unknown.
  * The discard in query() reads `$askingDataset !== null && ...`, and
  * resolveAskingDataset() returns null whenever more than one dataset is
  * registered and nothing in the question, the hint, or the conversation names
  * one. So a row cached WITH a dataset hint is served verbatim to the same
- * wording asked WITHOUT one — which is the widget's ordinary shape: a
+ * wording asked WITHOUT one -  which is the widget's ordinary shape: a
  * dataset-scoped page caches it, the general chat page reads it back.
  *
- * ROUTE 2 — conversation follow-ups are cached in SQL-generation mode.
+ * ROUTE 2 -  conversation follow-ups are cached in SQL-generation mode.
  * processWithIntent() guards its cache use with $inConversation.
  * processWithSqlGeneration()'s _sql_result branch has no equivalent, and
  * store() runs unconditionally. So a follow-up that escalates is written to a
  * TEXT-keyed cache, and another session's identically-worded follow-up reads
- * it — carrying the first session's measure. docs/CONVERSATIONS.md states the
+ * it -  carrying the first session's measure. docs/CONVERSATIONS.md states the
  * opposite in as many words.
  */
 class CacheCrossingRemainingRoutesTest extends TestCase
@@ -86,7 +86,7 @@ class CacheCrossingRemainingRoutesTest extends TestCase
     }
 
     /**
-     * ROUTE 1. nq_orders totals 350, nq_products totals 90 — both readable
+     * ROUTE 1. nq_orders totals 350, nq_products totals 90 -  both readable
      * from the fixture. A hinted question caches under nq_products; the same
      * words with no hint must not be answered from it.
      */
@@ -106,7 +106,7 @@ class CacheCrossingRemainingRoutesTest extends TestCase
         $callsAfterFirst = count($provider->methodsCalled());
 
         // Same words, no hint. resolveAskingDataset() cannot place this, so the
-        // guard must NOT be skipped — an unplaceable question can be served
+        // guard must NOT be skipped -  an unplaceable question can be served
         // only by a row that was itself cached without a dataset.
         $unhinted = $orchestrator->query($question);
 
@@ -130,7 +130,7 @@ class CacheCrossingRemainingRoutesTest extends TestCase
 
     /**
      * ROUTE 2. A conversation turn must not be written to the text-keyed
-     * cache, because the key carries no session — another session asking the
+     * cache, because the key carries no session -  another session asking the
      * same follow-up words reads it back.
      */
     #[Test]
@@ -145,7 +145,7 @@ class CacheCrossingRemainingRoutesTest extends TestCase
 
         // Asserted on the STORE rather than on a cross-session read. A
         // cross-session read needs two sessions on the SAME dataset differing
-        // only by measure, because the dataset guard masks anything else — and
+        // only by measure, because the dataset guard masks anything else -  and
         // the underlying promise is simpler than that anyway:
         // docs/CONVERSATIONS.md says a follow-up is never WRITTEN to the query
         // cache. processWithIntent honours it; the SQL-generation path does not.

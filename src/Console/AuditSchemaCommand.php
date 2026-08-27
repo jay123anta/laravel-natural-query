@@ -10,7 +10,7 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  *
  * Roughly one question in five is misread on an UNCURATED schema, and the same
  * questions land near-perfectly once a handful of sentences are written. The
- * gap between those two numbers is the whole product — and until now an
+ * gap between those two numbers is the whole product -  and until now an
  * adopter had no way to see which sentences were missing. "It gets things
  * wrong sometimes" is not actionable. "These four columns have no description
  * and two of them could both be revenue" is.
@@ -49,6 +49,13 @@ class AuditSchemaCommand extends Command
 
     public function handle(SchemaRegistry $registry): int
     {
+        // Artisan reuses a resolved command instance, and a long-lived process
+        // -  Octane, a queue worker, a test run, `Artisan::call()` twice in one
+        // request -  calls handle() again on the same object. Accumulated
+        // findings would be reported a second time alongside the new ones, so
+        // the audit's count grows every run while the schema stays still.
+        $this->findings = [];
+
         $only = $this->option('dataset');
         $datasets = $registry->all();
 
@@ -103,14 +110,14 @@ class AuditSchemaCommand extends Command
 
         if (trim((string) ($schema['description'] ?? '')) === '') {
             $this->add($key, 'dataset-description', 'The dataset has no description',
-                'One sentence saying what a row IS — "one row per despatched order line" — stops the '
+                'One sentence saying what a row IS -  "one row per despatched order line" -  stops the '
                 . 'model inferring it from the table name.');
         }
 
         if (empty($schema['aliases'])) {
             $this->add($key, 'aliases', 'No aliases',
-                "Users will not type \"{$key}\". Add the words they actually say — sales, orders, "
-                . 'invoices — so a question routes here without an API call.');
+                "Users will not type \"{$key}\". Add the words they actually say -  sales, orders, "
+                . 'invoices -  so a question routes here without an API call.');
         }
 
         $columns = $schema['tables']['primary']['columns'] ?? [];
@@ -145,20 +152,40 @@ class AuditSchemaCommand extends Command
         // the type, the name or the foreign keys says whether those rows count
         // towards a total, so the model includes them, and the total is wrong
         // in a way nobody notices. Only a person knows. This cannot detect the
-        // rule — it detects the SHAPE of a column that usually needs one.
+        // rule -  it detects the SHAPE of a column that usually needs one.
         $noRule = trim((string) ($schema['tables']['primary']['required_filter'] ?? '')) === '';
 
+        // A declared `values` list names the excluded value exactly, so it is
+        // always the better prompt. Ordered first because only one finding is
+        // reported per dataset: iterating the columns in declaration order let
+        // a soft-delete timestamp preempt a `status` column that already said
+        // what it holds, which is the ordinary Laravel shape.
+        $candidates = [];
+
         foreach ($noRule ? $columns : [] as $name => $column) {
+            if ($this->exclusionValues($column)) {
+                $candidates[(string) $name] = $column;
+            }
+        }
+
+        foreach ($noRule ? $columns : [] as $name => $column) {
+            if (!isset($candidates[(string) $name]) && $this->looksExcludable((string) $name)) {
+                $candidates[(string) $name] = $column;
+            }
+        }
+
+        foreach ($candidates as $name => $column) {
             $excluding = $this->exclusionValues($column);
 
-            if (!$excluding) {
-                continue;
-            }
+            $detail = $excluding
+                ? "`{$name}` holds " . implode('/', $excluding) . ' and this dataset has no required_filter'
+                : "`{$name}` looks like it marks rows that should not count, and this dataset has no required_filter";
 
             $this->add($key, 'required-filter',
-                "`{$name}` holds " . implode('/', $excluding) . ' and this dataset has no required_filter',
+                $detail,
                 'Should those rows count towards totals? If not, say so once and every query obeys: '
-                . "'required_filter' => \"{$name} != '{$excluding[0]}'\" in the table block. Intent mode "
+                . "'required_filter' => \"" . $this->suggestedPredicate((string) $name, $column, $excluding)
+                . '" in the table block. Intent mode '
                 . 'appends it to the SQL; SQL generation refuses an answer that omits it. Without a rule '
                 . 'the model decides, and a total that quietly includes cancelled rows looks exactly like '
                 . 'a correct one.');
@@ -216,7 +243,7 @@ class AuditSchemaCommand extends Command
             $this->add('(across datasets)', 'competing-measure',
                 "\"{$term}\" could mean any of: " . implode(', ', $owners),
                 $settled
-                    ? 'system_instructions is set — check it names this term explicitly, because the '
+                    ? 'system_instructions is set -  check it names this term explicitly, because the '
                     . 'model chooses whenever it does not.'
                     : 'Nothing says which is authoritative, so the model picks and a wrong pick returns '
                     . 'a plausible number for a different question. Write it in '
@@ -229,7 +256,7 @@ class AuditSchemaCommand extends Command
      * Values in a column that usually mean "do not count this row".
      *
      * Read from the schema file's own `values` list, not guessed from the
-     * database — this command contacts nothing and reads no data, and a column
+     * database -  this command contacts nothing and reads no data, and a column
      * whose permitted values someone has already written down is the only
      * place this can be known from structure alone.
      *
@@ -252,6 +279,81 @@ class AuditSchemaCommand extends Command
         }
 
         return $found;
+    }
+
+    /**
+     * Whether a column's NAME marks it as the kind that usually needs a rule.
+     *
+     * The check used to rest entirely on `values`, a key `discover` has never
+     * written and that its merge deleted if a human added it by hand -  so on
+     * the documented discover → audit → curate loop this finding could not
+     * fire at all. It read as "nothing to add" on exactly the schemas that
+     * needed the most.
+     *
+     * Names are used rather than sampled contents because a schema file is
+     * sent to the model, and the privacy wall admits schema STRUCTURE only.
+     *
+     * The list is deliberately narrow. A plain `status` column is not on it:
+     * nearly every table has one, most of them hold values that all count, and
+     * an audit that fires on every dataset is an audit adopters learn to skip
+     * -  which costs more than the check gains. What is listed are names that
+     * do not merely permit exclusion but state it. A `deleted_at` with no rule
+     * is a near-certain gap; a `status` with no rule is a maybe, and the
+     * `values` path above still catches those when the adopter has said what
+     * the column holds.
+     */
+    /**
+     * A predicate that KEEPS the rows that count, matched to the column shape.
+     *
+     * This is copy-pasteable PHP that becomes a rule applied to every query, so
+     * getting it wrong is not a bad hint — it is a wrong number on every
+     * answer, reported as a success.
+     *
+     * The first version of this suggested `{$name} != 'cancelled'` for every
+     * column, including soft-delete timestamps. `deleted_at != 'cancelled'`
+     * evaluates to NULL for every live row, because `NULL != 'cancelled'` is
+     * NULL and not TRUE — so the rule excludes every row that should count and
+     * keeps only the deleted ones. Measured on a three-row fixture: 350 total,
+     * 300 correct, 50 with that rule. Exactly inverted.
+     *
+     * @param  array<int, string>  $excluding  values the adopter declared, if any
+     */
+    private function suggestedPredicate(string $name, array $column, array $excluding): string
+    {
+        // A declared value names the exclusion exactly; nothing to infer.
+        if ($excluding) {
+            return "{$name} != '{$excluding[0]}'";
+        }
+
+        $type = strtolower((string) ($column['type'] ?? ''));
+        $lower = strtolower($name);
+
+        // A nullable marker column — `deleted_at`, `cancelled_at` — marks the
+        // row by being SET, so the rows that count are the null ones.
+        if (str_ends_with($lower, '_at') || str_contains($type, 'time') || str_contains($type, 'date')) {
+            return "{$name} IS NULL";
+        }
+
+        // A boolean flag. `= 0` rather than `IS NOT TRUE` because it reads the
+        // same on every driver this package supports.
+        if (str_starts_with($lower, 'is_') || str_contains($type, 'bool') || str_contains($type, 'int') || str_contains($type, 'tiny')) {
+            return "{$name} = 0";
+        }
+
+        // Unknown shape: a placeholder the adopter must replace, phrased so it
+        // cannot be pasted unread.
+        return "{$name} != 'REPLACE_WITH_THE_VALUE_TO_EXCLUDE'";
+    }
+
+    private function looksExcludable(string $name): bool
+    {
+        static $suspect = [
+            'is_deleted', 'is_cancelled', 'is_canceled', 'is_archived', 'is_void',
+            'is_voided', 'is_test', 'is_draft', 'deleted_at', 'cancelled_at',
+            'canceled_at', 'archived_at', 'voided_at', 'soft_deleted',
+        ];
+
+        return in_array(strtolower(trim($name)), $suspect, true);
     }
 
     private function isInfrastructure(string $table): bool
@@ -313,7 +415,7 @@ class AuditSchemaCommand extends Command
         $this->line('  ' . count($this->findings) . ' thing(s) the model currently has to guess.');
 
         if ($competing > 0) {
-            $this->line('  <fg=yellow>Start with the ambiguous terms</> — those are the ones that return a '
+            $this->line('  <fg=yellow>Start with the ambiguous terms</> -  those are the ones that return a '
                 . 'wrong number rather than a poor one.');
         }
 

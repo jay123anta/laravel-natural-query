@@ -11,36 +11,36 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * The G1-round-3 ruling cuts PromptBudget down to the bare bound: a PURE
  * function of a finished prompt string and how many datasets were actually
- * RENDERED into it — `check(string $prompt, int $datasetsRendered): ?string`.
+ * RENDERED into it -  `check(string $prompt, int $datasetsRendered): ?string`.
  * No `PromptScope` argument, no scoping knowledge at all.
  *
  * Today's `PromptBudget::check()` still requires a `PromptScope` as its
  * second argument (src/Engine/PromptBudget.php:35), so every test below that
- * calls `check($prompt, <int>)` fails RIGHT NOW with a TypeError — the
+ * calls `check($prompt, <int>)` fails RIGHT NOW with a TypeError -  the
  * reduction has not happened yet. That is the correct RED failure: it proves
  * the bare-bound signature does not exist, not that arithmetic is wrong.
  *
  * WHAT WRONG BEHAVIOUR THIS FILE CATCHES, once the signature exists:
  *
- * 1. `the_boundary_is_exact` — a size-refusal that is off by even one
+ * 1. `the_boundary_is_exact` -  a size-refusal that is off by even one
  *    character either lets an over-budget prompt through (a provider call
  *    that predictably fails, or worse, a truncated schema silently
- *    answered — the OllamaProvider failure mode) or refuses a prompt that
+ *    answered -  the OllamaProvider failure mode) or refuses a prompt that
  *    would have fit, for no reason a user can see.
  *
- * 2. `the_refusal_names_bytes_needed_bytes_allowed_and_the_config_lever` —
+ * 2. `the_refusal_names_bytes_needed_bytes_allowed_and_the_config_lever` -
  *    a refusal that does not name the actual lever
  *    (`naturalquery.prompts.max_chars`) sends an adopter guessing at which
  *    of a dozen config keys to change, which is indistinguishable from "could
  *    not understand the query" in practice even though the cause here is
  *    entirely mechanical and fixable in one edit.
  *
- * 3. `a_single_rendered_dataset_is_never_told_to_narrow_to_fewer_datasets` —
+ * 3. `a_single_rendered_dataset_is_never_told_to_narrow_to_fewer_datasets` -
  *    THE defect the ruling names by name: "note the current implementation
  *    picks that wording from scope key count, which is not what was
  *    rendered. That incoherence must not survive." The OLD code
  *    (src/Engine/PromptBudget.php:51) chose this sentence from
- *    `count($scope->keys())` — the SEEDED/EXPANDED scope — which is not the
+ *    `count($scope->keys())` -  the SEEDED/EXPANDED scope -  which is not the
  *    same number as how many datasets actually went into the prompt string
  *    (a single-dataset `buildSqlPrompt()` call renders exactly one schema
  *    section regardless of how many keys the scope object carried). Telling
@@ -50,13 +50,13 @@ use PHPUnit\Framework\Attributes\Test;
  *    pass the actual rendered count, so there is no second number left to
  *    disagree with it.
  *
- * 4. `multiple_rendered_datasets_are_offered_the_narrowing_lever` — the
+ * 4. `multiple_rendered_datasets_are_offered_the_narrowing_lever` -  the
  *    mirror image: when more than one dataset really was rendered, dropping
  *    the narrowing advice entirely would leave a genuinely fixable question
  *    ("ask about one topic at a time") with no actionable lever at all,
  *    which is exactly as unhelpful as offering it wrongly.
  *
- * 5. `an_unbounded_budget_never_refuses` — baseline (C1): `max_chars = null`
+ * 5. `an_unbounded_budget_never_refuses` -  baseline (C1): `max_chars = null`
  *    must never refuse, at any size or dataset count, or a fresh install
  *    with the feature untouched starts failing questions that worked in
  *    v2.0.0.
@@ -67,7 +67,7 @@ class PromptBudgetTest extends TestCase
      * Hand-checkable: a 10-character prompt against max_chars=10 must fit
      * (needed 10 <= allowed 10). The same prompt plus one more character
      * (11 <= 10 is false) must refuse. A human can count both strings by
-     * eye — this is not an estimate.
+     * eye -  this is not an estimate.
      */
     #[Test]
     public function the_boundary_is_exact()
@@ -111,7 +111,7 @@ class PromptBudgetTest extends TestCase
      * THE defect named in the ruling. Old code picked this sentence from
      * `count($scope->keys())`, a number that can diverge from what was
      * actually rendered. The new signature removes the second number
-     * entirely — the caller passes the true rendered count directly — so
+     * entirely -  the caller passes the true rendered count directly -  so
      * this must never suggest narrowing when only one dataset was rendered.
      */
     #[Test]
@@ -126,7 +126,7 @@ class PromptBudgetTest extends TestCase
         $this->assertStringNotContainsStringIgnoringCase(
             'fewer datasets',
             $refusal,
-            'a single rendered dataset has nothing left to narrow to — advising it anyway is the exact '
+            'a single rendered dataset has nothing left to narrow to -  advising it anyway is the exact '
                 . 'incoherence the ruling says must not survive'
         );
         $this->assertStringContainsStringIgnoringCase(
@@ -159,7 +159,7 @@ class PromptBudgetTest extends TestCase
     /**
      * The wording must actually depend on what was rendered, not just
      * silently be the same sentence with a different number spliced in
-     * — proves the two code paths above are genuinely distinct, not one
+     * -  proves the two code paths above are genuinely distinct, not one
      * string that happens to contain both substrings by accident.
      */
     #[Test]

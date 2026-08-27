@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\Test;
  * model, because the claim being tested is "it works out of the box on SQLite"
  * and a stub would prove only that the test agrees with itself.
  *
- * Answers are checked against hand-written gold SQL by execution accuracy —
+ * Answers are checked against hand-written gold SQL by execution accuracy -
  * the same standard used for the other drivers.
  */
 class SqliteEndToEndTest extends TestCase
@@ -95,7 +95,7 @@ class SqliteEndToEndTest extends TestCase
     {
         // If SQLite's DATE affinity were normalised to something else, every
         // "last month" question on a stock Laravel app would silently cover
-        // all time — the exact defect this release set out to close.
+        // all time -  the exact defect this release set out to close.
         Artisan::call('naturalquery:discover', [
             '--table' => ['shop_orders'],
             '--output' => $this->schemaPath,
@@ -168,7 +168,7 @@ class SqliteEndToEndTest extends TestCase
 
         $key = array_key_first($registry->all());
 
-        // "revenue by region in July 2026" — Ada's August order (700) must be
+        // "revenue by region in July 2026" -  Ada's August order (700) must be
         // excluded, so West is 300 and not 1000.
         $built = $this->app->make(SqlBuilder::class)->buildQuery([
             'dataset' => $key,

@@ -20,17 +20,17 @@ use Jayanta\NaturalQuery\Http\Middleware\Authorize;
 // Dashboard / demo page
 Route::get('/', [NaturalQueryController::class, 'index'])->name('index');
 
-// Widget asset — served directly by the package so no publishing is needed.
+// Widget asset -  served directly by the package so no publishing is needed.
 // (A publishable copy also exists: php artisan vendor:publish --tag=naturalquery-assets)
 //
 // Handled by WidgetController, which has no constructor dependencies. Routing
-// this through NaturalQueryController would construct the whole engine — and
-// therefore the schema introspector — just to return a static file, so every
+// this through NaturalQueryController would construct the whole engine -  and
+// therefore the schema introspector -  just to return a static file, so every
 // page embedding <x-naturalquery::widget /> would break on an unsupported
 // database driver.
 // Public, and it has to be: this is a static JavaScript file loaded by every
 // page that embeds the widget, including pages shown to signed-out visitors.
-// Gating it does not protect anything — the file contains no data and no key —
+// Gating it does not protect anything -  the file contains no data and no key -
 // it just stops the widget rendering at all, and the failure looks like a
 // broken package rather than a policy. The endpoints it CALLS are gated.
 Route::get('/widget.js', [WidgetController::class, 'asset'])

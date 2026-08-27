@@ -5,7 +5,7 @@
         <x-naturalquery::widget />
         <x-naturalquery::widget title="Ask about sales" dataset="orders" :examples="['Top 10 customers by revenue']" />
 
-    All attributes are optional — defaults come from config('naturalquery.widget').
+    All attributes are optional -  defaults come from config('naturalquery.widget').
     The widget JS is served by the package route (no publishing needed); to serve a
     published copy instead, run: php artisan vendor:publish --tag=naturalquery-assets
 --}}
@@ -28,7 +28,7 @@
         'themeColor'  => $themeColor ?? config('naturalquery.widget.theme_color', '#2563eb'),
         'footerNote'  => config('naturalquery.widget.footer_note', 'AI-generated · please verify important figures'),
         'dataset'      => $dataset ?? config('naturalquery.default_dataset'),
-        // Chat frame height. "auto" means grow with the content — a string
+        // Chat frame height. "auto" means grow with the content -  a string
         // rather than null on purpose, because null cannot survive the trip:
         // both `??` here and Blade's own @props treat an explicitly-passed
         // null as "not given" and quietly reinstate the default, so

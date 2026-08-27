@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  * fix from replaying one dataset's cached answer for another (see
  * `tests/Feature/FuzzyCacheDatasetIsolationTest.php`).
  *
- * Fixture reused from `tests/Stubs/related-schemas` — it was not written for
+ * Fixture reused from `tests/Stubs/related-schemas` -  it was not written for
  * this test, but its two aliased, unrelated datasets (rel_orders / "orders",
  * rel_customers / "customers") are exactly the shape `detect()` needs.
  */
@@ -45,7 +45,7 @@ class DatasetSeederTest extends TestCase
     }
 
     /**
-     * A single best guess, never more than one dataset — the whole reason
+     * A single best guess, never more than one dataset -  the whole reason
      * NQ-001-v2 needed a second method (`seeds()`, now deleted) for the
      * scope-widening half of the design.
      */
@@ -68,7 +68,7 @@ class DatasetSeederTest extends TestCase
     /**
      * Property 13 / I10: with no routing rule and no alias match, two
      * questions differing only in a domain noun the schema has never heard
-     * of must produce the SAME result — a synonym table or a column-name
+     * of must produce the SAME result -  a synonym table or a column-name
      * heuristic would make them differ, and I10 forbids both.
      */
     #[Test]

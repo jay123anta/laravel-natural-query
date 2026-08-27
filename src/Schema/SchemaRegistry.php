@@ -58,7 +58,7 @@ class SchemaRegistry
                 if (is_array($schema) && self::isUntouchedTemplate($schema)) {
                     // The file naturalquery:install writes, still pointing at
                     // its placeholder table. Loading it makes a dataset the
-                    // model can pick and no query can satisfy — on a fresh
+                    // model can pick and no query can satisfy -  on a fresh
                     // install a plain "total amount" chose it roughly half the
                     // time and came back "no such table: schema", which names
                     // nothing the user has ever seen.
@@ -91,7 +91,7 @@ class SchemaRegistry
      * Is this the shipped template, still pointing at its placeholder table?
      *
      * Matched on the table name rather than the file name, so a copy under any
-     * name is recognised — and so a template that HAS been pointed at a real
+     * name is recognised -  and so a template that HAS been pointed at a real
      * table is treated as the ordinary schema it now is, which is the whole
      * point of editing it.
      *
@@ -199,7 +199,7 @@ class SchemaRegistry
      * The column results are grouped and labelled by.
      *
      * When a schema file does not declare `group_column`, this used to assume
-     * a column literally called `name`. On a table without one — most tables —
+     * a column literally called `name`. On a table without one -  most tables -
      * that produced `SELECT name ... GROUP BY name` and a hard SQL error, not
      * a degraded label. `naturalquery:discover` always writes group_column, but
      * the README documents hand-written schema files too, and those are exactly
@@ -231,7 +231,7 @@ class SchemaRegistry
      * The column a time filter applies to.
      *
      * "Revenue last month" has to narrow on something, and which column that
-     * is cannot be guessed from the question — a table may carry order_date,
+     * is cannot be guessed from the question -  a table may carry order_date,
      * shipped_at and created_at, and they answer different questions. The
      * schema decides, explicitly via `date_column` on the primary table, or by
      * falling back to the first date-like column declared.
@@ -260,7 +260,7 @@ class SchemaRegistry
      *
      * "revenue by region" must group by region, not by whatever the schema
      * nominates as its default group_column. Only columns the schema marks
-     * `groupable` qualify — grouping by a measure produces one row per distinct
+     * `groupable` qualify -  grouping by a measure produces one row per distinct
      * amount, which is noise, and grouping by an unlisted column is how a typo
      * or a hallucinated name would reach the database.
      *
@@ -369,7 +369,7 @@ class SchemaRegistry
      * The counting metric every dataset has, whether or not anyone declared it.
      *
      * "How many orders by status" has no answer built from aggregatable
-     * columns — counting rows is not summing a measure. Without this, such a
+     * columns -  counting rows is not summing a measure. Without this, such a
      * question resolved to no metric, fell through to the default, and was
      * answered with revenue per status: right grouping, wrong question, and a
      * number that looks entirely reasonable.
@@ -385,7 +385,7 @@ class SchemaRegistry
             return $metrics;
         }
 
-        // A schema that defines its own counting metric wins — it may need to
+        // A schema that defines its own counting metric wins -  it may need to
         // count something other than rows (DISTINCT, or filtered).
         foreach (array_keys($metrics) as $declared) {
             if (strtolower($declared) === self::COUNT_METRIC || strtolower($declared) === 'count') {
@@ -554,7 +554,7 @@ class SchemaRegistry
         foreach ($metrics as $metricKey => $data) {
             // getMetrics() includes sortable columns, because sorting by a date
             // is perfectly reasonable. Offering one as the answer to "who is
-            // the best?" is not — "best by order_date" means nothing, and a
+            // the best?" is not -  "best by order_date" means nothing, and a
             // dead option in a list of live ones makes the whole list look
             // untrustworthy.
             if ($this->looksLikeDate($metricKey, $data)) {

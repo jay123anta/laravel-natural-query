@@ -9,7 +9,7 @@
  *
  * HOW IT IS GRADED
  *
- * Not by comparing SQL — many different queries are correct. Your reference
+ * Not by comparing SQL -  many different queries are correct. Your reference
  * query and the one the package generates are both run against your database
  * and the RESULT SETS are compared. Column names and column order are ignored.
  * Row order is ignored unless you set `ordered`, because a ranking's order is

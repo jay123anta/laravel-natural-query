@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\Test;
  * A total is one number, and a filter narrows it.
  *
  * All of this came out of running the same questions through two providers.
- * "How many invoices are pending" answered "Rekha Stores: 1 records" — the
+ * "How many invoices are pending" answered "Rekha Stores: 1 records" -  the
  * count was right and the shape was a different question, which is the worse
  * kind of wrong because nothing about it looks broken. A reader takes it to
  * mean only Rekha Stores has pending invoices.
@@ -109,7 +109,7 @@ class TotalsAndFiltersTest extends TestCase
 
     /**
      * The same narrowing said twice. group_value matches against the GROUP
-     * column, so the copy asks for a customer named "West" — and its presence
+     * column, so the copy asks for a customer named "West" -  and its presence
      * alone stops the query being a total.
      */
     #[Test]
@@ -147,8 +147,8 @@ class TotalsAndFiltersTest extends TestCase
     /**
      * "Total amount by city" then "only in Guwahati".
      *
-     * That produces group_by=city with filters=[city:Guwahati] — a filter on
-     * the very column being grouped by — and resolveFilters skipped exactly
+     * That produces group_by=city with filters=[city:Guwahati] -  a filter on
+     * the very column being grouped by -  and resolveFilters skipped exactly
      * that case, so every city came back and the narrowing vanished without a
      * word. All three providers were emitting the filter correctly; it was
      * discarded here.
@@ -185,7 +185,7 @@ class TotalsAndFiltersTest extends TestCase
 
     /**
      * And it must still be visible. A filter that runs but goes unmentioned is
-     * only half the fix — the point of the summary is that a narrowing can be
+     * only half the fix -  the point of the summary is that a narrowing can be
      * seen rather than assumed.
      */
     #[Test]

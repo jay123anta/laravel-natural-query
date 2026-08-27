@@ -11,7 +11,7 @@ namespace Jayanta\NaturalQuery\Events;
  * an audit trail of who asked what.
  *
  * The question text is here in full. That is the user's own sentence, already
- * bound for a provider under Rule 2, so nothing new is exposed — but a
+ * bound for a provider under Rule 2, so nothing new is exposed -  but a
  * listener that ships it somewhere is making its own decision about that.
  */
 class QuestionAsked
@@ -23,7 +23,7 @@ class QuestionAsked
         /** Dataset the caller pinned, if any. Null means the engine routes it. */
         public readonly ?string $dataset,
 
-        /** intent | sql_generation | auto — as configured for this call. */
+        /** intent | sql_generation | auto -  as configured for this call. */
         public readonly string $queryMode,
 
         /** Set when the question arrived through the conversation endpoint. */

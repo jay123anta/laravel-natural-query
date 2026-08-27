@@ -8,20 +8,32 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  * Suggest what to ask next.
  *
  * The hardest part of querying your own data in words is not phrasing a
- * question — it is knowing which questions the data can answer at all. A chat
+ * question -  it is knowing which questions the data can answer at all. A chat
  * interface makes that worse, because an empty prompt offers no clue what
  * exists. Every answer therefore carries a few concrete follow-ups.
  *
  * These are derived from the schema and the query that was just answered, not
  * from the model: no extra API call, no latency, no cost, and they cannot
- * suggest a breakdown the validator would refuse — the same groupable columns
+ * suggest a breakdown the validator would refuse -  the same groupable columns
  * that gate SQL generation gate these.
  *
- * PRIVACY: suggestions are built and returned locally. One kind of suggestion
- * ("Break West down by category") embeds a value from the result set, so it is
- * governed by `chat.suggest_drilldown_values`. Nothing here is ever sent to a
- * provider; if the user clicks such a suggestion, the resulting question is
- * their own query text, exactly as if they had typed it.
+ * PRIVACY (Rule 2): a suggestion is composed here and SENT TO A PROVIDER the
+ * moment the user clicks it, so nothing derived from the result rows may
+ * appear in one. Only column and dataset names -  schema structure -  are used.
+ *
+ * This class used to offer "Break West down by category", built from the top
+ * row's value and carrying that value in the query it would send. It was
+ * defended on the grounds that the click makes it the user's own query text.
+ * That is the argument Rule 2 exists to reject: the string was composed by the
+ * package out of data, and one click sent it. On a freshly discovered schema
+ * the top row's value can be a `remember_token`, because introspection marks
+ * every string column groupable and nothing here knew which columns hold
+ * secrets. It was gated by `chat.suggest_drilldown_values`, and Rule 2 says
+ * such a feature is rejected by design, not by configuration.
+ *
+ * Restoring the capability means executing a drill-down WITHOUT a provider -
+ * the package already knows the dataset, metric, dimension and value, so no
+ * natural language needs parsing. That is a feature, not a patch.
  */
 class NextStepSuggester
 {
@@ -36,7 +48,9 @@ class NextStepSuggester
 
     /**
      * @param  array  $queryResult  The SqlBuilder result that produced the rows.
-     * @param  array  $rows  The rows returned, used only for drill-down labels.
+     * @param  array  $rows  Accepted for signature compatibility; deliberately
+     *                       unused, because nothing derived from a row may
+     *                       reach a suggestion. See the class docblock.
      * @return array<int, array{label: string, query: string}>
      */
     public function suggest(array $queryResult, array $rows = []): array
@@ -54,7 +68,6 @@ class NextStepSuggester
         $suggestions = [];
 
         foreach ([
-            $this->drillIntoTopResult($queryResult, $rows),
             $this->otherBreakdowns($queryResult),
             $this->sameBreakdownOtherMetric($queryResult),
             $this->flipTheOrder($queryResult),
@@ -67,53 +80,6 @@ class NextStepSuggester
         $max = (int) config('naturalquery.chat.max_next_steps', 4);
 
         return array_slice(array_values($suggestions), 0, max(0, $max));
-    }
-
-    /**
-     * "West is the top region — break West down by category."
-     *
-     * The single most useful follow-up after a ranking, and the one a user is
-     * least likely to phrase correctly unaided.
-     */
-    protected function drillIntoTopResult(array $queryResult, array $rows): array
-    {
-        if (empty($rows) || !config('naturalquery.chat.suggest_drilldown_values', true)) {
-            return [];
-        }
-
-        // A group_value query is already a detail view; drilling again repeats it.
-        if (!empty($queryResult['group_value'])) {
-            return [];
-        }
-
-        $dataset = $queryResult['dataset'];
-        $groupColumn = $queryResult['group_column'] ?? null;
-        $top = (array) $rows[0];
-        $label = $groupColumn !== null ? ($top[$groupColumn] ?? null) : null;
-
-        if (!is_scalar($label) || trim((string) $label) === '') {
-            return [];
-        }
-
-        $label = trim((string) $label);
-        $metric = $queryResult['metric'] ?? '';
-        $other = $this->otherDimensions($dataset, [$groupColumn]);
-
-        if (empty($other)) {
-            return [];
-        }
-
-        $by = $other[0];
-
-        // The COLUMN is named, not just the value. "quantity by customer_name
-        // for Grocery" reads as a customer called Grocery — which is how this
-        // suggestion used to come back with the filter silently dropped and
-        // every customer listed. Saying "where product_category is Grocery"
-        // tells the model which column the value belongs to.
-        return [[
-            'label' => "Break {$label} down by " . $this->humanize($by),
-            'query' => trim("{$metric} by {$by} where {$groupColumn} is {$label}"),
-        ]];
     }
 
     /** The same measure, sliced a different way. */
@@ -134,7 +100,7 @@ class NextStepSuggester
     }
 
     /**
-     * The same slice, measured differently — usually "as a count", which is
+     * The same slice, measured differently -  usually "as a count", which is
      * the question people reach for immediately after seeing money.
      */
     protected function sameBreakdownOtherMetric(array $queryResult): array
@@ -194,7 +160,7 @@ class NextStepSuggester
         $limit = $limit > 0 ? min($limit, 10) : 5;
 
         $word = $order === 'DESC' ? 'bottom' : 'top';
-        // "bottom 5 regions by revenue" — not "bottom 5 by region by revenue",
+        // "bottom 5 regions by revenue" -  not "bottom 5 by region by revenue",
         // which reads badly and gives the intent parser two 'by' clauses to
         // disentangle.
         $noun = $groupColumn ? ' ' . $this->humanizePlural($groupColumn) : '';

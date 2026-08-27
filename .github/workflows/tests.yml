@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 # Several pushes in quick succession used to queue a full matrix each, so runs
-# piled up behind one another and the newest — the only one anybody cares
-# about — waited longest. Superseded runs are abandoned instead.
+# piled up behind one another and the newest -  the only one anybody cares
+# about -  waited longest. Superseded runs are abandoned instead.
 concurrency:
   group: tests-${{ github.ref }}
   cancel-in-progress: true
@@ -40,7 +40,7 @@ jobs:
           - laravel: 13
             testbench: ^11.0
           # Lowest allowed dependency versions at both ends of the supported
-          # range — catches "works on my lockfile" breakage in either
+          # range -  catches "works on my lockfile" breakage in either
           # direction.
           - php: '8.2'
             laravel: 12
@@ -101,8 +101,8 @@ jobs:
           }
 
   # The rest of the suite runs on SQLite so it needs no services, which leaves
-  # the Postgres introspection SQL — everything `naturalquery:discover` depends
-  # on — with no coverage. This job is the only place PostgresIntrospectorTest
+  # the Postgres introspection SQL -  everything `naturalquery:discover` depends
+  # on -  with no coverage. This job is the only place PostgresIntrospectorTest
   # actually executes; elsewhere it skips itself.
   postgres:
     name: PostgreSQL ${{ matrix.postgres }} integration
@@ -191,7 +191,7 @@ jobs:
             health_cmd: mysqladmin ping -h 127.0.0.1 -uroot -proot
           # MariaDB ships its own healthcheck.sh and does not guarantee the
           # mysqladmin alias. It also reads the MYSQL_* variables for backwards
-          # compatibility, so one set of env vars covers both families —
+          # compatibility, so one set of env vars covers both families - 
           # supplying MARIADB_* as well made the entrypoint refuse to start.
           - label: MariaDB 11
             image: mariadb:11
@@ -257,7 +257,7 @@ jobs:
   #
   # No threshold is enforced, deliberately. A coverage gate rewards tests that
   # execute lines over tests that check behaviour, and this suite is built on
-  # the second kind — several of its most valuable tests assert that something
+  # the second kind -  several of its most valuable tests assert that something
   # does NOT happen. The report is here to be read, not to be passed.
   coverage:
     name: Coverage
@@ -290,7 +290,7 @@ jobs:
           path: coverage.xml
           retention-days: 14
           # error, not the default warn. The case this protects is a
-          # PASSING run that produced no coverage file — which is the bug this
+          # PASSING run that produced no coverage file -  which is the bug this
           # job shipped with, and which warn would let through silently.
           #
           # Combined with always() it does mean a run that dies before writing
@@ -325,9 +325,9 @@ jobs:
         run: node --check resources/js/naturalquery-widget.js
 
       # A syntax check proves the file parses, not that the widget works. Every
-      # user-facing defect this package has had was found by someone clicking —
+      # user-facing defect this package has had was found by someone clicking - 
       # a thread that replaced itself, a button that did nothing, two number
-      # formats in one card — and none of them could fail a test that never
+      # formats in one card -  and none of them could fail a test that never
       # rendered anything. These mount the widget in a DOM and click it.
       - name: Install browser-test dependencies
         run: npm install --no-audit --no-fund
@@ -352,7 +352,7 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
-      # composer.lock is gitignored (correct for a library — the consuming app
+      # composer.lock is gitignored (correct for a library -  the consuming app
       # owns the lock), so there is nothing to check it against.
       - name: Validate composer.json
         run: composer validate --strict --no-check-lock
@@ -408,7 +408,7 @@ jobs:
           NATURALQUERY_CONFORMANCE_DELAY: '3'
         run: |
           if [ -z "$NATURALQUERY_CONFORMANCE_KEY" ]; then
-            echo "::notice::No ${{ matrix.secret }} secret set — conformance skipped for ${{ matrix.provider }}."
+            echo "::notice::No ${{ matrix.secret }} secret set -  conformance skipped for ${{ matrix.provider }}."
             exit 0
           fi
           vendor/bin/phpunit --testsuite Conformance

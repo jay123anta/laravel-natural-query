@@ -96,7 +96,7 @@ class SqlValidatorTest extends TestCase
     public function it_blocks_cross_schema_reference_against_bare_whitelist_entry()
     {
         // Regression: qualified 'other_schema.users' must NOT satisfy a bare
-        // whitelist entry 'users' — that would expose a same-named table in a
+        // whitelist entry 'users' -  that would expose a same-named table in a
         // different schema (cross-schema whitelist bypass).
         $sql = 'SELECT * FROM other_schema.users LIMIT 10';
         $result = $this->validator->validate($sql, ['users']);

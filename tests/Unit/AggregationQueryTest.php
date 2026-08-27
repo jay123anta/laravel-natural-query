@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * "What is the total revenue" is one number, not a list of every row.
  *
- * The model said so all along — query_type came back as 'aggregation' — and
+ * The model said so all along -  query_type came back as 'aggregation' -  and
  * the response formatter had a branch ready for it. The builder did not: it
  * only ever produced a ranking or a detail view, so the field was read in the
  * SQL-generation path and silently dropped in intent mode.
@@ -74,7 +74,7 @@ class AggregationQueryTest extends TestCase
 
     /**
      * A named breakdown beats the model's own label. "Revenue by region" is a
-     * grouping even when the intent also calls it an aggregation — otherwise
+     * grouping even when the intent also calls it an aggregation -  otherwise
      * fixing totals would break breakdowns, which were only just fixed.
      */
     #[Test]

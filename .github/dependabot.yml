@@ -15,7 +15,7 @@ updates:
       interval: monthly
     # One PR for all of them. Four separate PRs for four action bumps is how
     # Dependabot becomes something you scroll past, and these never reach
-    # adopters anyway — .github is export-ignored, so no CI action version is
+    # adopters anyway -  .github is export-ignored, so no CI action version is
     # part of the published package.
     #
     # upload-artifact is deliberately NOT in the group. That action has shipped

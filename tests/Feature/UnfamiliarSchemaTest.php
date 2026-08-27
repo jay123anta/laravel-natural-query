@@ -20,7 +20,7 @@ use PHPUnit\Framework\Attributes\Test;
  * orders table and a districts table, both written for these tests.
  *
  * This one uses a schema with unfamiliar vocabulary, no declared
- * `group_column`, and no column called `name` — the fallback the engine used
+ * `group_column`, and no column called `name` -  the fallback the engine used
  * to assume when `group_column` was missing, which produced
  * `SELECT name ... GROUP BY name` and a hard SQL error on any table without
  * one. `naturalquery:discover` always writes group_column, but the README

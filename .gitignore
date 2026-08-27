@@ -16,5 +16,5 @@ package-lock.json
 /build/
 /coverage/
 
-# Local working scratch — pre-release snapshots, not part of the package
+# Local working scratch -  pre-release snapshots, not part of the package
 /_to_delete/

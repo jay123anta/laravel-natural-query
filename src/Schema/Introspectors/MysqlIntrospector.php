@@ -179,7 +179,7 @@ class MysqlIntrospector implements SchemaIntrospectorInterface
         };
     }
 
-    // suggestRole() lives in the SuggestsColumnRoles trait — it was duplicated
+    // suggestRole() lives in the SuggestsColumnRoles trait -  it was duplicated
     // here and in PostgresIntrospector, and this copy had already drifted:
     // it never treated TEXT columns as dimensions.
 }

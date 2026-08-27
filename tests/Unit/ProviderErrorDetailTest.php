@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
  * A failed call should say what the provider said.
  *
  * "API error: HTTP 403" is a number. The same 403 carried "Your newly created
- * team doesn't have any credits or licenses yet" — a five-minute fix once you
+ * team doesn't have any credits or licenses yet" -  a five-minute fix once you
  * can read it, and an afternoon of guessing when you cannot. Found with a live
  * xAI key on an unfunded account.
  */

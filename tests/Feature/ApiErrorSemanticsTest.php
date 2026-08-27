@@ -18,12 +18,12 @@ use PHPUnit\Framework\Attributes\Test;
  * The bundled widget is a reference; real adopters write their own front end in
  * React, Vue or Blade, and for them the HTTP response IS the package. Every
  * failure used to arrive as `status: error` with an English sentence and a
- * status code picked by whether a metadata key happened to be set — so a client
+ * status code picked by whether a metadata key happened to be set -  so a client
  * could not tell "your question was refused" from "the provider is rate
  * limiting" from "the database is down".
  *
  * That mattered most for rate limits: they arrived as 400, telling every client
- * the request was malformed, so the one sensible response — wait and retry —
+ * the request was malformed, so the one sensible response -  wait and retry -
  * was the one it could not choose.
  */
 class ApiErrorSemanticsTest extends TestCase
@@ -206,7 +206,7 @@ class ApiErrorSemanticsTest extends TestCase
      * Found the hard way: the benchmark host lost its CA bundle, every request
      * failed at the TLS handshake, and all 36 questions came back "Could not
      * understand the query. Try mentioning a dataset name." Nothing in that
-     * points at the network — it points at the user, who is now rewording a
+     * points at the network -  it points at the user, who is now rewording a
      * question that was fine. Rule 0 names this exact failure mode.
      *
      * success:false from a provider never means the question was unclear. An
@@ -243,7 +243,7 @@ class ApiErrorSemanticsTest extends TestCase
      *
      * When the dataset has been identified and the provider answers without
      * any SQL, the fallback told the user to "try mentioning a dataset name"
-     * — sending them off supplying exactly what the engine already had, while
+     * -  sending them off supplying exactly what the engine already had, while
      * the real problem (no such measure, a breakdown that isn't there) went
      * unsaid.
      */
@@ -282,7 +282,7 @@ class ApiErrorSemanticsTest extends TestCase
      *
      * Even after the two mislabelling sites were fixed, a provider failure was
      * overwritten here with "Could not understand the query. Try mentioning a
-     * dataset name" whenever no dataset could be guessed from the words — which
+     * dataset name" whenever no dataset could be guessed from the words -  which
      * is exactly the case when the provider never answered, because there is no
      * intent to guess from. Caught by pointing a real install at a provider
      * with no API key.
@@ -333,7 +333,7 @@ class ApiErrorSemanticsTest extends TestCase
             $this->assertArrayHasKey(
                 $value,
                 ErrorCode::HTTP_STATUS,
-                "ErrorCode::{$name} has no HTTP status — it would silently become a 500"
+                "ErrorCode::{$name} has no HTTP status -  it would silently become a 500"
             );
         }
     }

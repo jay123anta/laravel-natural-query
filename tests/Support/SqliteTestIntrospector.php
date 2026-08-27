@@ -12,7 +12,7 @@ use Jayanta\NaturalQuery\Schema\Introspectors\MysqlIntrospector;
  * point `sql.introspectors` at, proving that config can register a driver the
  * package does not ship and override one it does.
  *
- * It is deliberately NOT a plausible SQLite implementation — anything relying
+ * It is deliberately NOT a plausible SQLite implementation -  anything relying
  * on it for real introspection would be testing the wrong thing.
  */
 class SqliteTestIntrospector extends MysqlIntrospector

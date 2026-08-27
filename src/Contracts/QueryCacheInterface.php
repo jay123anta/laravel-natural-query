@@ -17,7 +17,7 @@ interface QueryCacheInterface
      * Deliberately unchanged since 1.0.0. Dataset-aware lookup arrived in
      * 2.1.0 and lives in `ScopesCacheByDataset` instead of here, because
      * adding even an OPTIONAL parameter to an interface method is a fatal
-     * error for every class already implementing the old signature — the
+     * error for every class already implementing the old signature -  the
      * app does not boot. A minor release cannot do that, and the package
      * already had the right precedent in `ReportsUsage`.
      *
@@ -31,9 +31,9 @@ interface QueryCacheInterface
      *   ]
      *
      * `intent` must come back byte-identical. The engine reads reserved keys
-     * out of it that it never told you about — `_sql_result` decides which
+     * out of it that it never told you about -  `_sql_result` decides which
      * reader may replay the row, `_asking_scope` decides whether the row is
-     * eligible for the question being asked at all — and a row that has lost
+     * eligible for the question being asked at all -  and a row that has lost
      * them is not refused, it is silently misread: a filtered total answered
      * as an unfiltered one, or another dataset's number returned with
      * `success` and no API call. Store the array whole and hand it back whole.
@@ -47,7 +47,7 @@ interface QueryCacheInterface
      * Store a query result in cache.
      *
      * @param  string  $query  The original natural language query
-     * @param  array  $intent  The parsed intent/result to cache — opaque; keep it whole
+     * @param  array  $intent  The parsed intent/result to cache -  opaque; keep it whole
      * @return bool Whether storing succeeded
      */
     public function store(string $query, array $intent): bool;

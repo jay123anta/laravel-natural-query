@@ -2,7 +2,7 @@
  * The widget, driven in a real DOM.
  *
  * Every user-facing defect this package has had was found by someone clicking,
- * not by the PHP suite — the thread that replaced itself, the dataset button
+ * not by the PHP suite -  the thread that replaced itself, the dataset button
  * that did nothing, the two number formats in one card. None of those could
  * fail a test that never renders anything.
  *
@@ -27,7 +27,7 @@ let failed = 0;
  * Awaited, always.
  *
  * The first version called fn() without awaiting, so an async case that threw
- * printed "ok" and then killed the process with an unhandled rejection — a
+ * printed "ok" and then killed the process with an unhandled rejection -  a
  * green line for a test that had failed. A harness that can report a pass for
  * a failure is worse than no harness.
  */
@@ -70,7 +70,7 @@ function mount(options, responder) {
 
     // Faithful to a real Response: status, and BOTH json() and text().
     // The first version only had json(), so it could not represent a 401 or a
-    // 419 — exactly the framework-level refusals a new adopter hits first, and
+    // 419 -  exactly the framework-level refusals a new adopter hits first, and
     // exactly the ones the widget was mishandling.
     window.fetch = function (url, init) {
         requests.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
@@ -113,7 +113,7 @@ function answer(overrides) {
 }
 
 async function run() {
-    console.log('\n  WIDGET — rendered and clicked in jsdom\n');
+    console.log('\n  WIDGET -  rendered and clicked in jsdom\n');
 
     // ---------------------------------------------------------------- basics
     await check('it renders an input and an Ask button', () => {
@@ -363,7 +363,7 @@ async function run() {
     // ----------------------------------------------------------- chat layout
     //
     // The old layout was a search form: box on top, answers growing below it.
-    // It taught people the wrong thing — one question at a time — and the
+    // It taught people the wrong thing -  one question at a time -  and the
     // conversation features went unused because nothing on screen suggested a
     // conversation was on offer. These pin the chat shape in place.
     {
@@ -427,7 +427,7 @@ async function run() {
     }
 
     // "auto" rather than null is the documented value on purpose: an explicitly
-    // passed null cannot survive Blade — both `??` and @props read it as "not
+    // passed null cannot survive Blade -  both `??` and @props read it as "not
     // given" and reinstate the default, so :height="null" looked like it worked
     // and did nothing. A string cannot be mistaken for absence.
     for (const value of ['auto', null, '']) {
@@ -443,7 +443,7 @@ async function run() {
     //
     // Before this, the only correction on offer was New topic. Undoing "only
     // in West" meant retyping everything that came before it, so the cheap
-    // move was to start over — which is exactly the behaviour the conversation
+    // move was to start over -  which is exactly the behaviour the conversation
     // features were built to make unnecessary.
     {
         const ctx = mount({}, (url) => {
@@ -593,7 +593,7 @@ async function run() {
     //
     // Verified against a virgin `laravel new` app: these are the refusals
     // Laravel raises before the request ever reaches the engine, and every one
-    // of them used to reach the user as "Unexpected response status." — which
+    // of them used to reach the user as "Unexpected response status." -  which
     // describes nothing and suggests nothing. Each has a different fix.
     {
         const cases = [
@@ -652,7 +652,7 @@ async function run() {
     // --------------------------------------- did this turn stand alone or not
     //
     // Asked after real use: two turns on screen, and no way to tell whether the
-    // second inherited the first. The state summary cannot answer it — "total
+    // second inherited the first. The state summary cannot answer it -  "total
     // amount by city" then "breakdown by client" both read "amount · by client"
     // whether the metric was inherited or worked out afresh. Identical text,
     // two different things happening.
@@ -678,7 +678,7 @@ async function run() {
                 assert(badge, 'no turn-kind badge rendered for ' + classification);
                 assert(badge.textContent === label, 'got "' + badge.textContent + '", wanted "' + label + '"');
                 assert(badge.classList.contains('nq-kind-carried') === carried,
-                    classification + ' marked as ' + (carried ? 'standalone' : 'carried') + ' — the wrong way round');
+                    classification + ' marked as ' + (carried ? 'standalone' : 'carried') + ' -  the wrong way round');
                 assert((badge.title || '').length > 0, 'no explanation on hover');
             });
         }

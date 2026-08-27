@@ -68,7 +68,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
                 // Any other driver name resolves through the OpenAI-compatible
                 // provider when its config block declares a base_url. This is
                 // how DeepSeek, Groq, Mistral, OpenRouter, vLLM, LM Studio,
-                // LocalAI, llama.cpp server, etc. plug in — define a
+                // LocalAI, llama.cpp server, etc. plug in -  define a
                 // providers.<name> block with base_url + model and set
                 // NATURALQUERY_LLM_DRIVER=<name>. No code changes needed.
                 default => !empty($providerConfig['base_url'])
@@ -122,12 +122,12 @@ class NaturalQueryServiceProvider extends ServiceProvider
         $this->app->singleton(IntentCoverage::class);
 
         // DatasetSeeder needs only SchemaRegistry, already bound above, so the
-        // container auto-wires it — used both for dataset detection and, via
+        // container auto-wires it -  used both for dataset detection and, via
         // QueryOrchestrator::resolveAskingDataset(), to tell a genuine cache
         // hit from a cross-dataset miss (NQ-003-FIX: a mismatch misses, it is
         // never silently reconciled). PromptBudget takes a scalar
         // (prompts.max_chars, null = unbounded, C1) that the container cannot
-        // infer, so it gets an explicit factory. Both are STATELESS —
+        // infer, so it gets an explicit factory. Both are STATELESS -
         // singletons are safe only because detect()/check() never memoise
         // anything on $this, which is what lets a step of a multi-step
         // answer call them again cleanly.
@@ -136,7 +136,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
             // The env var is consulted directly when the published config has
             // no such key. mergeConfigFrom is ONE LEVEL deep, so an app that
             // ran naturalquery:install before 2.1.0 has a published `prompts`
-            // array that replaces the package's wholesale — and `max_chars`,
+            // array that replaces the package's wholesale -  and `max_chars`,
             // being new, simply does not exist in it. Reading only through
             // config() meant the setting was unreachable on exactly the
             // installs most likely to want it, with no error: you set
@@ -171,7 +171,7 @@ class NaturalQueryServiceProvider extends ServiceProvider
         ], 'naturalquery-migrations');
 
         // Frontend widget: publishable copy for apps that bundle their own
-        // assets. Publishing is OPTIONAL — the package also serves the widget
+        // assets. Publishing is OPTIONAL -  the package also serves the widget
         // directly at {prefix}/widget.js (see routes/api.php).
         $this->publishes([
             __DIR__ . '/../resources/js/naturalquery-widget.js' => public_path('vendor/naturalquery/naturalquery-widget.js'),
@@ -209,8 +209,8 @@ class NaturalQueryServiceProvider extends ServiceProvider
         $middleware = config('naturalquery.routes.middleware', ['web', 'throttle:60,1']);
 
         // Both appended rather than left to the config array. An app that
-        // customises routes.middleware — the first thing anyone does to make
-        // the widget public — would otherwise drop the authorisation check and
+        // customises routes.middleware -  the first thing anyone does to make
+        // the widget public -  would otherwise drop the authorisation check and
         // the spending ceiling without meaning to, at exactly the moment they
         // start to matter.
         //

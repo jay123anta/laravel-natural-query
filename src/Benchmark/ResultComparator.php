@@ -14,7 +14,7 @@ namespace Jayanta\NaturalQuery\Benchmark;
  * `naturalquery:benchmark` grade identically. Two implementations of "is this
  * the same result" would drift, and the number this package quotes about
  * itself has to mean the same thing as the number an adopter measures on their
- * own schema — otherwise neither is worth stating.
+ * own schema -  otherwise neither is worth stating.
  */
 class ResultComparator
 {
@@ -23,7 +23,7 @@ class ResultComparator
      *
      * Aliases and column ORDER are ignored: `SELECT SUM(x) AS total` and
      * `SELECT SUM(x) AS revenue` are the same answer, and no user cares which
-     * order two columns came back in. Row order is ignored too — unless the
+     * order two columns came back in. Row order is ignored too -  unless the
      * question asked for a ranking, in which case the order IS the answer and
      * a correct set in the wrong sequence is a wrong answer.
      *

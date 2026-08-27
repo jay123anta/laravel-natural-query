@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
  * The test suite runs against the working tree; adopters get the dist archive,
  * which is the working tree minus everything marked `export-ignore` in
  * .gitattributes. Those are two different artifacts, and the difference is
- * invisible to every other test here — a publishable asset that is
+ * invisible to every other test here -  a publishable asset that is
  * accidentally export-ignored, or a publish path with a typo, breaks only on
  * a real install.
  *
@@ -53,7 +53,7 @@ class PackagingTest extends TestCase
             foreach ($ignored as $prefix) {
                 $this->assertFalse(
                     $relative === $prefix || str_starts_with($relative, $prefix . '/'),
-                    "'{$relative}' is needed at runtime but .gitattributes marks '{$prefix}' export-ignore — "
+                    "'{$relative}' is needed at runtime but .gitattributes marks '{$prefix}' export-ignore -  "
                     . 'it would be missing after `composer require`'
                 );
             }
@@ -125,7 +125,7 @@ class PackagingTest extends TestCase
         $this->assertStringContainsString(
             'resources/js/naturalquery-widget.js',
             file_get_contents($this->root . '/routes/api.php') . $controllers,
-            'No route or controller reads the widget file — the {prefix}/widget.js promise may be broken'
+            'No route or controller reads the widget file -  the {prefix}/widget.js promise may be broken'
         );
     }
 

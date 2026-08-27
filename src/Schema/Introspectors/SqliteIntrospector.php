@@ -11,7 +11,7 @@ use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
  * Laravel 11 and 12 create new applications on SQLite, so this is the database
  * most people who try this package already have. Without it the first
  * experience of installing was an exception telling them to go and set up a
- * different database — which is not a first experience anyone recovers from.
+ * different database -  which is not a first experience anyone recovers from.
  *
  * SQLite has no information_schema; structure comes from sqlite_master and the
  * PRAGMA functions. Three differences from the other drivers matter:
@@ -19,7 +19,7 @@ use Jayanta\NaturalQuery\Contracts\SchemaIntrospectorInterface;
  *  - There are no schemas. Everything lives in `main`, so table names are
  *    unqualified rather than `public.orders` or `mydb.orders`.
  *  - Types are advisory. A column declared VARCHAR(255) has TEXT affinity and
- *    can hold anything, so the declared type is a statement of intent — which
+ *    can hold anything, so the declared type is a statement of intent -  which
  *    is exactly what a schema file wants, but it means the declarations vary
  *    wildly and have to be normalised by affinity rules.
  *  - Foreign keys frequently omit the referenced column, meaning "the primary
@@ -113,7 +113,7 @@ class SqliteIntrospector implements SchemaIntrospectorInterface
         foreach ($fks as $fk) {
             $referencedColumn = $fk->to;
 
-            // A NULL target means "the primary key of that table" — the common
+            // A NULL target means "the primary key of that table" -  the common
             // form when a foreign key is declared with REFERENCES other(id)
             // omitted. Resolving it here keeps composite keys paired correctly
             // and stops the prompt emitting a JOIN with nothing on one side.
@@ -245,7 +245,7 @@ class SqliteIntrospector implements SchemaIntrospectorInterface
      * substring rules, so real databases contain INT, INTEGER, BIGINT,
      * VARCHAR(255), NVARCHAR, CLOB, REAL, DOUBLE PRECISION, NUMERIC(10,2) and
      * empty strings. The affinity rules are followed here, with date and
-     * boolean checked FIRST — both have NUMERIC affinity in SQLite, but a
+     * boolean checked FIRST -  both have NUMERIC affinity in SQLite, but a
      * column declared DATE is meant as a date, and the time filter depends on
      * recognising it.
      */

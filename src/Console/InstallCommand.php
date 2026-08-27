@@ -81,7 +81,7 @@ class InstallCommand extends Command
         // and an installer that mentions only a hosted API is choosing for
         // people who have not been told there is a choice.
         $this->line('Next steps:');
-        $this->line('  1. Choose an LLM in .env — a hosted API or one you run yourself:');
+        $this->line('  1. Choose an LLM in .env -  a hosted API or one you run yourself:');
         $this->line('       NATURALQUERY_LLM_DRIVER=ollama      (local, no API key)');
         $this->line('       NATURALQUERY_LLM_DRIVER=gemini      GEMINI_API_KEY=…');
         $this->line('       NATURALQUERY_LLM_DRIVER=openai      OPENAI_API_KEY=…');

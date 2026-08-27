@@ -17,8 +17,8 @@ use PHPUnit\Framework\Attributes\Test;
  * at once. Foreign keys were classified as measures, so the model was told
  * `customer_id` was a number worth totalling. The foreign keys themselves were
  * written into a PHP comment, so the prompt never mentioned that the tables
- * related at all. Routing matched the table NAMED in the question — the
- * dimension table — and produced a single-table prompt with no revenue in it.
+ * related at all. Routing matched the table NAMED in the question -  the
+ * dimension table -  and produced a single-table prompt with no revenue in it.
  * And rows were labelled "?" whenever the result did not contain the schema's
  * group_column.
  *
@@ -93,7 +93,7 @@ class RelatedTablesTest extends TestCase
     /**
      * A composite key is ONE join with an AND. Rendering a line per column
      * invites the model to join the same table twice, or to join on half the
-     * key — and half a composite key matches rows it should not, so the total
+     * key -  and half a composite key matches rows it should not, so the total
      * comes back silently too large.
      */
     #[Test]
@@ -139,7 +139,7 @@ class RelatedTablesTest extends TestCase
      * `discover --table=orders` writes one schema file whose foreign keys
      * still point at tables that were never discovered. The allowed-table list
      * the SqlValidator enforces is built from schema files, so those tables are
-     * not queryable — and advertising the join anyway produced the worst kind
+     * not queryable -  and advertising the join anyway produced the worst kind
      * of failure: "query validation failed" on SQL the package's own prompt had
      * instructed the model to write.
      */

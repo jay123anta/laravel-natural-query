@@ -11,13 +11,13 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Both methods that refuse must SAY they refused.
  *
- * `willNotFit()` guards two call sites — generateSql() and parseIntent(). The
+ * `willNotFit()` guards two call sites -  generateSql() and parseIntent(). The
  * NQ-002 fix taught the orchestrator not to retry a refusal that never reached
  * the wire, keyed on a `refused_before_sending` flag, and set that flag in
  * generateSql(). parseIntent() was left returning a bare errorResponse().
  *
  * So an intent-mode context refusal still looked, to the orchestrator, exactly
- * like a model that answered badly — and the answer to a model that answered
+ * like a model that answered badly -  and the answer to a model that answered
  * badly is retryWithRefinedPrompt(), which sends a SMALLER single-dataset
  * prompt. That prompt clears the same guard, gets answered, and the refusal the
  * user should have seen becomes a confident number from one table.
@@ -60,7 +60,7 @@ class OllamaRefusalFlagsBothMethodsTest extends TestCase
         $this->assertTrue(
             $result['refused_before_sending'] ?? false,
             'this refusal is indistinguishable from a bad model answer, so the orchestrator will retry it '
-                . 'with a smaller prompt that fits — which is the wrong answer NQ-002 exists to prevent'
+                . 'with a smaller prompt that fits -  which is the wrong answer NQ-002 exists to prevent'
         );
     }
 

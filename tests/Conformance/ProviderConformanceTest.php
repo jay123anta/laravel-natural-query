@@ -25,14 +25,14 @@ use PHPUnit\Framework\Attributes\Test;
  * response is perfectly happy to answer a request the real API would reject.
  * Everything below was found only by making real calls:
  *
- *   - Claude's driver returned 400 on every question — `temperature` deprecated
- *     and assistant prefill refused — and its shipped default model 404'd.
+ *   - Claude's driver returned 400 on every question -  `temperature` deprecated
+ *     and assistant prefill refused -  and its shipped default model 404'd.
  *   - Three providers read $parsed['order'] unguarded; only the one never
  *     live-tested sent responses without it.
  *   - "Only in Guwahati" after "total amount by city" returned every city.
  *
- * That last one is why this exists. It was not a provider bug at all — the
- * engine discarded a filter on the grouping column — but no single-turn test
+ * That last one is why this exists. It was not a provider bug at all -  the
+ * engine discarded a filter on the grouping column -  but no single-turn test
  * and no single provider revealed it. It took a two-turn chain run against
  * several models.
  *
@@ -100,7 +100,7 @@ class ProviderConformanceTest extends TestCase
             // a pass for a call that never happened.
             'naturalquery.cache.enabled' => false,
             'naturalquery.feedback.enabled' => false,
-            // Whatever discovery produces, uncurated — the state of an install
+            // Whatever discovery produces, uncurated -  the state of an install
             // on day one.
             'naturalquery.system_instructions' => '',
         ]);
@@ -166,7 +166,7 @@ class ProviderConformanceTest extends TestCase
      * What to print beside a result.
      *
      * An errored answer has no `rows`, so reporting rows alone rendered a rate
-     * limit as "[]" — indistinguishable from a query that ran and matched
+     * limit as "[]" -  indistinguishable from a query that ran and matched
      * nothing. Two Mistral failures looked like wrong SQL and were the free
      * tier throttling. A harness whose failures need their own investigation
      * is not doing its job.
@@ -217,7 +217,7 @@ class ProviderConformanceTest extends TestCase
     {
         if ($this->results) {
             $failed = array_filter($this->results, fn ($r) => !$r['passed']);
-            $lines = ['', '  CONFORMANCE — ' . strtoupper($this->driver ?? '?'), ''];
+            $lines = ['', '  CONFORMANCE -  ' . strtoupper($this->driver ?? '?'), ''];
 
             foreach ($this->results as $r) {
                 $lines[] = sprintf('  %-5s %-46s %s', $r['passed'] ? 'ok' : 'FAIL', $r['case'], $r['detail']);
@@ -332,7 +332,7 @@ class ProviderConformanceTest extends TestCase
         // The most complex path in the package and the one never checked
         // against a real provider: the question is decomposed, each step is
         // answered separately, and the parts are combined. The steps must carry
-        // the periods they actually used — "last month" resolving differently
+        // the periods they actually used -  "last month" resolving differently
         // from what the user meant is invisible in a combined figure.
         $this->pace();
         $r = $o->query('compare total amount in July 2026 and August 2026');

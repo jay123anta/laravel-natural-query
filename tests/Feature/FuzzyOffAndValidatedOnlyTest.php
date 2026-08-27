@@ -37,7 +37,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
     /**
      * A question differing from a cached one by a single VALUE must not be
      * answered from it. At the shipped 0.85 threshold the pair below scores
-     * 0.858 — above it — so this is only safe because the tier is off.
+     * 0.858 -  above it -  so this is only safe because the tier is off.
      */
     #[Test]
     public function a_one_value_difference_is_not_smoothed_over_by_default()
@@ -55,7 +55,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
 
         $this->assertNull(
             $cache->findForDataset('total revenue by region for pending orders in grade b', $scope),
-            'grade B was answered from grade A\'s cached row — the two score 0.858 against a 0.85 '
+            'grade B was answered from grade A\'s cached row -  the two score 0.858 against a 0.85 '
                 . 'threshold, and the longer the question the worse it gets'
         );
     }
@@ -84,7 +84,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
 
     /**
      * SQL the validator rejects must not be cached. It has no expiry, and the
-     * replay branch does not re-validate — so one bad generation made that
+     * replay branch does not re-validate -  so one bad generation made that
      * wording permanently unanswerable, with the provider never asked again.
      */
     #[Test]
@@ -123,7 +123,7 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
                 . 'permanently unanswerable and the provider will never be asked again'
         );
 
-        // And the question recovers once the model produces usable SQL — it is
+        // And the question recovers once the model produces usable SQL -  it is
         // not permanently poisoned by the rejected generation.
         $good = new RecordingProvider;
         $good->sqlResponse = [

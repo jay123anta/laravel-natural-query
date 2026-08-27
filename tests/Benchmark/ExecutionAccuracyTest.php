@@ -26,7 +26,7 @@ use PHPUnit\Framework\Attributes\Test;
  * ordinary questions about an ordinary database correctly", which is the
  * question an adopter actually has.
  *
- * Skipped unless NATURALQUERY_BENCHMARK=1 — it costs real API calls, and a
+ * Skipped unless NATURALQUERY_BENCHMARK=1 -  it costs real API calls, and a
  * test suite that silently spends money on every run is a bad neighbour.
  *
  *   NATURALQUERY_BENCHMARK=1 vendor/bin/phpunit --filter ExecutionAccuracyTest
@@ -56,7 +56,7 @@ class ExecutionAccuracyTest extends TestCase
 
         // XAMPP and similar stacks ship no CA bundle, so an HTTPS call fails
         // with "unable to connect" rather than anything about certificates.
-        // Point at one when the environment names it — never disable
+        // Point at one when the environment names it -  never disable
         // verification to make a benchmark run.
         if ($caBundle = env('NATURALQUERY_SSL_VERIFY')) {
             config(['naturalquery.ssl_verify' => $caBundle]);
@@ -81,8 +81,8 @@ class ExecutionAccuracyTest extends TestCase
     /**
      * The domain knowledge a user would supply, and the package cannot infer.
      *
-     * With fourteen tables there are two defensible answers to "revenue" —
-     * line_total on the order items and amount on the payments — and no amount
+     * With fourteen tables there are two defensible answers to "revenue" -
+     * line_total on the order items and amount on the payments -  and no amount
      * of introspection can tell which one the business means. Column names,
      * types and foreign keys are identical in kind.
      *
@@ -100,7 +100,7 @@ class ExecutionAccuracyTest extends TestCase
 
         config(['naturalquery.system_instructions' => <<<'TEXT'
             Revenue means SUM(bm_order_items.line_total). Never use
-            bm_payments.amount as revenue — payments record what has been
+            bm_payments.amount as revenue -  payments record what has been
             collected, which is a different question from what was sold, and
             using it silently drops customers who have not paid yet.
 
@@ -127,8 +127,8 @@ class ExecutionAccuracyTest extends TestCase
      * went wrong once more than one table was involved, and a small fixture
      * hides exactly those failures: the measure sits in one table, the label in
      * another, the filter in a third, and several questions need three or four
-     * joins to answer. There are also tables that answer nothing at all —
-     * `bm_sessions`, `bm_jobs`, `bm_audit_log` — because a real database is
+     * joins to answer. There are also tables that answer nothing at all -
+     * `bm_sessions`, `bm_jobs`, `bm_audit_log` -  because a real database is
      * mostly noise and choosing the right tables is half the problem.
      */
     private function buildDatabase(): void
@@ -331,13 +331,13 @@ class ExecutionAccuracyTest extends TestCase
 
         // The number this prints is the deliverable; the assertion guards
         // against collapse. Kept below the measured score because a live model
-        // varies run to run — an exact threshold would be flaky rather than
-        // informative — but high enough that losing a whole hardness band
+        // varies run to run -  an exact threshold would be flaky rather than
+        // informative -  but high enough that losing a whole hardness band
         // fails rather than passes quietly.
         $this->assertGreaterThanOrEqual(
             (int) ceil($total * 0.7),
             $correct,
-            'execution accuracy fell below 70% — see the breakdown above'
+            'execution accuracy fell below 70% -  see the breakdown above'
         );
     }
 
@@ -403,7 +403,7 @@ class ExecutionAccuracyTest extends TestCase
     /**
      * Reduce a result set to the numbers a person would read off it.
      *
-     * Aliases and column order are ignored — many correct queries name things
+     * Aliases and column order are ignored -  many correct queries name things
      * differently. Row order is ignored too unless the question asked for a
      * ranking, in which case it is the answer.
      */
@@ -427,7 +427,7 @@ class ExecutionAccuracyTest extends TestCase
         }
 
         $lines = [sprintf(
-            "\n  EXECUTION ACCURACY — %s — %s\n",
+            "\n  EXECUTION ACCURACY -  %s -  %s\n",
             config('naturalquery.llm.driver'),
             env('NATURALQUERY_BENCHMARK_CURATED') === '1'
                 ? 'WITH domain config'

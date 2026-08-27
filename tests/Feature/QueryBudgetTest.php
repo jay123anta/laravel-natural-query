@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
  * A rate limit is not a budget.
  *
  * `throttle:60,1` ships on these routes and stops a burst, but sixty questions
- * a minute sustained is around eighty-six thousand a day — every one a paid API
+ * a minute sustained is around eighty-six thousand a day -  every one a paid API
  * call. Throttling protects the server; this protects the bill, and it matters
  * most in the configuration people reach for first: the widget on a public page
  * with `auth` removed, where the visitor is anonymous and the key is yours.
@@ -86,7 +86,7 @@ class QueryBudgetTest extends TestCase
     }
 
     /**
-     * Counted before the question runs, not after — which is also why a query
+     * Counted before the question runs, not after -  which is also why a query
      * that then fails still counts. Counting afterwards would let a burst of
      * simultaneous requests all pass the check before any of them recorded
      * anything, the one moment the limit exists for. And a failed query has

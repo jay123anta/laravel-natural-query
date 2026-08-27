@@ -12,16 +12,16 @@
  * need. The measure, the label and the filter routinely live in three
  * different places: "revenue by region" is line_total in bm_order_items,
  * region name in bm_regions, and the path between them runs through
- * bm_orders and bm_customers — four tables for a question a person would call
+ * bm_orders and bm_customers -  four tables for a question a person would call
  * simple. Every serious defect in this package has been found by a question of
  * that shape, and none by a single-table one.
  *
  * `hardness` follows Spider's component-count definition:
  *
- *   easy   — one table, at most one aggregate or filter
- *   medium — grouping, ordering, or a join
- *   hard   — several components at once: joins AND a grouping AND/OR a period
- *   extra  — needs SQL the intent contract cannot express at all:
+ *   easy   -  one table, at most one aggregate or filter
+ *   medium -  grouping, ordering, or a join
+ *   hard   -  several components at once: joins AND a grouping AND/OR a period
+ *   extra  -  needs SQL the intent contract cannot express at all:
  *            HAVING, DISTINCT, a ratio of aggregates, a window function
  *
  * `joins` records how many tables the gold answer touches, so the report can
@@ -163,7 +163,7 @@ return [
     // Added to make the curated/uncurated difference measurable.
     //
     // At fourteen questions one question was seven percentage points, and
-    // the same configuration scored 86% and 79% on consecutive runs — so
+    // the same configuration scored 86% and 79% on consecutive runs -  so
     // "curation helps" was believable but not measurable. These are written
     // from the QUESTION and hand-checked against the seeded rows, never from
     // what the package produced: gold written afterwards copies the mistakes

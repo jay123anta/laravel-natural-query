@@ -11,7 +11,7 @@ namespace Jayanta\NaturalQuery\Events;
  * Engine\ErrorCode, so a listener can tell a provider outage worth paging
  * someone about from a question the schema simply cannot answer.
  *
- * Clarifications are NOT failures and do not fire this — being asked which
+ * Clarifications are NOT failures and do not fire this -  being asked which
  * measure you meant is the system working.
  */
 class QuestionFailed

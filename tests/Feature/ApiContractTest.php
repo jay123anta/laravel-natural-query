@@ -16,8 +16,8 @@ use PHPUnit\Framework\Attributes\Test;
  * The HTTP contract, pinned.
  *
  * The bundled widget is a reference; people build their own front ends, and for
- * them the response shape IS the package. That shape has grown a great deal —
- * state, state_summary, steps, next_steps, filters, period, error_code — and
+ * them the response shape IS the package. That shape has grown a great deal -
+ * state, state_summary, steps, next_steps, filters, period, error_code -  and
  * every field of it is now something an application depends on.
  *
  * Internals can be refactored freely. These cannot change without a deliberate
@@ -131,7 +131,7 @@ class ApiContractTest extends TestCase
     {
         $response = $this->getJson('/naturalquery/health');
 
-        // 200 when reachable, 503 when not — either is a valid contract, and
+        // 200 when reachable, 503 when not -  either is a valid contract, and
         // a monitoring probe needs the distinction.
         $this->assertContains($response->status(), [200, 503]);
         $response->assertJsonStructure(['status', 'timestamp']);
@@ -165,7 +165,7 @@ class ApiContractTest extends TestCase
             ->assertJsonPath('conversation.rewound', true)
             // The same block state() returns. It reported only the turn number,
             // so a client that had just gone back could not tell whether it
-            // could go back again — and the natural thing to do with a missing
+            // could go back again -  and the natural thing to do with a missing
             // answer is leave the control enabled and let the user find out.
             ->assertJsonStructure([
                 'state',

@@ -2,7 +2,7 @@
 
 The query cache skips the **AI step**, never the query. A cached question still
 runs its SQL against your database on every ask, so the numbers are always
-current — what is saved is the API call, the latency and the cost.
+current -  what is saved is the API call, the latency and the cost.
 
 That distinction matters when you are reading the hit rate: a cache hit is not
 a stale answer, it is a fresh answer that did not need the model.
@@ -17,13 +17,13 @@ Two shapes, depending on how the question was answered.
 
 | Mode | Stored | Replayed by |
 |---|---|---|
-| `intent` | The parsed intent — dataset, metric, filters, grouping, period | `SqlBuilder`, which rebuilds the SQL |
+| `intent` | The parsed intent -  dataset, metric, filters, grouping, period | `SqlBuilder`, which rebuilds the SQL |
 | `sql_generation` | The finished SQL, under `_sql_result` | Replayed verbatim |
 
 The two are **not** interchangeable, and the engine will not read one as the
 other. A SQL-generation row exists precisely because the question needed
-something the intent contract cannot express — a `WHERE` predicate, a `HAVING`,
-a ratio — and rebuilding it through that contract would drop exactly the part
+something the intent contract cannot express -  a `WHERE` predicate, a `HAVING`,
+a ratio -  and rebuilding it through that contract would drop exactly the part
 that made it necessary. Handed a SQL row, intent mode treats it as a miss and
 pays for a fresh call.
 
@@ -37,12 +37,12 @@ by hash. It is checked first and honours `cache.ttl`.
 
 **Tier 2** is the `naturalquery_cache` table, and it has two stages:
 
-- **exact** — the same question after normalisation (lowercased, filler words
+- **exact** -  the same question after normalisation (lowercased, filler words
   dropped, synonyms folded, words sorted). "Show me the top 5 customers" and
   "top 5 customers" are the same key.
-- **fuzzy** — `0.6 × Jaccard + 0.4 × Levenshtein`, above
+- **fuzzy** -  `0.6 × Jaccard + 0.4 × Levenshtein`, above
   `cache.similarity_threshold` (default `0.85`). **Off by default** since
-  2.1.0 — see below.
+  2.1.0 -  see below.
 
 Tier 2 rows do not expire. Use `naturalquery:cache-cleanup` to age them out.
 
@@ -52,13 +52,13 @@ Tier 2 rows do not expire. Use `naturalquery:cache-cleanup` to age them out.
 NATURALQUERY_CACHE_FUZZY=true    # default false
 ```
 
-It is a **lexical** comparison — shared words and edit distance. It does not
+It is a **lexical** comparison -  shared words and edit distance. It does not
 understand meaning.
 
 The deeper problem is not the threshold. Queries are normalised before
 comparison: lowercased, filler words dropped, synonyms folded, de-duplicated
 and **sorted**. Two that come out equal are already an exact hit. So every pair
-this tier ever judges differs in real, meaning-bearing tokens — and the score
+this tier ever judges differs in real, meaning-bearing tokens -  and the score
 is dominated by the tokens they *share*. Swap a single value and measure:
 
 | Question pair, one value swapped | Score |
@@ -85,8 +85,8 @@ a question, so a row also records the **dataset scope the asker had**, and is
 only reused for a question asked under that same scope.
 
 The scope comes from an explicit `dataset` argument, then conversation state,
-then keyword detection on the question's own words, then — if exactly one
-dataset is registered — that one. If none of those place the question, the
+then keyword detection on the question's own words, then -  if exactly one
+dataset is registered -  that one. If none of those place the question, the
 scope is *unscoped*, which is itself a scope: an unscoped question matches
 unscoped rows, and only those.
 
@@ -105,10 +105,10 @@ original question need it.
 
 Two different values, deliberately kept apart:
 
-- **`dataset` column** — what the answer turned out to be about, i.e. the
+- **`dataset` column** -  what the answer turned out to be about, i.e. the
   dataset the model chose. This is what `cache-cleanup --dataset` and the stats
   command read.
-- **asking scope** — what the *question* was scoped to. This decides
+- **asking scope** -  what the *question* was scoped to. This decides
   eligibility.
 
 They routinely differ: an unscoped question still gets answered about some
@@ -120,7 +120,7 @@ detection cannot place.
 
 A follow-up is neither read from nor written to this cache. "Only in West"
 means one thing after a revenue question and another after an order count, and
-the key carries no session — so a row written by one conversation would be
+the key carries no session -  so a row written by one conversation would be
 served to every other conversation that used the same follow-up words.
 
 See [CONVERSATIONS.md](CONVERSATIONS.md).
@@ -155,7 +155,7 @@ Use `--all` to empty the cache.
 
 Naming a dataset is a different request, and the defaults do **not** apply to
 it: `--dataset=orders` removes every row for that dataset, however fresh or
-popular. That is what the flag is for — a schema file changed and its cached
+popular. That is what the flag is for -  a schema file changed and its cached
 answers are now wrong, which describes rows being hit daily, not rows that have
 gone quiet. Add `--days` or `--min-hits` explicitly to narrow a dataset purge.
 
@@ -174,7 +174,7 @@ $this->app->bind(
 
 Four methods: `find`, `store`, `getStatistics`, `clear`.
 
-`store($query, $intent)` hands you an array. Keep it **verbatim** — the engine
+`store($query, $intent)` hands you an array. Keep it **verbatim** -  the engine
 reads reserved keys back out of it (`_sql_result` decides which reader may
 replay the row, `_asking_scope` decides whether the row is eligible at all) and
 ignores anything it does not recognise, so you never need to know what is
@@ -214,7 +214,7 @@ class MyQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 
 This is an **optimisation, not a safety mechanism**. Scope eligibility is
 enforced by the engine either way, so a cache that does not implement it is not
-less safe — it just cannot narrow its own fuzzy search.
+less safe -  it just cannot narrow its own fuzzy search.
 
 ### Adding a tenant or permission gate
 
@@ -222,7 +222,7 @@ less safe — it just cannot narrow its own fuzzy search.
 the cost is total rather than partial.
 
 When `find()` is overridden and `findForDataset()` is not, the engine calls
-`find()` so your gate still runs — that is the right trade (a skipped tenant
+`find()` so your gate still runs -  that is the right trade (a skipped tenant
 gate is a cross-tenant read; a cold cache is only slow). But `find()` looks up
 with no dataset scope, while rows are stored under the scope their question was
 asked with, so **nothing matches** and the hit rate is zero, not merely reduced.
@@ -246,5 +246,5 @@ class TenantScopedCache extends TwoTierQueryCache
 ```
 
 Overriding only `findForDataset()` is also fine. Overriding neither, and
-expecting a gate elsewhere to catch it, is not — the cache is consulted before
+expecting a gate elsewhere to catch it, is not -  the cache is consulted before
 anything else in the pipeline runs.

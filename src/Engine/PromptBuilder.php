@@ -10,7 +10,7 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
  * Prompt Builder
  *
  * Builds schema-aware prompts for LLM providers.
- * The AI receives FULL table structure — column names, types, descriptions,
+ * The AI receives FULL table structure -  column names, types, descriptions,
  * aliases, JOINs, computed metrics, example queries, AND past corrections.
  *
  * This is how the package enables ANY project to work: the AI understands
@@ -36,7 +36,7 @@ class PromptBuilder
     /**
      * Build a complete SQL generation prompt for a specific dataset.
      *
-     * Used in sql_generation mode — AI generates the full SQL query.
+     * Used in sql_generation mode -  AI generates the full SQL query.
      */
     public function buildSqlPrompt(string $datasetKey, string $userQuery): string
     {
@@ -78,9 +78,9 @@ class PromptBuilder
         $prompt .= <<<PROMPT
 
 IMPORTANT RULES:
-1. ONLY generate SELECT queries — no INSERT, UPDATE, DELETE, DROP, etc.
+1. ONLY generate SELECT queries -  no INSERT, UPDATE, DELETE, DROP, etc.
 2. ONLY use tables listed above with their exact schema-qualified names.
-3. ONLY use columns listed under each table — do NOT invent column names.
+3. ONLY use columns listed under each table -  do NOT invent column names.
 4. COMPUTED METRICS are NOT database columns! Use the SQL expression provided.
 5. Use proper {$dialect} syntax.
 6. {$limitRule}
@@ -89,9 +89,9 @@ IMPORTANT RULES:
    WHERE LOWER(column) = LOWER('value') OR LOWER(column) LIKE LOWER('%value%')
    ORDER BY CASE WHEN LOWER(column) = LOWER('value') THEN 0 ELSE 1 END
    LIMIT 1
-   Never use ILIKE — it is PostgreSQL-only and a syntax error on MySQL.
+   Never use ILIKE -  it is PostgreSQL-only and a syntax error on MySQL.
 9. If a JOIN is specified in the schema, you MUST include it in your query.
-10. Column aliases tell you what users might call a column — match user words to the correct column.
+10. Column aliases tell you what users might call a column -  match user words to the correct column.
 PROMPT;
 
         if ($examples) {
@@ -112,9 +112,9 @@ Respond with ONLY a JSON object (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
     "dataset": "{$datasetKey}",
-    "query_type": "ranking|group_detail|aggregation|overview",
+    "query_type": "ranking|group_detail|aggregation",
     "metric": "main metric column name or null",
-    "group_value": "a specific record name to filter to, if the user named one, else null — never a category or column name",
+    "group_value": "a specific record name to filter to, if the user named one, else null -  never a category or column name",
     "order": "DESC or ASC",
     "limit": {$defaultLimit},
     "period": "the date range your WHERE clause applies, as YYYY-MM-DD to YYYY-MM-DD, or null if you filtered no dates",
@@ -169,21 +169,21 @@ PROMPT;
         // Spell out that these are tables in ONE database. Listing them as
         // "datasets" made models treat them as mutually exclusive and answer a
         // cross-table question with "which dataset did you mean?" instead of
-        // joining — which is most questions on a normalised schema.
-        $prompt .= "AVAILABLE TABLES — all in the SAME database, and you may JOIN across them\n"
+        // joining -  which is most questions on a normalised schema.
+        $prompt .= "AVAILABLE TABLES -  all in the SAME database, and you may JOIN across them\n"
             . "(these are the ONLY tables you can query):\n\n{$allSchemaInfo}\n";
 
         $prompt .= <<<PROMPT
 
 IMPORTANT RULES:
-1. ONLY generate SELECT queries — no INSERT, UPDATE, DELETE, DROP, etc.
+1. ONLY generate SELECT queries -  no INSERT, UPDATE, DELETE, DROP, etc.
 2. ONLY use tables listed above with their exact schema-qualified names.
 3. ONLY use columns listed under each table.
 4. COMPUTED METRICS are NOT database columns! Use the SQL expression.
 5. Use proper {$dialect} syntax.
 6. {$limitRule}
 7. If a JOIN is specified for a dataset, ALWAYS include it.
-8. Column aliases tell you what users might call a column — match user words.
+8. Column aliases tell you what users might call a column -  match user words.
 8b. When a question needs columns from more than one table, JOIN them using the
     RELATED lines above. Do NOT ask which table to use, and do NOT answer with a
     raw id column when the name it points to is available through a join:
@@ -191,7 +191,7 @@ IMPORTANT RULES:
     the customer's name, not grouping by customer_id.
 8c. Check EVERY part of the question against the table you are selecting from.
     If the measure, the grouping, or a FILTER names something that table does
-    not have, the query is not finished — join the table that has it. A filter
+    not have, the query is not finished -  join the table that has it. A filter
     is the easiest one to miss, because the question often does not name the
     table it lives on: "shipments to Europe" filters on a country that may sit
     on the customer, not the shipment. Answering from one table and dropping
@@ -200,7 +200,7 @@ IMPORTANT RULES:
 8d. SELECT the measure alongside the label. A ranking that returns only names,
     with no column for what they are ranked by, does not answer the question.
 9. For specific record lookup, match with LOWER(column) = LOWER('value'), falling
-   back to LOWER(column) LIKE LOWER('%value%'). Never use ILIKE — it is
+   back to LOWER(column) LIKE LOWER('%value%'). Never use ILIKE -  it is
    PostgreSQL-only and a syntax error on MySQL.
 PROMPT;
 
@@ -224,7 +224,7 @@ Return JSON only (no markdown):
 {
     "sql": "SELECT ... FROM ... ORDER BY ... LIMIT ...",
     "dataset": "dataset_key",
-    "query_type": "ranking|group_detail|aggregation|overview",
+    "query_type": "ranking|group_detail|aggregation",
     "metric": "main metric name or null",
     "group_value": "specific group name if mentioned, or null",
     "order": "DESC or ASC",
@@ -248,7 +248,7 @@ PROMPT;
     }
 
     /**
-     * Build FULL schema info for a single dataset — includes everything the AI needs.
+     * Build FULL schema info for a single dataset -  includes everything the AI needs.
      */
     protected function buildFullSchemaInfo(string $datasetKey, array $schema): string
     {
@@ -279,7 +279,7 @@ PROMPT;
         // Columns with full detail
         $columns = $primary['columns'] ?? [];
         $lines[] = '';
-        $lines[] = '  COLUMNS (only use these — do not invent column names):';
+        $lines[] = '  COLUMNS (only use these -  do not invent column names):';
         foreach ($columns as $colName => $colDef) {
             $desc = $colDef['description'] ?? '';
             $type = $colDef['type'] ?? '';
@@ -308,7 +308,7 @@ PROMPT;
         $computed = $schema['computed_metrics'] ?? [];
         if (!empty($computed)) {
             $lines[] = '';
-            $lines[] = '  COMPUTED METRICS (NOT database columns — use the SQL expression in SELECT/ORDER BY):';
+            $lines[] = '  COMPUTED METRICS (NOT database columns -  use the SQL expression in SELECT/ORDER BY):';
             foreach ($computed as $metricKey => $metricData) {
                 $expr = $metricData['expression'] ?? '';
                 $desc = $metricData['description'] ?? '';
@@ -343,14 +343,14 @@ PROMPT;
     }
 
     /**
-     * Build full schema info for ALL datasets — used in multi-dataset prompts.
+     * Build full schema info for ALL datasets -  used in multi-dataset prompts.
      */
     /**
      * Render foreign keys as ready-to-use JOIN clauses.
      *
      * Grouped by constraint, because a composite key is ONE join with an AND,
      * not several. Emitting a line per column invited two joins to the same
-     * table, or a join on half the key — and half a composite key matches rows
+     * table, or a join on half the key -  and half a composite key matches rows
      * it should not, producing a total that is silently too large.
      *
      * Hand-written relationships without a constraint name fall back to
@@ -396,11 +396,11 @@ PROMPT;
         foreach ($byConstraint as $join) {
             $conditions = implode(' AND ', $join['on']);
             $note = count($join['on']) > 1
-                ? ' (composite key — ALL conditions are required)'
+                ? ' (composite key -  ALL conditions are required)'
                 : '';
 
             $lines[] = sprintf(
-                '  RELATED: JOIN %s ON %s%s — do this to use its columns',
+                '  RELATED: JOIN %s ON %s%s -  do this to use its columns',
                 $join['table'],
                 $conditions,
                 $note

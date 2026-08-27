@@ -5,7 +5,7 @@
  *
  * resolveAskingDataset() returns the sole registered key unconditionally when
  * only one dataset exists, which is what made findInCache()'s old bypass fire
- * on every question of a single-dataset install — the commonest shape there
+ * on every question of a single-dataset install -  the commonest shape there
  * is. A custom QueryCacheInterface was therefore never read, while store()
  * kept working, so the cache filled up and returned nothing.
  *
@@ -25,7 +25,7 @@ return [
             'columns' => [
                 // Unit included: this stub stands in for a CURATED schema, and
                 // naturalquery:audit-schema reports an aggregatable column with
-                // no unit — correctly, since the answer would render 1500 bare
+                // no unit -  correctly, since the answer would render 1500 bare
                 // with nothing saying whether that is currency or a count.
                 'revenue' => ['type' => 'decimal', 'description' => 'Revenue', 'unit' => '₹', 'aggregatable' => true, 'sortable' => true],
                 // Something to narrow on, so a test can check that a filtered

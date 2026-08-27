@@ -19,14 +19,14 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * It was enforced on one route and requested on the other. Intent mode appends
  * it to the SQL in SqlBuilder, so the model cannot omit it. SQL generation put
- * a line in the prompt — "REQUIRED FILTER (always include in WHERE)" — and
+ * a line in the prompt -  "REQUIRED FILTER (always include in WHERE)" -  and
  * hoped. A model that ignored it produced a total including every cancelled
  * order, reported success, and nothing downstream re-checked.
  *
  * That is the shape of every defect this release has fixed: a guarantee that
  * holds on the path it was written for and not the one beside it. And it is
  * worse here than most, because the whole point of the setting is that the
- * answer is WRONG without it — a user who writes the rule has been told the
+ * answer is WRONG without it -  a user who writes the rule has been told the
  * package will apply it.
  *
  * Fixture: 100 paid + 200 paid + 500 cancelled. The rule makes the answer 300;
@@ -98,7 +98,7 @@ class RequiredFilterIsEnforcedTest extends TestCase
         $this->assertNotEquals(
             800.0,
             $this->total($result),
-            'the model ignored the required filter and the engine served the unfiltered total — a rule '
+            'the model ignored the required filter and the engine served the unfiltered total -  a rule '
                 . 'the adopter wrote specifically to make this answer correct was treated as a suggestion'
         );
     }

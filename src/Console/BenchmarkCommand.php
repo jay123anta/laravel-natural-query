@@ -6,12 +6,13 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Jayanta\NaturalQuery\Benchmark\ResultComparator;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
+use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 
 /**
  * How accurate is this package on YOUR database?
  *
- * The package quotes its own figure — roughly one question in five wrong on an
- * uncurated schema, near-perfect once curated — and nobody should take that on
+ * The package quotes its own figure -  roughly one question in five wrong on an
+ * uncurated schema, near-perfect once curated -  and nobody should take that on
  * trust for their own data. This grades the same way that figure was produced:
  * run the generated query and a reference query you wrote by hand against the
  * same database, and compare the RESULT SETS. A query is right when its answer
@@ -21,7 +22,7 @@ use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
  * write the descriptions it asks for, run this again. The difference is what
  * curation bought you, in a number you produced yourself.
  *
- * This DOES call the provider — one or more calls per question — so it costs
+ * This DOES call the provider -  one or more calls per question -  so it costs
  * real money and is never run implicitly.
  */
 class BenchmarkCommand extends Command
@@ -34,7 +35,7 @@ class BenchmarkCommand extends Command
 
     protected $description = 'Measure answer accuracy on your own schema against reference SQL you supply';
 
-    public function handle(QueryOrchestrator $orchestrator, ResultComparator $comparator): int
+    public function handle(QueryOrchestrator $orchestrator, ResultComparator $comparator, SchemaRegistry $registry): int
     {
         $questions = $this->loadQuestions();
 
@@ -68,7 +69,7 @@ class BenchmarkCommand extends Command
         $results = [];
 
         foreach ($questions as $i => $q) {
-            $results[] = $this->runQuestion($orchestrator, $comparator, $q, $i + 1, $count);
+            $results[] = $this->runQuestion($orchestrator, $comparator, $registry, $q, $i + 1, $count);
         }
 
         return $this->option('json')
@@ -92,7 +93,7 @@ class BenchmarkCommand extends Command
             $this->line('  <fg=cyan>stubs/benchmark-example.php</>.');
             $this->newLine();
             $this->line('  <fg=gray>Write the reference SQL from the QUESTION, never from what the</>');
-            $this->line('  <fg=gray>package produced — otherwise you are marking its own homework.</>');
+            $this->line('  <fg=gray>package produced -  otherwise you are marking its own homework.</>');
 
             return null;
         }
@@ -130,7 +131,7 @@ class BenchmarkCommand extends Command
      * @param  array<string, mixed>  $q
      * @return array<string, mixed>
      */
-    private function runQuestion(QueryOrchestrator $orchestrator, ResultComparator $comparator, array $q, int $n, int $of): array
+    private function runQuestion(QueryOrchestrator $orchestrator, ResultComparator $comparator, SchemaRegistry $registry, array $q, int $n, int $of): array
     {
         $question = (string) $q['question'];
         $ordered = (bool) ($q['ordered'] ?? false);
@@ -153,14 +154,19 @@ class BenchmarkCommand extends Command
             'reason' => null,
         ];
 
-        try {
-            $expected = DB::select((string) $q['gold']);
-        } catch (\Throwable $e) {
-            $tick('<fg=yellow>reference SQL failed</>');
-
-            return array_merge($row, ['reason' => 'the reference SQL did not run: ' . $e->getMessage()]);
-        }
-
+        // The engine runs FIRST, so the reference SQL can be run wherever the
+        // engine actually went.
+        //
+        // Both must read the same database or the accuracy figure — the whole
+        // output of this command — compares rows from two different ones. The
+        // engine resolves the connection from the dataset it RESOLVED, which
+        // is not necessarily the one the question named: `dataset` is optional
+        // in a benchmark file and the shipped example leaves it out. Reading
+        // it from the question therefore fixed nothing in the documented case.
+        //
+        // The cost of this ordering is one provider call spent before a broken
+        // reference query is discovered. That is the right way round: an
+        // adopter learns about both problems in the same run.
         try {
             $answer = $orchestrator->query($question, $q['dataset'] ?? null);
         } catch (\Throwable $e) {
@@ -173,6 +179,21 @@ class BenchmarkCommand extends Command
             $tick('<fg=red>no answer</>');
 
             return array_merge($row, ['reason' => $answer['error'] ?? 'no answer', 'error_code' => $answer['error_code'] ?? null]);
+        }
+
+        try {
+            $dataset = $answer['parsed_query']['dataset'] ?? ($q['dataset'] ?? null);
+            $connection = is_string($dataset) && $registry->has($dataset)
+                ? $registry->getConnection($dataset)
+                : config('naturalquery.sql.database_connection');
+
+            $expected = $connection
+                ? DB::connection($connection)->select((string) $q['gold'])
+                : DB::select((string) $q['gold']);
+        } catch (\Throwable $e) {
+            $tick('<fg=yellow>reference SQL failed</>');
+
+            return array_merge($row, ['reason' => 'the reference SQL did not run: ' . $e->getMessage()]);
         }
 
         if ($comparator->matches($expected, $answer['rows'] ?? [], $ordered)) {
@@ -262,7 +283,7 @@ class BenchmarkCommand extends Command
 
         if ($wrong) {
             $this->newLine();
-            $this->line('  <fg=gray>Run `php artisan naturalquery:audit-schema` — most wrong answers are a</>');
+            $this->line('  <fg=gray>Run `php artisan naturalquery:audit-schema` -  most wrong answers are a</>');
             $this->line('  <fg=gray>missing description or an ambiguous term, not a model failure. Fix</>');
             $this->line('  <fg=gray>those, run this again, and compare.</>');
         }

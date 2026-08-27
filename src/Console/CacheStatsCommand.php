@@ -12,7 +12,7 @@ use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
  * only way to know whether caching was earning its keep was to read the table
  * by hand. That matters more since 2.1.0: fuzzy matching is off by default and
  * a row is only reused within the dataset scope it was cached under, so hit
- * rates are lower on purpose — and an operator with no numbers cannot tell
+ * rates are lower on purpose -  and an operator with no numbers cannot tell
  * "correctly conservative" from "silently broken".
  *
  * Read-only. Sends nothing anywhere.
@@ -22,7 +22,7 @@ class CacheStatsCommand extends Command
     protected $signature = 'naturalquery:cache-stats
                             {--json : Machine-readable output}';
 
-    protected $description = 'Show query cache usage — entries, reuse, and what is being asked most';
+    protected $description = 'Show query cache usage -  entries, reuse, and what is being asked most';
 
     public function handle(QueryCacheInterface $cache): int
     {
@@ -77,13 +77,13 @@ class CacheStatsCommand extends Command
 
         $this->newLine();
         $this->line(sprintf('  Datasets covered            %d', (int) ($stats['unique_datasets'] ?? 0)));
-        $this->line(sprintf('  Oldest entry                %s', $stats['oldest_entry'] ?? '—'));
+        $this->line(sprintf('  Oldest entry                %s', $stats['oldest_entry'] ?? '- '));
         $this->line(sprintf('  Last reuse                  %s', $stats['most_recent_hit'] ?? 'never'));
         $this->line(sprintf('  Fast tier (Tier 1)          %s', ($stats['tier1_enabled'] ?? false)
             ? 'on via ' . ($stats['tier1_store'] ?? 'default')
             : 'off'));
         $this->line(sprintf('  Fuzzy matching              %s', config('naturalquery.cache.fuzzy_matching', false)
-            ? 'on — see docs/CACHING.md for the trade'
+            ? 'on -  see docs/CACHING.md for the trade'
             : 'off (default)'));
 
         $top = $stats['top_queries'] ?? [];

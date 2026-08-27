@@ -34,7 +34,7 @@ node --check resources/js/naturalquery-widget.js
 
 ## What a good change looks like
 
-**New behaviour gets a test.** Not a test that passes because the code exists —
+**New behaviour gets a test.** Not a test that passes because the code exists - 
 a test you have watched fail. Revert your fix, run it, confirm it goes red, put
 the fix back. A test that has only ever been green is a comment.
 
@@ -51,17 +51,17 @@ you add a check, enumerate every route that reaches the thing being checked.
 
 ## Things that need extra care
 
-- **`src/Security/`, `src/LlmProviders/`, `PromptBuilder`** — anything that can
+- **`src/Security/`, `src/LlmProviders/`, `PromptBuilder`** -  anything that can
   put data on the wire. Only schema structure and the user's question may ever
   reach a provider.
-- **`SqlValidator`** — every generated statement passes through it. `SELECT`
+- **`SqlValidator`** -  every generated statement passes through it. `SELECT`
   only, schema-derived table whitelist, no exceptions.
-- **`src/Contracts/`** — adding a parameter to an interface method, even an
+- **`src/Contracts/`** -  adding a parameter to an interface method, even an
   optional one, is a fatal error at class load for every existing
   implementation. New capabilities go in a new optional interface. See
   `ScopesCacheByDataset` for the pattern, and `PublicContractCanaryTest` for
   the test that catches it.
-- **Provider defaults** — model IDs get retired. If you touch a provider,
+- **Provider defaults** -  model IDs get retired. If you touch a provider,
   confirm its default model is still served.
 
 ## Documentation

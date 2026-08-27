@@ -28,7 +28,7 @@ class OperatorCommandsTest extends TestCase
     /**
      * Config drift. Laravel merges package config one level deep, so a
      * published block from an older version hides every key added inside it
-     * since — silently, with no error to search for. Two settings hit this in
+     * since -  silently, with no error to search for. Two settings hit this in
      * 2.1.0 alone.
      */
     #[Test]
@@ -48,7 +48,7 @@ class OperatorCommandsTest extends TestCase
         );
     }
 
-    /** A differing VALUE is not drift — that is the whole point of publishing. */
+    /** A differing VALUE is not drift -  that is the whole point of publishing. */
     #[Test]
     public function a_customised_value_is_not_reported_as_drift()
     {

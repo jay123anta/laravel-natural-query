@@ -25,7 +25,7 @@ use PHPUnit\Framework\Attributes\Test;
  * the next upgrade.
  *
  * PHP enforces interface signatures at CLASS LOAD time. Adding a parameter to
- * an interface method — even an OPTIONAL one — is a fatal error for every
+ * an interface method -  even an OPTIONAL one -  is a fatal error for every
  * class already implementing the old shape. Not a deprecation, not degraded
  * behaviour: the application does not boot.
  *
@@ -41,7 +41,7 @@ use PHPUnit\Framework\Attributes\Test;
  * signature this package published. If one stops loading, an upgrade breaks
  * somebody, and the test says so in the same run that broke it.
  *
- * WHEN THIS TEST FAILS, the fix is usually NOT to update the class here —
+ * WHEN THIS TEST FAILS, the fix is usually NOT to update the class here -
  * that just re-hides the break. It is to keep the contract stable and put the
  * new capability in a separate optional interface, the way `ReportsUsage` and
  * `ScopesCacheByDataset` both do.
@@ -67,15 +67,15 @@ class PublicContractCanaryTest extends TestCase
     {
         $this->assertTrue(
             class_exists($implementation),
-            "{$implementation} no longer loads — {$contract} changed shape and every adopter implementing it breaks on upgrade"
+            "{$implementation} no longer loads -  {$contract} changed shape and every adopter implementing it breaks on upgrade"
         );
 
         $this->assertInstanceOf($contract, new $implementation);
     }
 
     /**
-     * The provider contract is the package's headline promise — "any model,
-     * hosted or your own" — so it gets its own case rather than riding along
+     * The provider contract is the package's headline promise -  "any model,
+     * hosted or your own" -  so it gets its own case rather than riding along
      * in the data provider.
      */
     #[Test]
@@ -105,7 +105,7 @@ class PublicContractCanaryTest extends TestCase
      *
      * This is not redundant with the test above. An `instanceof` check against
      * a class the calling file forgot to import resolves to the current
-     * namespace, finds nothing, and returns FALSE — silently, with no error.
+     * namespace, finds nothing, and returns FALSE -  silently, with no error.
      * The capability then degrades permanently to its fallback and nothing
      * says so. That happened here during this very change, and it presented as
      * an unrelated logic regression.
@@ -116,7 +116,7 @@ class PublicContractCanaryTest extends TestCase
      * docs/CACHING.md tells adopters to subclass TwoTierQueryCache, so its
      * protected methods are published surface. 2.1.0 widened two of them and
      * fatally broke every existing subclass that had overridden either.
-     * Instantiating a subclass frozen at the old signatures is the assertion —
+     * Instantiating a subclass frozen at the old signatures is the assertion -
      * a signature mismatch fails at class load, before any test body runs.
      */
     #[Test]
@@ -134,7 +134,7 @@ class PublicContractCanaryTest extends TestCase
     public function the_bundled_cache_is_recognised_as_scope_capable()
     {
         // Both bundled implementations, not just whichever the environment
-        // happens to bind — NullQueryCache is what a test or a cache-disabled
+        // happens to bind -  NullQueryCache is what a test or a cache-disabled
         // install gets, and it degrading to the bypass path would be silent.
         $this->assertInstanceOf(
             ScopesCacheByDataset::class,
@@ -151,7 +151,7 @@ class PublicContractCanaryTest extends TestCase
 
     /**
      * And the capability check as the engine performs it, from the engine's
-     * own file — the arrangement that failed. A green assertion here means the
+     * own file -  the arrangement that failed. A green assertion here means the
      * import is present and the branch is reachable.
      */
     #[Test]
@@ -165,7 +165,7 @@ class PublicContractCanaryTest extends TestCase
         foreach (array_unique($matches[1]) as $shortName) {
             $this->assertTrue(
                 $this->resolvesInFile($source, $shortName),
-                "QueryOrchestrator does `instanceof {$shortName}` but never imports it — "
+                "QueryOrchestrator does `instanceof {$shortName}` but never imports it -  "
                 . 'PHP resolves that to the current namespace, finds nothing, and returns false silently'
             );
         }
@@ -184,7 +184,7 @@ class PublicContractCanaryTest extends TestCase
 
 // ---------------------------------------------------------------------------
 // Stand-ins for adopter code. Frozen at the published signatures ON PURPOSE.
-// Do not "fix" these to match a changed contract — that hides the break this
+// Do not "fix" these to match a changed contract -  that hides the break this
 // file exists to reveal. See the class docblock.
 // ---------------------------------------------------------------------------
 
@@ -285,7 +285,7 @@ class LegacyThirdPartyProvider implements LlmProviderInterface
  *
  * The canary above watches the interfaces in src/Contracts/. That was not
  * enough: docs/CACHING.md tells adopters to subclass TwoTierQueryCache, which
- * makes its protected methods a published extension point too — and 2.1.0
+ * makes its protected methods a published extension point too -  and 2.1.0
  * widened two of them, generateHash() and findFuzzyMatch(), while adding the
  * asking scope. PHP requires an override to stay signature-compatible, so
  * every subclass in the wild that had overridden either was a fatal error at

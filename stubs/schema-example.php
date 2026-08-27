@@ -85,7 +85,7 @@ return [
                     // group value) this makes rankings/details build
                     // SUM(column) ... GROUP BY group_column. For
                     // PRE-AGGREGATED tables (one row per group value), omit
-                    // it and set only 'sortable' — rows are read as-is.
+                    // it and set only 'sortable' -  rows are read as-is.
                     'aggregatable' => true,
                     'sortable' => true,
                 ],

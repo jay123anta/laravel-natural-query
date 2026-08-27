@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>NaturalQuery — Demo</title>
+    <title>NaturalQuery -  Demo</title>
     <style>
         body { margin: 0; background: #f3f4f6; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
         .demo-shell { max-width: 900px; margin: 0 auto; padding: 32px 16px 64px; }
@@ -17,7 +17,7 @@
 <div class="demo-shell">
     <div class="demo-head">
         <h1>NaturalQuery</h1>
-        <p>Ask questions about your data in plain language — by text or voice.
+        <p>Ask questions about your data in plain language -  by text or voice.
            The AI sees only your schema; your data never leaves this server.</p>
     </div>
     <x-naturalquery::widget />

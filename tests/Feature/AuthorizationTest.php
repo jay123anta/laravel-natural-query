@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Who may spend the API key.
  *
- * The package used to put `auth` in the default middleware — right instinct,
+ * The package used to put `auth` in the default middleware -  right instinct,
  * wrong mechanism. A fresh `laravel new` app has no auth scaffolding and so no
  * `login` route, and the first thing a new adopter met was not a login page but
  *
@@ -23,7 +23,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * A gate replaces it, the way Telescope and Horizon solve the same problem.
  * These cases hold both halves: usable the moment it is installed, and shut
- * everywhere it should be. The second half matters more — these endpoints spend
+ * everywhere it should be. The second half matters more -  these endpoints spend
  * money on every request, so an open one in production is an LLM proxy for the
  * internet.
  */
@@ -33,7 +33,7 @@ class AuthorizationTest extends TestCase
     {
         parent::getEnvironmentSetUp($app);
         // NOT overriding routes.middleware here: the point is what an adopter
-        // gets by default, so the shipped list is what must be exercised —
+        // gets by default, so the shipped list is what must be exercised -
         // including 'web', which the rest of the suite skips.
         //
         // 'web' brings sessions and encrypted cookies, hence a real key. Every
@@ -49,7 +49,7 @@ class AuthorizationTest extends TestCase
 
     /**
      * Laravel exempts requests from CSRF while running tests, and it decides
-     * that by looking at the environment — which these cases deliberately
+     * that by looking at the environment -  which these cases deliberately
      * change. Without this, every one of them fails with 419 before reaching
      * the check under test.
      */
@@ -59,7 +59,7 @@ class AuthorizationTest extends TestCase
 
         // A real session and a real token, rather than switching the CSRF
         // middleware off. These cases run the shipped middleware list, 'web'
-        // included, so the request should look like one a browser makes —
+        // included, so the request should look like one a browser makes -
         // and a widget in a browser does send this header.
         $this->startSession();
         $this->withHeader('X-CSRF-TOKEN', csrf_token());
@@ -87,7 +87,7 @@ class AuthorizationTest extends TestCase
     /**
      * The widget script is a static file loaded by every page that embeds the
      * widget, including pages shown to signed-out visitors. Gating it protects
-     * nothing — no data, no key — and only stops the widget rendering, which
+     * nothing -  no data, no key -  and only stops the widget rendering, which
      * looks like a broken package rather than a policy.
      */
     #[Test]

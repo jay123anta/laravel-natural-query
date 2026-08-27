@@ -9,7 +9,7 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
  * OpenAI-compatible LLM Provider.
  *
  * Works with OpenAI itself (GPT-4o family) AND with ANY service speaking the
- * OpenAI chat-completions protocol — which is the de-facto standard:
+ * OpenAI chat-completions protocol -  which is the de-facto standard:
  *
  *   Hosted:      DeepSeek, Groq, Mistral, Together, OpenRouter, …
  *   Self-hosted: vLLM, LM Studio, LocalAI, llama.cpp server, Ollama
@@ -17,7 +17,7 @@ use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
  *
  * Point `base_url` at the server, set `model`, and (optionally) `api_key`.
  * Self-hosted servers frequently need no key and may not support
- * `response_format` — set `force_json => false` for those.
+ * `response_format` -  set `force_json => false` for those.
  *
  * Text-only provider. AI receives ONLY schema structure, never actual data.
  */
@@ -41,12 +41,12 @@ class OpenAiProvider extends AbstractProvider implements LlmProviderInterface
         $this->apiKey = $config['api_key'] ?? '';
         $this->model = $config['model'] ?? 'gpt-4o-mini';
         $this->baseUrl = rtrim($config['base_url'] ?? 'https://api.openai.com/v1', '/');
-        // Shown in logs/health output — lets a DeepSeek/vLLM setup identify
+        // Shown in logs/health output -  lets a DeepSeek/vLLM setup identify
         // itself instead of appearing as "openai".
         $this->providerName = $config['name'] ?? 'openai';
         $this->maxTokens = (int) ($config['max_tokens'] ?? 2048);
         // OpenAI's structured-output flag. Most compatible servers accept it,
-        // but some self-hosted stacks reject unknown params — disable there.
+        // but some self-hosted stacks reject unknown params -  disable there.
         $this->forceJson = (bool) ($config['force_json'] ?? true);
     }
 
@@ -112,22 +112,22 @@ AVAILABLE DATASETS:
 
 Extract: dataset (dataset key), metric, limit (default 10), order (asc/desc), group_value (or null), group_by (or null), confidence (0.0-1.0).
 
-When the user asks HOW MANY — "how many orders", "number of tickets", "orders by status" — the metric is record_count. Only pick a money or quantity metric when the user names one.
+When the user asks HOW MANY -  "how many orders", "number of tickets", "orders by status" -  the metric is record_count. Only pick a money or quantity metric when the user names one.
 
 query_type: "aggregation" when the user wants ONE number for the whole dataset ("total revenue", "how many orders are there") with no breakdown and no named record; "ranking" for a list, which is the usual case; "group_detail" when they named one record.
 
-filters: EVERY narrowing that applies, as [{"column":"region","value":"East"}]. This includes one stated in the question itself — "how many invoices are pending" is [{"column":"status","value":"pending"}], "sales in the West" is [{"column":"region","value":"West"}]. Match the value to the column it belongs to. In a conversation, also repeat the ones still in force — a filter you leave out is switched off.
+filters: EVERY narrowing that applies, as [{"column":"region","value":"East"}]. This includes one stated in the question itself -  "how many invoices are pending" is [{"column":"status","value":"pending"}], "sales in the West" is [{"column":"region","value":"West"}]. Match the value to the column it belongs to. In a conversation, also repeat the ones still in force -  a filter you leave out is switched off.
 
 filter_column: the column that group_value belongs to, when it is NOT the column being grouped by. "quantity by customer_name where product_category is Grocery" has group_by=customer_name, group_value=Grocery, filter_column=product_category. Leave null when the filter is on the grouping column itself.
 
-group_by is the column to break results down by when the user asks for one — "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
+group_by is the column to break results down by when the user asks for one -  "revenue BY REGION", "orders PER STATUS". It must be one of that dataset's group_by columns; use null when no breakdown is named.
 
-Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today — comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
-date_from / date_to: if the user named a period — "last month", "in 2025", "since April" — resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
+Periods are CALENDAR periods unless the user says otherwise: "this year" is 1 January to 31 December of the current year, "last year" the whole of the year before, "last month" the previous calendar month, "last quarter" the previous calendar quarter. Never a rolling window ending today -  comparing a calendar year against a trailing twelve months puts overlapping data on both sides and the difference is meaningless.
+date_from / date_to: if the user named a period -  "last month", "in 2025", "since April" -  resolve it to YYYY-MM-DD dates using TODAY'S DATE: {$today}. Both null when no period is mentioned. Never invent a period the user did not ask for.
 
 If unclear, set needs_clarification=true with clarification_type="dataset" or "metric".
 Never set needs_clarification for a HOW MANY question. Every dataset has record_count, so "how many X are there" is always answerable without asking.
-If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" — never fall back to the default breakdown.
+If the user asks for a breakdown that is NOT in that dataset's group_by list, set needs_clarification=true and clarification_type="ambiguous" -  never fall back to the default breakdown.
 
 Return JSON: {"dataset":"key","metric":"name","limit":10,"order":"desc","query_type":"ranking","group_value":null,"filter_column":null,"filters":[],"group_by":null,"date_from":null,"date_to":null,"confidence":0.85,"needs_clarification":false,"clarification_type":null}
 PROMPT;
@@ -143,8 +143,8 @@ PROMPT;
             //
             // A reasoning model spends output tokens thinking before it writes
             // anything, and DeepSeek v4 was seen using 400–800 on this prompt.
-            // Past the ceiling the reply is cut off mid-JSON — the observed
-            // response was the single character "{" — which parsed as nothing,
+            // Past the ceiling the reply is cut off mid-JSON -  the observed
+            // response was the single character "{" -  which parsed as nothing,
             // reported "Failed to parse intent response", and quietly dropped
             // to SQL generation. That answered "how many invoices are pending"
             // with 3 instead of 1: the filter lost, the number wrong, and no
@@ -171,13 +171,13 @@ PROMPT;
 
         if (!$parsed) {
             // Say which of the two it was. "Failed to parse" is true of a
-            // truncated reply and useless as advice — the fix for running out
+            // truncated reply and useless as advice -  the fix for running out
             // of tokens is a setting, and the user cannot guess that from a
             // parser complaint.
             if (($response['data']['choices'][0]['finish_reason'] ?? null) === 'length') {
                 return $this->errorResponse(
                     'The model ran out of output tokens before finishing its answer. '
-                    . 'Raise NATURALQUERY_MAX_OUTPUT_TOKENS — reasoning models spend '
+                    . 'Raise NATURALQUERY_MAX_OUTPUT_TOKENS -  reasoning models spend '
                     . 'part of that budget thinking.'
                 );
             }
@@ -190,7 +190,7 @@ PROMPT;
 
     public function healthCheck(): array
     {
-        // Self-hosted OpenAI-compatible servers are often keyless — only
+        // Self-hosted OpenAI-compatible servers are often keyless -  only
         // require a key when talking to api.openai.com itself.
         if (empty($this->apiKey) && str_contains($this->baseUrl, 'api.openai.com')) {
             return ['status' => 'error', 'message' => 'API key not configured'];
@@ -255,7 +255,7 @@ PROMPT;
             'limit' => min(max(intval($parsed['limit'] ?? 10), 1), config('naturalquery.sql.max_limit') ?? 1000),
             // Coalesced ONCE. The old line guarded the in_array check with
             // ?? 'desc' and then re-read the key unguarded in the true branch,
-            // so a model that omits 'order' — DeepSeek does — passed the check
+            // so a model that omits 'order' -  DeepSeek does -  passed the check
             // and hit strtolower(null). Gemini always sends it, which is why
             // this survived: three providers carried it and only the tested one
             // never triggered it.

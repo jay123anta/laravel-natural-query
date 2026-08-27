@@ -14,8 +14,8 @@ use PHPUnit\Framework\Attributes\Test;
  * Every answer says how the question was understood.
  *
  * Roughly one question in five is misread on an uncurated schema. The package
- * has always returned `parsed_query` — dataset, metric, grouping, filters,
- * period — but as structure a caller had to assemble into something readable,
+ * has always returned `parsed_query` -  dataset, metric, grouping, filters,
+ * period -  but as structure a caller had to assemble into something readable,
  * and the bundled widget never did. A conversation turn got a summary line
  * from ConversationManager; an ordinary question, which is the first thing
  * anyone asks, got nothing at all.
@@ -76,7 +76,7 @@ class AnswerShowsHowItWasUnderstoodTest extends TestCase
                 . 'indistinguishable from a correct reading: ' . json_encode($result)
         );
 
-        // The dataset's display name, not its key — this is read by a person.
+        // The dataset's display name, not its key -  this is read by a person.
         $this->assertStringContainsString('Orders', $result['parsed_summary']);
         $this->assertStringContainsString('revenue', $result['parsed_summary']);
     }
@@ -86,8 +86,8 @@ class AnswerShowsHowItWasUnderstoodTest extends TestCase
      * answer that reads like an unfiltered one is the failure.
      *
      * INTENT mode, because that is where a filter is a contractual field the
-     * model returns. SQL generation returns only a finished statement — the
-     * predicate lives inside the SQL string and nothing extracts it — so on
+     * model returns. SQL generation returns only a finished statement -  the
+     * predicate lives inside the SQL string and nothing extracts it -  so on
      * that path the line names the dataset and measure but cannot name the
      * filter. Worth knowing rather than papering over: the honest fix is to
      * parse the predicate out, and that is a bigger change than this one.

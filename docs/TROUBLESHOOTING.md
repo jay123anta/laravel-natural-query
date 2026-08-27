@@ -18,7 +18,7 @@ NATURALQUERY_SSL_VERIFY=C:\path\to\cacert.pem
 path, or `false` (disables verification - never do this in production).
 
 XAMPP already ships a bundle at `C:\xampp\apache\bin\curl-ca-bundle.crt`, so
-usually no download is needed. Run `php artisan naturalquery:doctor` first — it
+usually no download is needed. Run `php artisan naturalquery:doctor` first -  it
 checks whether PHP has a CA store at all and prints the path of one it finds on
 your machine. Worth doing before anything else, because the symptom does not
 look like a certificate problem: every question simply fails, which reads like
@@ -90,7 +90,7 @@ FPM a large budget risks tying up every worker during a provider outage.
 Your schema no longer fits in the context window the model is allowed to read.
 
 The package refuses to send the prompt rather than let Ollama truncate it,
-because Ollama does not reject an oversized prompt — it silently discards the
+because Ollama does not reject an oversized prompt -  it silently discards the
 start and answers from what is left. The start is your schema, so you would get
 a normal-looking answer written by a model that never saw some of your tables.
 Refusing is the loud version of a failure that is otherwise invisible.
@@ -98,7 +98,7 @@ Refusing is the loud version of a failure that is otherwise invisible.
 If you are on 2.0.0 and have *never* seen this message on a large schema, that
 is worth knowing about: in 2.0.0 the refusal was retried automatically with a
 single-dataset prompt, which fits, so you received an answer computed from one
-table instead. Upgrade — the refusal now reaches you.
+table instead. Upgrade -  the refusal now reaches you.
 
 Three ways out, cheapest first:
 
@@ -106,7 +106,7 @@ Three ways out, cheapest first:
 OLLAMA_NUM_CTX=16384
 ```
 
-Raising it costs memory for the KV cache, and the model must support the size —
+Raising it costs memory for the KV cache, and the model must support the size - 
 a 4k model will not honour 16k however you configure it.
 
 Or use a model with a larger context. Or describe fewer tables: every file in

@@ -12,11 +12,11 @@ use Jayanta\NaturalQuery\Schema\SchemaRegistry;
 use Jayanta\NaturalQuery\Security\InputGuard;
 
 /**
- * Doctor Command — diagnose a NaturalQuery installation.
+ * Doctor Command -  diagnose a NaturalQuery installation.
  *
  * Answers the question a stuck user actually has: "why isn't this working?"
  * Every check that can fail prints a concrete fix, because the raw symptom is
- * rarely the cause — a missing CA bundle surfaces as a generic cURL error, a
+ * rarely the cause -  a missing CA bundle surfaces as a generic cURL error, a
  * retired model as a 404, a typo'd table name as an empty result.
  *
  * Safe to run in any environment: read-only, and it never prints secrets.
@@ -36,6 +36,12 @@ class DoctorCommand extends Command
 
     public function handle(SchemaRegistry $registry): int
     {
+        // Same reason as audit-schema: a reused command instance would report
+        // the previous run's problems again, and a second `doctor` in one
+        // process would show a setup getting worse while nothing changed.
+        $this->problems = [];
+        $this->warnings = [];
+
         $this->newLine();
         $this->line('  <fg=cyan;options=bold>NaturalQuery Doctor</>');
         $this->line('  <fg=gray>Read-only checkup. No data is sent anywhere except the provider ping.</>');
@@ -62,7 +68,7 @@ class DoctorCommand extends Command
         if (file_exists(config_path('naturalquery.php'))) {
             $this->pass('Config published (config/naturalquery.php)');
         } else {
-            $this->warn_('Config not published — using package defaults', 'php artisan naturalquery:install');
+            $this->warn_('Config not published -  using package defaults', 'php artisan naturalquery:install');
         }
 
         $driver = config('naturalquery.llm.driver');
@@ -96,7 +102,7 @@ class DoctorCommand extends Command
                 $this->pass('No API key needed (self-hosted provider)');
             }
         } else {
-            // Never print the key — only confirm its presence and shape.
+            // Never print the key -  only confirm its presence and shape.
             $this->pass('API key is set (' . strlen((string) $providerConfig['api_key']) . ' chars)');
         }
 
@@ -111,8 +117,8 @@ class DoctorCommand extends Command
      * Is this model running on infrastructure the adopter controls?
      *
      * Only 'ollama', 'localhost' and '127.0.0.1' counted, so a perfectly
-     * ordinary self-hosted setup — vLLM on a LAN address, LM Studio reached by
-     * hostname, a model behind an internal name — was told its API key was
+     * ordinary self-hosted setup -  vLLM on a LAN address, LM Studio reached by
+     * hostname, a model behind an internal name -  was told its API key was
      * empty and doctor exited non-zero over a key that service does not want.
      * That is the same vendor bias as everywhere else: hosted assumed, local
      * treated as the exception.
@@ -146,7 +152,7 @@ class DoctorCommand extends Command
     /**
      * The optional ai-guard companion, if it is installed at all.
      *
-     * Silent about it when absent — it is genuinely optional and the built-in
+     * Silent about it when absent -  it is genuinely optional and the built-in
      * guard covers the same ground. The case worth reporting is when it IS
      * installed but cannot actually be used, because then the user believes
      * they have a layer they do not have.
@@ -156,7 +162,7 @@ class DoctorCommand extends Command
      *
      * Laravel merges package config ONE LEVEL deep. `config/naturalquery.php`
      * is published by naturalquery:install, so an app that installed under an
-     * earlier version has a top-level block — `prompts`, `cache`, `llm` —
+     * earlier version has a top-level block -  `prompts`, `cache`, `llm` -
      * that replaces the package's wholesale. Any key added inside that block
      * since then does not exist for that app, and nothing says so: you set
      * NATURALQUERY_PROMPT_MAX_CHARS, nothing happens, and there is no error to
@@ -173,7 +179,7 @@ class DoctorCommand extends Command
         $publishedPath = function_exists('config_path') ? config_path('naturalquery.php') : null;
 
         if (!$publishedPath || !is_file($publishedPath)) {
-            $this->skip('Config not published — you are on the package defaults, which are always current.');
+            $this->skip('Config not published -  you are on the package defaults, which are always current.');
 
             return;
         }
@@ -211,7 +217,7 @@ class DoctorCommand extends Command
      * Dotted paths present in the package config and absent from the app's.
      *
      * Compared by KEY only. A published file is expected to hold different
-     * values — that is the point of publishing one — so a differing value is
+     * values -  that is the point of publishing one -  so a differing value is
      * not drift. A missing key is.
      *
      * @param  array<array-key, mixed>  $package  Int keys are real: a config block
@@ -251,7 +257,7 @@ class DoctorCommand extends Command
      * Measured on this package's own conformance battery, not guessed: model
      * SIZE matters far more than vendor. Gemini 2.5 Flash, Claude Sonnet 5,
      * DeepSeek v4 Flash, Mistral Large and Llama 3.3 70B all score 17/17.
-     * Llama 3.1 8B scores 12/17 — it drops filters and ignores date periods,
+     * Llama 3.1 8B scores 12/17 -  it drops filters and ignores date periods,
      * which produces confident numbers that answer a narrower question than
      * the one asked.
      *
@@ -272,7 +278,7 @@ class DoctorCommand extends Command
         //
         // Deliberately NOT matching words like "mini", "small" or "tiny". They
         // catch gpt-4o-mini, which is a capable hosted model this package has
-        // never measured — and warning about a model on no evidence is the
+        // never measured -  and warning about a model on no evidence is the
         // same sin as the confident wrong answers §0 is about. The claim below
         // is exactly as wide as the data behind it: small parameter counts,
         // measured, scored badly.
@@ -285,7 +291,7 @@ class DoctorCommand extends Command
         $this->warn_(
             "Model '{$model}' looks like a small model (12B or under), and those measured badly here.",
             'Llama 3.1 8B scores 12/17 on this package\'s battery, dropping filters and ignoring date '
-                . 'periods — a confident number for a narrower question than the one asked. 70B-class '
+                . 'periods -  a confident number for a narrower question than the one asked. 70B-class '
                 . 'and current hosted models score 17/17. Use one of those wherever a wrong number '
                 . 'matters; if this model is deliberate, render the parsed_summary line so misreadings '
                 . 'are visible.'
@@ -305,10 +311,10 @@ class DoctorCommand extends Command
 
         if (!$guard->aiGuardSupportsTextScan()) {
             $this->warn_(
-                'ai-guard is installed but this version cannot scan text — it has no detectText()',
+                'ai-guard is installed but this version cannot scan text -  it has no detectText()',
                 'Upgrade jayanta/laravel-ai-guard (v2.0.0 only exposes detect(Request)). '
                 . 'Until then it is skipped entirely and the built-in InputGuard does the work, '
-                . 'so nothing is unprotected — but ai-guard is contributing nothing.'
+                . 'so nothing is unprotected -  but ai-guard is contributing nothing.'
             );
 
             return;
@@ -322,7 +328,7 @@ class DoctorCommand extends Command
 
         if ($enforce !== 'always' && $mode !== 'block') {
             $this->skip(
-                "Detections are logged, not blocked — ai-guard is in '{$mode}' mode. "
+                "Detections are logged, not blocked -  ai-guard is in '{$mode}' mode. "
                 . "Set its mode to 'block', or privacy.ai_guard.enforce to 'always', to refuse them."
             );
         }
@@ -359,7 +365,7 @@ class DoctorCommand extends Command
         // every HTTPS call fails at the handshake.
         //
         // This used to be a green tick regardless, with the truth only
-        // emerging from the live provider check — so `--skip-api`, the fast
+        // emerging from the live provider check -  so `--skip-api`, the fast
         // check the docs recommend, reported a healthy setup that could not
         // reach a provider at all. It cost this project an afternoon: a
         // benchmark run scored 0/36 and read exactly like a package
@@ -376,7 +382,7 @@ class DoctorCommand extends Command
             'SSL verification is on, but PHP has no CA certificate store',
             $suggestion
                 ? 'Common on XAMPP/WAMP. There is a bundle at ' . $suggestion
-                    . ' — set NATURALQUERY_SSL_VERIFY to that path in .env, then run: php artisan config:clear'
+                    . ' -  set NATURALQUERY_SSL_VERIFY to that path in .env, then run: php artisan config:clear'
                 : 'Common on XAMPP/WAMP. Download https://curl.se/ca/cacert.pem, set NATURALQUERY_SSL_VERIFY'
                     . ' to its full path in .env, then run: php artisan config:clear'
         );
@@ -452,7 +458,7 @@ class DoctorCommand extends Command
         }
 
         if (($health['status'] ?? null) === 'ok') {
-            $this->pass('Provider reachable — ' . ($health['model'] ?? 'model') . ' is live');
+            $this->pass('Provider reachable -  ' . ($health['model'] ?? 'model') . ' is live');
 
             return;
         }
@@ -478,7 +484,7 @@ class DoctorCommand extends Command
 
         if (str_contains($lower, '404')) {
             $this->problem(
-                'Provider returned 404 — the configured model does not exist',
+                'Provider returned 404 -  the configured model does not exist',
                 'Models get retired (gemini-2.0-flash was). Check your provider\'s current model list and update the model in .env, then run: php artisan config:clear'
             );
 
@@ -520,7 +526,7 @@ class DoctorCommand extends Command
         $this->section('Database');
 
         // Check the connection NaturalQuery actually uses, which is not
-        // necessarily the app default — sql.database_connection can point it
+        // necessarily the app default -  sql.database_connection can point it
         // at a different one.
         $configured = config('naturalquery.sql.database_connection');
 
@@ -541,7 +547,7 @@ class DoctorCommand extends Command
         }
 
         // Connecting is not the same as being usable. The engine introspects
-        // the schema, which only Postgres and MySQL/MariaDB support — and
+        // the schema, which only Postgres and MySQL/MariaDB support -  and
         // Laravel 11+ defaults to SQLite, so reporting a healthy connection
         // here while every query 500s would be the exact "confidently wrong"
         // failure this command exists to prevent.
@@ -564,7 +570,7 @@ class DoctorCommand extends Command
             $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
             $this->checkTable($table, 'Query cache table', 'php artisan migrate');
         } else {
-            $this->skip('Query cache disabled — every question costs an API call');
+            $this->skip('Query cache disabled -  every question costs an API call');
         }
 
         if (config('naturalquery.feedback.enabled', false)) {
@@ -604,7 +610,7 @@ class DoctorCommand extends Command
         $schemas = $registry->all();
 
         // Reported from the DIRECTORY, because the registry deliberately drops
-        // these — an unedited template names a placeholder table, and offering
+        // these -  an unedited template names a placeholder table, and offering
         // it to the model produces "no such table: schema" on a fresh install.
         // Without this the file would vanish from view entirely: excluded from
         // the engine and unmentioned by the one command meant to explain the
@@ -612,13 +618,13 @@ class DoctorCommand extends Command
         $templates = $this->unEditedTemplates($path);
 
         foreach ($templates as $name) {
-            $this->skip("'{$name}' is the shipped template, still on its placeholder table — not queried. Edit it or delete it.");
+            $this->skip("'{$name}' is the shipped template, still on its placeholder table -  not queried. Edit it or delete it.");
         }
 
         if (empty($schemas)) {
             $this->problem(
                 $templates
-                    ? 'No usable schema files in ' . $path . ' — only the unedited template'
+                    ? 'No usable schema files in ' . $path . ' -  only the unedited template'
                     : 'No schema files found in ' . $path,
                 'Generate one from your live database: php artisan naturalquery:discover'
             );
@@ -630,7 +636,7 @@ class DoctorCommand extends Command
 
         // 2.0.0 renamed this key. Laravel merges package config one level deep,
         // so a config published under 1.0.0 keeps `default_scheme` and simply
-        // never has `default_dataset` read from it — the pinned dataset goes
+        // never has `default_dataset` read from it -  the pinned dataset goes
         // quiet and every question starts going through detection instead.
         // Nothing else notices, so it is reported here.
         if (config('naturalquery.default_scheme') !== null) {
@@ -669,7 +675,7 @@ class DoctorCommand extends Command
      * Measured, not guessed: on a fourteen-table schema with both
      * order_items.line_total and payments.amount, the model chose payments.
      * Customers who had not paid vanished from the ranking and a region came
-     * back at half its real revenue — a confident number from a defensible
+     * back at half its real revenue -  a confident number from a defensible
      * join path, answering a different question.
      *
      * No amount of introspection can resolve this. The column names, types and
@@ -683,7 +689,7 @@ class DoctorCommand extends Command
      * A separate front end needs CORS, and the failure without it is silent.
      *
      * When the routes are configured for token auth or the `api` stack, the
-     * app is almost certainly being called from another origin — a Vite dev
+     * app is almost certainly being called from another origin -  a Vite dev
      * server, a mobile client. If the prefix is not listed in config/cors.php
      * the browser blocks the response before any JavaScript sees it, so the
      * developer gets a network error with no mention of policy, on a request
@@ -755,7 +761,7 @@ class DoctorCommand extends Command
         $this->warn_(
             count($withMeasures) . ' datasets have their own measures: ' . implode(', ', $withMeasures),
             'A question like "total revenue" can be answered from any of them, and nothing says which is '
-                . 'authoritative — so the model picks, and a wrong pick returns a plausible number for a '
+                . 'authoritative -  so the model picks, and a wrong pick returns a plausible number for a '
                 . 'different question. Say which one you mean in \'system_instructions\' in '
                 . 'config/naturalquery.php, e.g. "Revenue means SUM(order_items.line_total), never '
                 . 'payments.amount." This is the single highest-value thing you can write.'
@@ -766,7 +772,7 @@ class DoctorCommand extends Command
      * A foreign key pointing at a table nobody described is a join the package
      * will not offer, because generated SQL is validated against the tables
      * your schema files declare. That is the right call, but silently doing it
-     * looks like the AI is simply bad at joins — so say it out loud.
+     * looks like the AI is simply bad at joins -  so say it out loud.
      */
     protected function checkRelationshipTargets(SchemaRegistry $registry): void
     {
@@ -793,7 +799,7 @@ class DoctorCommand extends Command
 
     /**
      * Verify a schema file actually matches the live database. A typo here is
-     * the most common cause of "it returns nothing" — and the AI can't tell
+     * the most common cause of "it returns nothing" -  and the AI can't tell
      * you, because it never sees the database.
      */
     protected function checkSchemaAgainstDatabase(SchemaRegistry $registry, string $key): void
@@ -809,12 +815,12 @@ class DoctorCommand extends Command
         // The template `naturalquery:install` writes, still untouched.
         //
         // It points at a placeholder table by design, so doctor reported a red
-        // ✗ and exited non-zero on a brand-new install — a first-run failure
+        // ✗ and exited non-zero on a brand-new install -  a first-run failure
         // the user did not cause, on the command the docs recommend as a
         // deployment smoke test. Its documentation value is worth keeping, so
         // it is named for what it is instead.
         if ($this->isUntouchedExample($table)) {
-            $this->skip("Schema '{$key}' is the shipped template (placeholder table). Edit it or delete it — it is not queried.");
+            $this->skip("Schema '{$key}' is the shipped template (placeholder table). Edit it or delete it -  it is not queried.");
 
             return;
         }
@@ -826,7 +832,7 @@ class DoctorCommand extends Command
             // A schema-qualified name (public.orders) may need the bare form
             // depending on driver and search_path. Laravel 11+ parses the
             // "schema.table" form and can throw when that schema is unknown to
-            // the driver, so each form is probed independently — one throwing
+            // the driver, so each form is probed independently -  one throwing
             // must not abort the whole check and leave the schema unverified.
             $bare = str_contains($table, '.') ? substr(strrchr($table, '.'), 1) : $table;
             $exists = $this->tableExists($schemaBuilder, $table)
@@ -851,7 +857,7 @@ class DoctorCommand extends Command
             if ($missing) {
                 $this->problem(
                     "Schema '{$key}': column(s) not in '{$table}': " . implode(', ', $missing),
-                    'Correct these names in the schema file — the AI is told they exist, so queries using them will fail at execution.'
+                    'Correct these names in the schema file -  the AI is told they exist, so queries using them will fail at execution.'
                 );
 
                 return;
@@ -869,7 +875,7 @@ class DoctorCommand extends Command
 
             $this->pass("Schema '{$key}' → {$table} (" . count($declared) . ' columns verified)');
         } catch (\Throwable $e) {
-            $this->warn_("Schema '{$key}': could not verify against the database — " . $e->getMessage(), 'Check the connection setting in this schema file.');
+            $this->warn_("Schema '{$key}': could not verify against the database -  " . $e->getMessage(), 'Check the connection setting in this schema file.');
         }
     }
 
@@ -896,7 +902,7 @@ class DoctorCommand extends Command
         $this->section('HTTP endpoints');
 
         if (!config('naturalquery.routes.enabled', true)) {
-            $this->skip('Routes disabled — the widget and API endpoints are unavailable');
+            $this->skip('Routes disabled -  the widget and API endpoints are unavailable');
 
             return;
         }
@@ -917,7 +923,7 @@ class DoctorCommand extends Command
             );
         } elseif (!$hasAuth) {
             // Throttling bounds the rate, not the spend, and without auth the
-            // daily ceiling falls back to counting by IP — which is the weakest
+            // daily ceiling falls back to counting by IP -  which is the weakest
             // form of it, on the one configuration where it matters most.
             $perDay = config('naturalquery.limits.queries_per_day');
 
@@ -941,7 +947,7 @@ class DoctorCommand extends Command
             // Laravel's auth middleware redirects guests to a route named
             // 'login'. A fresh app has no such route until a starter kit is
             // installed, so the first request to any endpoint here dies with
-            // RouteNotFoundException — a 500 that says nothing about the real
+            // RouteNotFoundException -  a 500 that says nothing about the real
             // cause. Cheap to detect, baffling to debug.
             if (!Route::has('login')) {
                 $this->warn_(
@@ -979,7 +985,7 @@ class DoctorCommand extends Command
      *
      * Matched on the table rather than the file name so a copy under any name
      * is recognised, and so a template that HAS been pointed at a real table is
-     * checked like any other schema — which is the whole point of editing it.
+     * checked like any other schema -  which is the whole point of editing it.
      */
     /**
      * Schema files in the directory that are still the unedited template.

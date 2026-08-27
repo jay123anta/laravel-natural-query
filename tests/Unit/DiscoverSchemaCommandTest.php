@@ -101,7 +101,7 @@ class DiscoverSchemaCommandTest extends TestCase
      *
      * `include` on a file with a syntax error is an uncatchable fatal that
      * kills the whole PHP process, and PHPUnit can only report it as
-     * "Premature end of PHP process" — no file, no line, no message. Parsing
+     * "Premature end of PHP process" -  no file, no line, no message. Parsing
      * first turns that dead end into an ordinary assertion failure that names
      * the problem and prints the offending source.
      *
@@ -144,7 +144,7 @@ class DiscoverSchemaCommandTest extends TestCase
     {
         // Regression: naive string interpolation wrote
         //   'description' => 'Customer's full name'
-        // — a PHP parse error. Schema files are loaded on every request, so
+        // -  a PHP parse error. Schema files are loaded on every request, so
         // that took down the whole application after a successful-looking run.
         $this->ordersTable([
             ['name' => 'customer_name', 'type' => 'varchar', 'comment' => "Customer's full name", 'suggested_role' => 'dimension'],

@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
  * {prefix}/widget.js straight from the package.
  *
  * Regression: that route was handled by NaturalQueryController, whose
- * constructor pulls in the whole engine — orchestrator, prompt builder, schema
+ * constructor pulls in the whole engine -  orchestrator, prompt builder, schema
  * introspector. On any database driver the package cannot introspect, simply
  * resolving the controller threw, so a static JavaScript file returned 500 and
  * every page embedding the widget broke. Laravel 11 and 12 default to SQLite,
@@ -70,7 +70,7 @@ class WidgetRouteTest extends TestCase
      * The server formats the totals and the widget formats the rows, so they
      * have to agree about how digits are grouped. They did not: the widget had
      * 'en-IN' hardcoded while the package default is 'international', and one
-     * answer showed 20,28,763 in the bars and 15,474,683 in the totals —
+     * answer showed 20,28,763 in the bars and 15,474,683 in the totals -
      * under a footer asking the reader to verify important figures.
      */
     #[Test]

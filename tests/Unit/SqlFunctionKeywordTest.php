@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
  * FROM is not always a table reference.
  *
  * `EXTRACT(YEAR FROM order_date)` is ordinary SQL and the obvious way to filter
- * by year — and the table extractor read `order_date` as a table, so the query
+ * by year -  and the table extractor read `order_date` as a table, so the query
  * was refused with "Unauthorized table: order_date". A column name, reported as
  * an unauthorised table, on a question as plain as "total revenue this year".
  *
@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  * steps of "revenue this year versus last year" failed, and the multi-step
  * answer said only that none of its steps could be answered.
  *
- * The failure was safe — valid SQL refused, never invalid SQL admitted — but it
+ * The failure was safe -  valid SQL refused, never invalid SQL admitted -  but it
  * made a common question impossible and the message pointed nowhere.
  */
 class SqlFunctionKeywordTest extends TestCase
@@ -41,7 +41,7 @@ class SqlFunctionKeywordTest extends TestCase
     #[Test]
     public function extract_in_the_select_list_is_not_a_table_reference()
     {
-        // Grouped, so a LIMIT is genuinely required — included here so the
+        // Grouped, so a LIMIT is genuinely required -  included here so the
         // case tests the FROM keyword and nothing else.
         $result = $this->validate(
             'SELECT EXTRACT(MONTH FROM order_date) AS m, SUM(revenue) AS r FROM demo_orders GROUP BY m LIMIT 12'

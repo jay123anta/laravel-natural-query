@@ -14,8 +14,8 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Letting an adopter measure accuracy on their own schema.
  *
- * The package quotes a figure about itself — roughly one in five wrong
- * uncurated, near-perfect curated — and nobody should take that on trust for
+ * The package quotes a figure about itself -  roughly one in five wrong
+ * uncurated, near-perfect curated -  and nobody should take that on trust for
  * their own data. This grades the same way that figure was produced, using the
  * same comparator, so the two numbers mean the same thing.
  */
@@ -96,7 +96,7 @@ class BenchmarkCommandTest extends TestCase
 
     /**
      * The engine answers a DIFFERENT question: wrong, and the report says what
-     * it thought it was asked — which is where the misreading is visible.
+     * it thought it was asked -  which is where the misreading is visible.
      */
     #[Test]
     public function a_different_number_scores_wrong_and_shows_the_reading()

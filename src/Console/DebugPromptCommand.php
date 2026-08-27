@@ -30,7 +30,7 @@ class DebugPromptCommand extends Command
                             {--execute : Actually execute the query and show results}
                             {--raw : Show the full raw AI response}';
 
-    protected $description = 'Show the exact prompt sent to AI for a query — essential for debugging and tuning';
+    protected $description = 'Show the exact prompt sent to AI for a query -  essential for debugging and tuning';
 
     public function handle(
         PromptBuilder $promptBuilder,
@@ -71,13 +71,13 @@ class DebugPromptCommand extends Command
         }
 
         $this->comment('Dataset detection:');
-        $this->line('  Detected: ' . ($dataset ?: 'NONE — will use multi-dataset prompt'));
+        $this->line('  Detected: ' . ($dataset ?: 'NONE -  will use multi-dataset prompt'));
         $this->newLine();
 
         // Same condition as QueryOrchestrator::processWithSqlGeneration(). The
         // linked-schemas half used to be missing here, so on any install whose
         // schemas declare relationships this printed the focused prompt while
-        // the engine sent the multi-dataset one — a question can legitimately
+        // the engine sent the multi-dataset one -  a question can legitimately
         // span linked datasets, and only the multi-dataset prompt permits the
         // join that answers it.
         if ($dataset && $registry->has($dataset) && !$registry->hasLinkedSchemas()) {
@@ -91,7 +91,7 @@ class DebugPromptCommand extends Command
 
             if ($dataset && $registry->has($dataset) && $registry->hasLinkedSchemas()) {
                 $this->line('  (schemas are linked, so the engine sends the multi-dataset prompt');
-                $this->line("   even though '{$dataset}' was detected — a question may span them)");
+                $this->line("   even though '{$dataset}' was detected -  a question may span them)");
             }
         }
 
@@ -99,7 +99,7 @@ class DebugPromptCommand extends Command
 
         // Which route the engine would actually take for this question. In the
         // shipped default 'auto' it answers most questions by intent parsing,
-        // whose prompt is built inside the provider — so the SQL prompt below
+        // whose prompt is built inside the provider -  so the SQL prompt below
         // is not what gets sent, and saying nothing about that is the same
         // mistake as printing the wrong prompt.
         $mode = config('naturalquery.query_mode', 'auto');
@@ -118,7 +118,7 @@ class DebugPromptCommand extends Command
             $this->line("  auto mode escalates this question to SQL generation ({$escalates}).");
         }
 
-        // prompts.max_chars refuses a prompt BEFORE it is sent — but only on
+        // prompts.max_chars refuses a prompt BEFORE it is sent -  but only on
         // the route that consults it. Announcing a refusal for a question the
         // engine answers happily through intent parsing tells the user their
         // question will fail when it will not.
@@ -138,7 +138,7 @@ class DebugPromptCommand extends Command
         $this->comment('=== END PROMPT ===');
         $this->newLine();
 
-        // Execute if requested — but never a prompt just reported as refused.
+        // Execute if requested -  but never a prompt just reported as refused.
         // Sending it would make the line above false in the most direct way
         // available, and the refusal exists because an oversized prompt comes
         // back as a confident answer built on a truncated schema.

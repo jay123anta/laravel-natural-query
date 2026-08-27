@@ -1,5 +1,5 @@
 /*!
- * NaturalQuery Widget — drop-in text + voice query UI for laravel-natural-query.
+ * NaturalQuery Widget -  drop-in text + voice query UI for laravel-natural-query.
  *
  * Zero dependencies. Injects its own styles. Talks to the package's REST API.
  *
@@ -10,13 +10,13 @@
  *
  * Or simply use the Blade component: <x-naturalquery::widget />
  *
- * Voice strategy — the whole of it:
+ * Voice strategy -  the whole of it:
  *
  *   Browser SpeechRecognition (Chrome/Edge/Safari) turns speech into English
  *   text on the device, and that text is posted to /text like anything typed.
  *
  * That is deliberately all there is. No audio is ever uploaded, so it needs no
- * configuration, costs nothing, and works with EVERY LLM — local or hosted —
+ * configuration, costs nothing, and works with EVERY LLM -  local or hosted - 
  * because by the time the model is involved it is reading a sentence. A
  * browser without speech recognition (Firefox) simply hides the microphone;
  * typing always works.
@@ -43,7 +43,7 @@
         language: null,
         // How numbers are grouped: 'international' (1,234,567), 'indian'
         // (12,34,567), or any BCP-47 locale. Must match
-        // response.number_format in config/naturalquery.php — the server
+        // response.number_format in config/naturalquery.php -  the server
         // formats the insight figures and the widget formats the rows, and
         // when the two disagreed the same answer showed 20,28,763 in the bars
         // and 15,474,683 in the totals.
@@ -56,7 +56,7 @@
         // Height of the chat frame. A fixed height is what makes it read as a
         // conversation: the composer stays put and the thread scrolls under it,
         // the way every messaging app people already know behaves. Use 'auto'
-        // (or null) to let the widget grow with its content instead — right
+        // (or null) to let the widget grow with its content instead -  right
         // for a short embed in a page that scrolls as a whole.
         height: '520px',
         maxBarRows: 12,           // rows rendered as bars before table-only
@@ -85,7 +85,7 @@
     }
 
     function fmtNum(v) {
-        if (v === null || v === undefined || v === '') return '—';
+        if (v === null || v === undefined || v === '') return '- ';
         var n = Number(v);
         if (isNaN(n)) return String(v);
         try { return n.toLocaleString(numberLocale, { maximumFractionDigits: 2 }); }
@@ -150,7 +150,7 @@
             + '.nq-widget{--nq:' + theme + ';font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:860px;margin:0 auto;color:#1f2937}'
             + '.nq-widget *{box-sizing:border-box}'
             // The frame: header, scrolling thread, composer pinned to the
-            // bottom. min-height:0 on the scroller is load-bearing — without it
+            // bottom. min-height:0 on the scroller is load-bearing -  without it
             // a flex child refuses to shrink and the composer is pushed off the
             // bottom of the frame as the thread grows.
             + '.nq-frame{display:flex;flex-direction:column;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}'
@@ -211,7 +211,7 @@
             + '.nq-kind{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:5px;background:#e5e7eb;color:#4b5563;flex:none;cursor:help}'
             + '.nq-kind-carried{background:color-mix(in srgb,var(--nq) 16%,white);color:color-mix(in srgb,var(--nq) 80%,black)}'
             + '.nq-state-val{font-size:.85rem;color:#374151;font-weight:500}'
-            // Question right, answer left — the arrangement every messaging app
+            // Question right, answer left -  the arrangement every messaging app
             // uses, so who said what needs no explaining.
             + '.nq-turn{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}'
             + '.nq-you{align-self:flex-end;background:var(--nq);color:#fff;border-radius:14px 14px 4px 14px;padding:9px 14px;font-size:.92rem;max-width:82%;word-wrap:break-word}'
@@ -266,7 +266,7 @@
      * id on every load orphaned it: the filters were still held server-side but
      * unreachable, so a reload silently started over while the old context sat
      * there until it expired. sessionStorage keeps the two in step, and scopes
-     * to the tab — a second tab is a second conversation, which is what someone
+     * to the tab -  a second tab is a second conversation, which is what someone
      * opening one expects.
      */
     Widget.prototype.restoreSessionId = function () {
@@ -297,8 +297,8 @@
      * follow-up, and the conversation features went unused because nothing on
      * screen suggested a conversation was on offer.
      *
-     * Header, scrolling thread, composer pinned at the bottom — the shape of
-     * every messaging app — makes following up the obvious next move.
+     * Header, scrolling thread, composer pinned at the bottom -  the shape of
+     * every messaging app -  makes following up the obvious next move.
      */
     Widget.prototype.build = function () {
         var o = this.opts, self = this;
@@ -320,7 +320,7 @@
 
         // Going back one step, rather than throwing the whole thread away.
         // Without this the only correction available was New topic, so undoing
-        // "only in West" meant retyping everything that came before it — and
+        // "only in West" meant retyping everything that came before it -  and
         // the cost of that is that people stop refining and start over instead.
         this.rewindBtn = h('button', 'nq-btn nq-btn-ghost nq-new-topic nq-hidden', 'Undo last step');
         this.rewindBtn.type = 'button';
@@ -457,7 +457,7 @@
         // There used to be a MediaRecorder fallback that uploaded audio to a
         // /voice endpoint for the server to transcribe. That is inbuilt speech
         // processing, which belongs to the multilingual package, not to this
-        // one — this package's design is that the BROWSER hears and the server
+        // one -  this package's design is that the BROWSER hears and the server
         // only ever receives a sentence of English text.
     };
 
@@ -526,7 +526,7 @@
      * Turn an HTTP status into something the user can act on.
      *
      * The status used to be read and thrown away, so every framework-level
-     * refusal — not signed in, expired session, throttled — reached the user as
+     * refusal -  not signed in, expired session, throttled -  reached the user as
      * "Unexpected response status.", which describes nothing and suggests
      * nothing. These are the three most common first-run failures for someone
      * who has just installed the package, and each has a different fix.
@@ -604,8 +604,8 @@
     /**
      * Pick up a conversation the server still remembers.
      *
-     * The thread itself cannot come back — the server keeps the state, not the
-     * rendered answers — so this says what is still in force rather than
+     * The thread itself cannot come back -  the server keeps the state, not the
+     * rendered answers -  so this says what is still in force rather than
      * pretending to restore the screen. Claiming more than it can deliver would
      * be worse than saying nothing: the next follow-up resolves against these
      * filters whether or not the user can see them.
@@ -633,7 +633,7 @@
                 );
                 self.scrollToBottom();
             })
-            .catch(function () { /* no stored conversation, or offline — start fresh */ });
+            .catch(function () { /* no stored conversation, or offline -  start fresh */ });
     };
 
     /**
@@ -641,7 +641,7 @@
      *
      * The server restores the exact state it held before, so this is a restore
      * and not another interpretation. The last turn is dropped from the thread
-     * to match — leaving an answer on screen that no longer describes the state
+     * to match -  leaving an answer on screen that no longer describes the state
      * behind it is how a user ends up refining against something invisible.
      */
     Widget.prototype.rewind = function () {
@@ -726,7 +726,7 @@
         if (!data || typeof data !== 'object') return this.renderError('Unexpected response from server.');
 
         // Whether going back is possible is the server's answer, not a guess
-        // from how many turns are on screen — a clarification adds a turn to
+        // from how many turns are on screen -  a clarification adds a turn to
         // the thread without adding one to the history.
         if (data.conversation) this.setCanRewind(!!data.conversation.can_rewind);
 
@@ -761,7 +761,7 @@
         // and "no, I meant X" becomes a correction of something visible.
         // state_summary on a conversation turn; parsed_summary on an ordinary
         // one. The second was added because this block only ever fired for
-        // conversations — so the line that lets a user catch a misreading was
+        // conversations -  so the line that lets a user catch a misreading was
         // missing from the very first question anyone asks, which is exactly
         // where a misreading is least expected and most damaging.
         var understoodAs = data.state_summary || data.parsed_summary;
@@ -774,7 +774,7 @@
             // The state summary alone cannot answer that. Ask "total amount by
             // city" then "breakdown by client" and both read "Invoices ·
             // amount · by client" whether the second inherited the metric or
-            // worked it out afresh — identical text, two different things
+            // worked it out afresh -  identical text, two different things
             // happening. And when a filter IS inherited, knowing it was
             // inherited rather than asked for is the difference between
             // trusting a number and checking it.
@@ -827,7 +827,7 @@
         // it can answer, and an empty prompt gives no clue.
         this.renderNextSteps(card, data.next_steps || []);
 
-        // Footer: provenance + timing. (No SQL here — server-side logs only.)
+        // Footer: provenance + timing. (No SQL here -  server-side logs only.)
         var foot = h('div', 'nq-footer');
         foot.appendChild(h('span', null, this.opts.footerNote));
         var meta = data.metadata || {};
@@ -874,7 +874,7 @@
         var wrap = h('div', 'nq-bars');
         rows.forEach(function (r) {
             var line = h('div', 'nq-bar-row');
-            line.appendChild(h('div', 'nq-bar-lbl', String(r[labelCol] !== null && r[labelCol] !== undefined ? r[labelCol] : '—')));
+            line.appendChild(h('div', 'nq-bar-lbl', String(r[labelCol] !== null && r[labelCol] !== undefined ? r[labelCol] : '- ')));
             var track = h('div', 'nq-bar-track');
             var fill = h('div', 'nq-bar-fill');
             fill.style.width = Math.max(2, Math.round(Math.abs(Number(r[valueCol]) || 0) / max * 100)) + '%';
@@ -902,7 +902,7 @@
             var trb = h('tr');
             cols.forEach(function (c) {
                 var numeric = isNumericCol(rows, c);
-                trb.appendChild(h('td', numeric ? 'nq-num' : null, numeric ? fmtNum(r[c]) : String(r[c] === null || r[c] === undefined ? '—' : r[c])));
+                trb.appendChild(h('td', numeric ? 'nq-num' : null, numeric ? fmtNum(r[c]) : String(r[c] === null || r[c] === undefined ? '- ' : r[c])));
             });
             tbody.appendChild(trb);
         });

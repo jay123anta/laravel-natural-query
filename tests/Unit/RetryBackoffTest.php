@@ -98,7 +98,7 @@ class RetryBackoffTest extends TestCase
 
         $this->assertNotNull($p->attemptWait(1));
         $this->assertNotNull($p->attemptWait(2));
-        // Attempt 3 of 3 — nothing follows it, so sleeping is pure waste
+        // Attempt 3 of 3 -  nothing follows it, so sleeping is pure waste
         $this->assertNull($p->attemptWait(3));
         $this->assertSame([250, 500], $p->slept);
     }
@@ -145,7 +145,7 @@ class RetryBackoffTest extends TestCase
     {
         $p = $this->provider(3, ['total_budget_ms' => 4000]);
 
-        // Provider says "come back in 60s" — waiting 4s helps nobody
+        // Provider says "come back in 60s" -  waiting 4s helps nobody
         $this->assertNull($p->attemptWait(1, 60));
         $this->assertSame([], $p->slept);
     }
@@ -217,7 +217,7 @@ class RetryBackoffTest extends TestCase
         $result = $p->call();
 
         $this->assertSame(429, $result['status']);
-        // Failed fast on the FIRST response — no pointless second/third call
+        // Failed fast on the FIRST response -  no pointless second/third call
         Http::assertSentCount(1);
         $this->assertSame([], $p->slept);
     }
@@ -240,7 +240,7 @@ class RetryBackoffTest extends TestCase
     #[Test]
     public function it_does_not_retry_client_errors()
     {
-        // A bad API key returns 401 every time — retrying just wastes time
+        // A bad API key returns 401 every time -  retrying just wastes time
         Http::fake(['*' => Http::response(['error' => 'invalid key'], 401)]);
         $p = $this->provider(3);
 

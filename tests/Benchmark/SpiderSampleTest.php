@@ -25,7 +25,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * WHAT IS REAL: the schema (Spider's published concert_singer definition, four
  * tables with its real foreign keys), the 45 dev questions, and the gold SQL.
- * The package is given no curation of any kind — no system_instructions, no
+ * The package is given no curation of any kind -  no system_instructions, no
  * aliases, no llm_instructions. Discovery runs and that is all it gets. This is
  * the hardest and most honest test available: an unfamiliar schema, phrased by
  * strangers.
@@ -35,7 +35,7 @@ use PHPUnit\Framework\Attributes\Test;
  * Spider does not distribute its SQLite files through the channel available
  * here, so the tables are created from the published schema and filled with
  * synthetic rows. Execution accuracy compares result sets, and both queries run
- * against the same synthetic data, so the COMPARISON stays valid — but the
+ * against the same synthetic data, so the COMPARISON stays valid -  but the
  * resulting number is NOT comparable to a published Spider score, which uses
  * the real data.
  *
@@ -126,7 +126,7 @@ class SpiderSampleTest extends TestCase
         // Each database must start from nothing. Running two in one process
         // left the first one's tables in place and the registry still holding
         // the first one's config path, so discovery saw both schemas at once
-        // and the second database scored zero — a harness failure that reads
+        // and the second database scored zero -  a harness failure that reads
         // exactly like a package failure.
         $this->dropAllTables();
         $this->forgetSchemaBoundServices();
@@ -301,7 +301,7 @@ class SpiderSampleTest extends TestCase
 
     private function report(array $results): void
     {
-        $lines = ["\n  SPIDER dev — no curation, synthetic data\n"];
+        $lines = ["\n  SPIDER dev -  no curation, synthetic data\n"];
 
         foreach ($results as $r) {
             $lines[] = sprintf(

@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
  * The context window Ollama is told to use, and what happens when a prompt
  * will not fit inside it.
  *
- * The driver set `num_predict` — how many tokens to write — and never
+ * The driver set `num_predict` -  how many tokens to write -  and never
  * `num_ctx`, how many it may read. So every install ran on Ollama's server
  * default, which is 4096 in current builds and 2048 in older ones, and neither
  * is a number this package chose or documented.
@@ -20,14 +20,14 @@ use PHPUnit\Framework\Attributes\Test;
  * Ollama does not reject a prompt that exceeds it. It silently discards the
  * beginning and answers from what is left. The schema block is at the top, so
  * what gets thrown away is the table definitions, and what survives is the
- * question — producing a confident answer built on a schema the model never
+ * question -  producing a confident answer built on a schema the model never
  * fully saw.
  *
  * The measured prompt for a twelve-table, fourteen-column app is about 4,285
  * tokens. That is a small Laravel application, already over the default, on
  * exactly the local-first stack this package exists to serve.
  *
- * These pin the wire shape and the refusal, not the answer — a canned response
+ * These pin the wire shape and the refusal, not the answer -  a canned response
  * is perfectly happy to reply to a prompt the model only half received.
  */
 class OllamaContextWindowTest extends TestCase
@@ -119,12 +119,12 @@ class OllamaContextWindowTest extends TestCase
     /**
      * "HTTP 400" would send someone to their network stack. The fix is a
      * setting, so the message has to name it and the two numbers that decide
-     * it — otherwise the only visible symptom is a wrong answer.
+     * it -  otherwise the only visible symptom is a wrong answer.
      *
      * The arithmetic is meant to be checkable by hand: 30,000 bytes at three
      * bytes per token is 10,000, plus the 512 reserved for the answer, is
      * 10,512. Pinning the figure pins the ratio, which is the part that
-     * decides whether a prompt is refused a little early or a little late —
+     * decides whether a prompt is refused a little early or a little late -
      * and late means truncated.
      */
     #[Test]
@@ -145,7 +145,7 @@ class OllamaContextWindowTest extends TestCase
     /**
      * A multibyte schema description costs about one token per character while
      * occupying three bytes, so a byte count divided by four would under-read
-     * it by roughly a third — and under-reading is the direction that sends a
+     * it by roughly a third -  and under-reading is the direction that sends a
      * prompt to be truncated.
      */
     #[Test]
@@ -153,7 +153,7 @@ class OllamaContextWindowTest extends TestCase
     {
         Http::fake(['*' => Http::response(['response' => '{}'], 200)]);
 
-        // 2,000 Devanagari characters — 6,000 bytes, and roughly 2,000 tokens.
+        // 2,000 Devanagari characters -  6,000 bytes, and roughly 2,000 tokens.
         $result = (new OllamaProvider(['model' => 'llama3', 'num_ctx' => 2048]))
             ->generateSql(str_repeat('क', 2000));
 
@@ -163,7 +163,7 @@ class OllamaContextWindowTest extends TestCase
 
     /**
      * `OLLAMA_NUM_CTX=` with nothing after it reaches config as '' and casts to
-     * 0. Without a floor that refuses every question ever asked — and the
+     * 0. Without a floor that refuses every question ever asked -  and the
      * error names the setting the user has just edited, so it reads as though
      * editing it caused the problem.
      */

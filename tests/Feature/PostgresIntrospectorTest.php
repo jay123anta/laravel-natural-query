@@ -11,8 +11,8 @@ use PHPUnit\Framework\Attributes\Test;
  * Runs the real introspector against a real PostgreSQL server.
  *
  * Everything else in the suite runs on SQLite so it needs no services, which
- * means the Postgres SQL itself — the queries `naturalquery:discover` depends
- * on — had no coverage at all. These cases exist because of a bug that could
+ * means the Postgres SQL itself -  the queries `naturalquery:discover` depends
+ * on -  had no coverage at all. These cases exist because of a bug that could
  * only ever show up here: `listTables()` estimated row counts with a subquery
  * matching on `relname` alone, and `pg_class` is database-wide, so the first
  * database with the same table name in two schemas raised
@@ -58,7 +58,7 @@ class PostgresIntrospectorTest extends TestCase
 
         $conn = DB::connection(self::CONNECTION);
 
-        // Two schemas holding a table of the same name — the layout that broke.
+        // Two schemas holding a table of the same name -  the layout that broke.
         foreach (['nq_alpha', 'nq_beta'] as $schema) {
             $conn->statement("create schema {$schema}");
             $conn->statement("create table {$schema}.applications (
@@ -154,7 +154,7 @@ class PostgresIntrospectorTest extends TestCase
         $this->assertSame('Pending count', $columns['pending']['comment']);
         $this->assertTrue((bool) $columns['id']['is_primary']);
         // 'district' here is a real column in the fixture table, not the
-        // intent contract's field — an application is perfectly entitled to
+        // intent contract's field -  an application is perfectly entitled to
         // have a column called district.
         $this->assertFalse((bool) $columns['district']['is_primary']);
     }
@@ -172,7 +172,7 @@ class PostgresIntrospectorTest extends TestCase
 
     /**
      * A composite foreign key must yield one pair per column, matched by
-     * position — not the cartesian product of the two column lists.
+     * position -  not the cartesian product of the two column lists.
      *
      * The widely copied form of this query joins key_column_usage to
      * constraint_column_usage on the constraint name alone, which for a

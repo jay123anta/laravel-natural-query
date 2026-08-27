@@ -34,8 +34,8 @@ class BatchTwoReviewFixesTest extends TestCase
      *
      * normalizeQuery() dropped every token of length <= 1, so "grade a" and
      * "grade b" normalised identically, hashed identically, and shared one
-     * row. The second question got the first's number — right shape, wrong
-     * answer, nothing in the text to reveal it — and the scope guard cannot
+     * row. The second question got the first's number -  right shape, wrong
+     * answer, nothing in the text to reveal it -  and the scope guard cannot
      * help, because both resolve to the same scope. Single-character values
      * are ordinary: grade A, block B, zone 1.
      */
@@ -47,7 +47,7 @@ class BatchTwoReviewFixesTest extends TestCase
         // EVERY single character, not a pair.
         //
         // The first version of this test asserted only that "region a" and
-        // "region b" differ. They do — and 'a' was still being stripped as a
+        // "region b" differ. They do -  and 'a' was still being stripped as a
         // filler word while 'b' was not, so the assertion passed on the one
         // letter that worked. Two of the thirty-six then collapsed into the
         // un-narrowed question: "total revenue for A" and "total revenue"
@@ -69,7 +69,7 @@ class BatchTwoReviewFixesTest extends TestCase
             [],
             $collapsed,
             'these one-character values vanish from the cache key, so a question narrowed by one is '
-                . 'answered from the un-narrowed question\'s row — and the reverse: ' . implode(', ', $collapsed)
+                . 'answered from the un-narrowed question\'s row -  and the reverse: ' . implode(', ', $collapsed)
         );
 
         // And distinct from each other, not merely present.
@@ -87,7 +87,7 @@ class BatchTwoReviewFixesTest extends TestCase
      * a published file outlives the package: `composer remove` it, or roll
      * back to a version where the class does not exist, and Laravel loads that
      * config on every boot. A `use Jayanta\NaturalQuery\...` in there means the
-     * application cannot start — and cannot run the artisan command that would
+     * application cannot start -  and cannot run the artisan command that would
      * remove the file either. There is no way out except editing it by hand.
      *
      * The EnvValue helper introduced in this release was referenced from 20
@@ -116,7 +116,7 @@ class BatchTwoReviewFixesTest extends TestCase
     /**
      * Clearing the cache has to clear the cache. Tier 1 is checked first, so a
      * row deleted from the database keeps answering from memory for up to
-     * cache.ttl — 24 hours by default — while the operator has been told
+     * cache.ttl -  24 hours by default -  while the operator has been told
      * "Cleared all N cache entries". The forget loop only ran for --dataset.
      */
     #[Test]
@@ -143,7 +143,7 @@ class BatchTwoReviewFixesTest extends TestCase
     /**
      * mergeConfigFrom is one level deep. An app that published the config
      * before 2.1.0 has a `prompts` array with no `max_chars` in it, which
-     * replaces the package's wholesale — so the key does not exist and setting
+     * replaces the package's wholesale -  so the key does not exist and setting
      * the env var did nothing, silently, on exactly the installs large enough
      * to want it.
      */

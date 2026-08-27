@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\Test;
  * The coalesce protected the check and not the branch that used the value, so
  * a response without 'order' passed the check and then read the missing key.
  * Gemini always sends the field, so the one provider under live test never
- * triggered it — it surfaced the first time a real DeepSeek call was made.
+ * triggered it -  it surfaced the first time a real DeepSeek call was made.
  *
  * The lesson is the general one: a field the contract calls optional has to be
  * optional on every path that touches it, and the only way that gets noticed

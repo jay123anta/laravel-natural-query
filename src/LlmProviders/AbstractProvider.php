@@ -39,7 +39,7 @@ abstract class AbstractProvider implements ReportsUsage
      * Fallback retry policy, used when config/naturalquery.php has no 'retry'
      * block (e.g. an app published the config before this feature existed).
      * Deliberately conservative: a web request must not hang on a struggling
-     * provider — PHP-FPM workers are a finite pool.
+     * provider -  PHP-FPM workers are a finite pool.
      */
     protected const RETRY_DEFAULTS = [
         'base_delay_ms' => 250,
@@ -80,7 +80,7 @@ abstract class AbstractProvider implements ReportsUsage
 
                 // SSL: system CA bundle by default. On setups without one
                 // (e.g. XAMPP), point ssl_verify at a cacert.pem path instead
-                // of disabling verification — false enables MITM attacks.
+                // of disabling verification -  false enables MITM attacks.
                 if ($sslOptions = $this->sslOptions()) {
                     $request = $request->withOptions($sslOptions);
                 }
@@ -116,7 +116,7 @@ abstract class AbstractProvider implements ReportsUsage
                 }
 
                 // 5xx responses are usually transient (provider hiccup, upstream
-                // timeout) — worth one bounded retry. 4xx are not: a bad key or
+                // timeout) -  worth one bounded retry. 4xx are not: a bad key or
                 // malformed request will fail identically every time.
                 if ($status >= 500 && ($waited = $this->waitBeforeRetry($attempt)) !== null) {
                     Log::warning("[NaturalQuery:{$this->getName()}] HTTP {$status}, attempt {$attempt}/{$this->maxRetries}, waited {$waited}ms");
@@ -127,7 +127,7 @@ abstract class AbstractProvider implements ReportsUsage
                 }
 
                 // The provider almost always says WHY in the body, and
-                // discarding it left "API error: HTTP 403" — a number, and
+                // discarding it left "API error: HTTP 403" -  a number, and
                 // nothing a user can act on. The same 403 meant "your team has
                 // no credits yet", which is a five-minute fix once you can read
                 // it. Same for a rejected key, a retired model, a malformed
@@ -140,7 +140,7 @@ abstract class AbstractProvider implements ReportsUsage
                 ];
 
             } catch (\Exception $e) {
-                // Redact secrets BEFORE logging — exception messages can embed
+                // Redact secrets BEFORE logging -  exception messages can embed
                 // the request URL, which for some providers carries the API key.
                 $lastError = $this->redactSecrets($e->getMessage());
                 Log::error("[NaturalQuery:{$this->getName()}] API exception attempt {$attempt}", ['error' => $lastError]);
@@ -173,7 +173,7 @@ abstract class AbstractProvider implements ReportsUsage
      */
     protected function waitBeforeRetry(int $attempt, ?int $retryAfterSeconds = null): ?int
     {
-        // Never sleep after the final attempt — nothing follows it.
+        // Never sleep after the final attempt -  nothing follows it.
         if ($attempt >= $this->maxRetries) {
             return null;
         }
@@ -299,7 +299,7 @@ abstract class AbstractProvider implements ReportsUsage
             return $parsed;
         }
 
-        // Step 3: Extract JSON object — find first { and last matching }
+        // Step 3: Extract JSON object -  find first { and last matching }
         $jsonStr = $this->extractJsonObject($text);
         if ($jsonStr) {
             $parsed = json_decode($jsonStr, true);
@@ -317,7 +317,7 @@ abstract class AbstractProvider implements ReportsUsage
             }
         }
 
-        // Step 5: Last resort — try to find any JSON array
+        // Step 5: Last resort -  try to find any JSON array
         if (preg_match('/\[[\s\S]*\]/', $text, $matches)) {
             $parsed = json_decode($matches[0], true);
             if (json_last_error() === JSON_ERROR_NONE && is_array($parsed)) {
@@ -384,7 +384,7 @@ abstract class AbstractProvider implements ReportsUsage
             }
         }
 
-        // Unbalanced braces — return from first { to end
+        // Unbalanced braces -  return from first { to end
         return substr($text, $start);
     }
 
@@ -420,9 +420,9 @@ abstract class AbstractProvider implements ReportsUsage
     /**
      * The provider's own explanation for a failed call, if it gave one.
      *
-     * Every provider nests it somewhere slightly different — OpenAI and its
+     * Every provider nests it somewhere slightly different -  OpenAI and its
      * imitators use error.message, Anthropic the same, Google error.message on
-     * a differently-shaped envelope — so several shapes are tried before
+     * a differently-shaped envelope -  so several shapes are tried before
      * falling back to the raw body.
      *
      * Truncated and stripped of secrets: this text reaches an HTTP response,
@@ -458,7 +458,7 @@ abstract class AbstractProvider implements ReportsUsage
             return '';
         }
 
-        return ' — ' . $this->redactSecrets(mb_substr($message, 0, 180));
+        return ' -  ' . $this->redactSecrets(mb_substr($message, 0, 180));
     }
 
     /**
@@ -478,10 +478,24 @@ abstract class AbstractProvider implements ReportsUsage
     }
 
     /**
+     * `query_type` is deliberately NOT normalised here.
+     *
+     * It is normalised in QueryOrchestrator::normalizeQueryType(), which every
+     * intent passes through whatever produced it. Doing it per provider would
+     * leave third-party implementations of LlmProviderInterface — the
+     * documented way to add a provider, and what this package's own test double
+     * is — on the unnormalised path.
+     *
+     * `normalizeOrder()` above has that weakness and is left alone for now
+     * because a wrong sort direction is visible, while a wrong `query_type`
+     * silently answers a different question.
+     */
+
+    /**
      * Add the usage block from one response to this instance's running total.
      *
      * Accumulated rather than replaced, because answering one question can
-     * take several calls — intent parsing, a fallback to SQL generation, a
+     * take several calls -  intent parsing, a fallback to SQL generation, a
      * retry, or the steps of a decomposed question. Reporting only the last
      * call would understate exactly the questions that cost the most.
      *
@@ -538,7 +552,7 @@ abstract class AbstractProvider implements ReportsUsage
      *
      * The provider is a singleton for the life of the request, so without this
      * a second question in the same process reports the first one's tokens as
-     * well — which turns per-question cost attribution into a running total
+     * well -  which turns per-question cost attribution into a running total
      * that nobody asked for.
      */
     public function resetUsage(): void
@@ -552,7 +566,7 @@ abstract class AbstractProvider implements ReportsUsage
      * Accepted values:
      *   true / "true" / "1"    → verify against the system CA bundle (default; no override)
      *   false / "false" / "0"  → disable verification (NOT recommended)
-     *   "/path/to/cacert.pem"  → verify against this CA bundle file — the fix
+     *   "/path/to/cacert.pem"  → verify against this CA bundle file -  the fix
      *                            for local stacks (XAMPP/WAMP) whose PHP has no
      *                            CA store, without touching php.ini
      *
@@ -622,7 +636,7 @@ abstract class AbstractProvider implements ReportsUsage
      * Build a standard error response.
      *
      * @param  string  $message  Error description (sanitized before returning)
-     * @param  int|null  $status  HTTP status of the failed call, when known —
+     * @param  int|null  $status  HTTP status of the failed call, when known -
      *                            preserved so callers can react to e.g. 429
      *                            (rate limit) without string-matching messages
      */
@@ -644,7 +658,7 @@ abstract class AbstractProvider implements ReportsUsage
      * Shared by every provider so the intent contract is described one way.
      * The line format itself lives in `DatasetCatalog`, extracted so that the
      * next place needing this list borrows it rather than growing a near-copy
-     * — `QueryPlanner` already had one, and it had drifted.
+     * -  `QueryPlanner` already had one, and it had drifted.
      *
      * Pinned byte-for-byte by `tests/Unit/DatasetInfoRenderingTest.php`
      * before this delegated, so the move is provably behaviour-identical.

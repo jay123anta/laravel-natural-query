@@ -14,8 +14,8 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * One column was doing two incompatible jobs.
  *
- * `dataset` holds the dataset the ANSWER turned out to be about — the one the
- * model chose — and naturalquery:cache-cleanup --dataset and the stats command
+ * `dataset` holds the dataset the ANSWER turned out to be about -  the one the
+ * model chose -  and naturalquery:cache-cleanup --dataset and the stats command
  * both read it that way. The dataset-isolation fix then reused it for
  * something else: deciding whether a row is eligible to answer THIS question,
  * by comparing it against what the asker's scope resolves to.
@@ -23,7 +23,7 @@ use PHPUnit\Framework\Attributes\Test;
  * Those are different values and conflating them broke both jobs.
  *
  * COST. An unhinted question on a multi-dataset install resolves to no asking
- * scope — resolveAskingDataset() returns null once keyword detection fails and
+ * scope -  resolveAskingDataset() returns null once keyword detection fails and
  * more than one dataset is registered. Its own cached row carries the dataset
  * the model picked, which is never null. So the row mismatches the very
  * question that created it, every repeat pays for a fresh API call, and the
@@ -37,7 +37,7 @@ use PHPUnit\Framework\Attributes\Test;
  * does not work.
  *
  * The fix records the asker's SCOPE separately, in the intent blob under
- * `_asking_scope` — no new column, and no change to QueryCacheInterface, which
+ * `_asking_scope` -  no new column, and no change to QueryCacheInterface, which
  * a previous attempt broke for every third-party implementor by adding a
  * parameter. `dataset` goes back to meaning the answer's dataset, and is now
  * kept current on update.
@@ -89,7 +89,7 @@ class CacheScopeIsNotTheAnswersDatasetTest extends TestCase
     /**
      * THE COST. Two datasets are registered and the question names neither, so
      * there is no asking scope on either ask. Both asks carry the SAME scope
-     * — none — so the second must be served from the first.
+     * -  none -  so the second must be served from the first.
      */
     #[Test]
     public function an_unscoped_question_repeated_verbatim_hits_its_own_cached_row()
@@ -111,7 +111,7 @@ class CacheScopeIsNotTheAnswersDatasetTest extends TestCase
             $callsAfterFirst,
             count($provider->methodsCalled()),
             'an unscoped question never hits its own cached row on a multi-dataset install, so every '
-                . 'repeat pays for another API call — the cache is off for the questions users repeat most'
+                . 'repeat pays for another API call -  the cache is off for the questions users repeat most'
         );
         $this->assertTrue($second['metadata']['cache_hit'] ?? false);
     }

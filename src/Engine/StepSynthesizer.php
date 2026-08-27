@@ -6,7 +6,7 @@ namespace Jayanta\NaturalQuery\Engine;
  * Turn several step results into one answer.
  *
  * The arithmetic is done here, in PHP, on values already fetched from the
- * database — never by asking a model to compare two numbers. Models are
+ * database -  never by asking a model to compare two numbers. Models are
  * unreliable at that and there is no reason to risk it: the figures are in
  * hand, and a percentage is a percentage.
  */
@@ -32,7 +32,7 @@ class StepSynthesizer
 
         if ($delta) {
             $answer = sprintf(
-                '%s is %s (%s) versus %s (%s) — %s %s%%.',
+                '%s is %s (%s) versus %s (%s) -  %s %s%%.',
                 $delta['metric_label'],
                 $delta['first_formatted'],
                 $delta['first_question'],
@@ -67,7 +67,7 @@ class StepSynthesizer
      * Two single-value results measuring the same metric can be compared. A
      * ranking against a total cannot, and reporting a percentage between them
      * would be a fabricated number presented with the same confidence as a real
-     * one — the worst thing this package can do.
+     * one -  the worst thing this package can do.
      */
     protected function compare(array $steps): ?array
     {

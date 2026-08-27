@@ -24,9 +24,9 @@ use PHPUnit\Framework\Attributes\Test;
  *
  *   - BLOCKER A: `SqlBuilder::buildQuery()` rebuilds from the cached
  *     recipe's `metric`/`group_value`/`limit`/`order`/`query_type` alone.
- *     A predicate the intent contract cannot express — a HAVING, a numeric
+ *     A predicate the intent contract cannot express -  a HAVING, a numeric
  *     comparison, anything that only exists in the raw SQL text the model
- *     originally wrote — has nowhere to ride along, so it is silently
+ *     originally wrote -  has nowhere to ride along, so it is silently
  *     dropped and `buildQuery()` reports success anyway: a filtered
  *     question is answered UNFILTERED, on a different table.
  *   - BLOCKER B: `resolveAskingDataset()` falls back to
@@ -40,14 +40,14 @@ use PHPUnit\Framework\Attributes\Test;
  * NQ-003-FIX deletes both reconciliation paths. A dataset mismatch is now
  * a cache MISS: one more provider call, never a silent retarget or
  * override. This file is written BEFORE that deletion and must fail
- * against the code as it stands today — see each test's docblock for the
+ * against the code as it stands today -  see each test's docblock for the
  * specific mechanism it exercises and why it is red right now.
  *
  * `tests/Feature/FuzzyCacheDatasetIsolationTest::
  * an_exact_tier1_hit_must_not_ignore_a_changed_dataset_hint` (now renamed
  * `an_exact_tier1_candidate_with_a_changed_dataset_hint_is_a_cache_miss`)
  * covers the same mechanism as this file's first test, in the other
- * direction (nq_orders asked first, nq_products second) — deliberately
+ * direction (nq_orders asked first, nq_products second) -  deliberately
  * kept in that file since it already owned the Tier 1 route; this file
  * covers everything else NQ-003-FIX's own defect report calls out by name.
  */
@@ -132,7 +132,7 @@ class CacheDatasetMismatchMissTest extends TestCase
 
     /**
      * WHAT THIS TEST CATCHES: the other direction of the Tier 1 exact-hash
-     * mismatch (nq_products asked first, nq_orders second — the sibling of
+     * mismatch (nq_products asked first, nq_orders second -  the sibling of
      * FuzzyCacheDatasetIsolationTest's rewritten test, which goes
      * nq_orders-then-nq_products). "One direction passing by luck is not a
      * fix": a retarget/override bug that only shows on one ordering would
@@ -141,7 +141,7 @@ class CacheDatasetMismatchMissTest extends TestCase
      * In THIS predicate-free fixture, `SqlBuilder::buildQuery()`'s retarget
      * happens to recompute a numerically correct total against the live
      * table (it is a fresh `SUM(revenue)` over whichever dataset it is
-     * pointed at, not a replay of stored numbers) — so the NUMBER alone
+     * pointed at, not a replay of stored numbers) -  so the NUMBER alone
      * does not distinguish today's unsafe retarget from tomorrow's honest
      * miss. The call-count assertion is what is actually red right now:
      * the retarget answers with ZERO extra provider calls, and the fix
@@ -186,7 +186,7 @@ class CacheDatasetMismatchMissTest extends TestCase
      * WHAT THIS TEST CATCHES (guard, not a defect): a fix that makes every
      * mismatch miss must not turn the cache off altogether. Two calls with
      * the IDENTICAL text and the IDENTICAL dataset hint must still cost
-     * only one provider call in total — the second one served from Tier 1.
+     * only one provider call in total -  the second one served from Tier 1.
      * A cache that never hits fails silently and slowly (AGENTS.md §3
      * adversarial lens 2 / the "cache never hits" trap named in the task).
      *
@@ -225,17 +225,17 @@ class CacheDatasetMismatchMissTest extends TestCase
      * WHAT THIS TEST CATCHES: BLOCKER A specifically. The cached recipe
      * `QueryOrchestrator::processWithSqlGeneration()` stores alongside
      * `_sql_result` is `{dataset, metric, group_value, limit, order,
-     * query_type}` — it has NOWHERE to carry a WHERE-clause predicate the
+     * query_type}` -  it has NOWHERE to carry a WHERE-clause predicate the
      * intent contract cannot express. First question: "total revenue over
      * 150" against nq_orders, where the AI writes
-     * `SELECT SUM(revenue) FROM nq_orders WHERE revenue > 150` — only the
+     * `SELECT SUM(revenue) FROM nq_orders WHERE revenue > 150` -  only the
      * 200 row qualifies (100 and 50 do not), so the true filtered answer is
      * 200, not the unfiltered 350.
      *
      * Second question: the SAME words, asked with a dataset hint for
      * nq_products. Today's retarget calls
      * `SqlBuilder::buildQuery(['dataset' => 'nq_products'] + $cached['intent'])`
-     * — metric=revenue, no filter fields at all — which rebuilds
+     * -  metric=revenue, no filter fields at all -  which rebuilds
      * `SELECT SUM(revenue) FROM nq_products` UNFILTERED (30+45+15=90) and
      * reports success. That is a filtered question answered unfiltered, on
      * a different table, exactly the failure mode AGENTS.md §0 names as
@@ -243,8 +243,8 @@ class CacheDatasetMismatchMissTest extends TestCase
      *
      * After the fix, the mismatch misses and a fresh provider call
      * generates (and, per this stub, correctly filters) SQL for
-     * nq_products: `WHERE revenue > 40` — only the 45 row qualifies (30
-     * and 15 do not) — so the honestly-obtained answer is 45, neither the
+     * nq_products: `WHERE revenue > 40` -  only the 45 row qualifies (30
+     * and 15 do not) -  so the honestly-obtained answer is 45, neither the
      * wrong-dataset 350/200 nor the retargeted-but-unfiltered 90.
      */
     #[Test]
@@ -304,7 +304,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         );
         $this->assertSame('success', $second['status'] ?? null, json_encode($second));
 
-        // THE RED ASSERTION (the number). Today this is 90.0 — the
+        // THE RED ASSERTION (the number). Today this is 90.0 -  the
         // retarget's UNFILTERED nq_products total, because the WHERE
         // clause had nowhere to ride along in the cached recipe.
         $this->assertNotEquals(
@@ -322,13 +322,13 @@ class CacheDatasetMismatchMissTest extends TestCase
 
     /**
      * WHAT THIS TEST CATCHES: BLOCKER B specifically, in intent mode.
-     * `DatasetSeeder::detect()` guesses a dataset from bare keywords —
+     * `DatasetSeeder::detect()` guesses a dataset from bare keywords -
      * "orders total please" contains the `nq_orders` schema's alias
      * ("orders"), so `resolveAskingDataset()` guesses nq_orders for BOTH
      * calls below, deterministically, since neither call passes a
      * `$datasetHint` or carries conversation state. The model itself (the
      * RecordingProvider stub standing in for it) says nq_products instead
-     * — a real model routinely disagrees with a bare keyword match, which
+     * -  a real model routinely disagrees with a bare keyword match, which
      * is the entire reason `parseIntent()` exists rather than the package
      * just calling `DatasetSeeder::detect()` alone.
      *
@@ -336,7 +336,7 @@ class CacheDatasetMismatchMissTest extends TestCase
      * nq_products, from the model) and `processWithIntent()`'s override
      * (`if ($askingDataset && $askingDataset !== ($intent['dataset'] ??
      * null)) { $intent['dataset'] = $askingDataset; }`) silently replaces
-     * it with the keyword guess (nq_orders) — zero extra provider calls,
+     * it with the keyword guess (nq_orders) -  zero extra provider calls,
      * and the SAME question answered from a DIFFERENT table than moments
      * earlier: 350 instead of 90.
      */
@@ -350,7 +350,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
 
         $provider = new RecordingProvider;
-        // The model's own determination — deliberately NOT what
+        // The model's own determination -  deliberately NOT what
         // DatasetSeeder::detect() would guess from this wording (see the
         // $question comment below).
         $provider->intentResponse = [
@@ -369,13 +369,13 @@ class CacheDatasetMismatchMissTest extends TestCase
 
         // Contains the nq_orders schema's alias ("orders"), so
         // DatasetSeeder::detect() guesses nq_orders every time this exact
-        // text is resolved — deterministically, since no $datasetHint and
+        // text is resolved -  deterministically, since no $datasetHint and
         // no conversation state are ever supplied below.
         $question = 'orders total please';
 
         $first = $this->app->make(QueryOrchestrator::class)->query($question);
         $this->assertSame('success', $first['status'] ?? null, json_encode($first));
-        // Hand-checked: nq_products total is 30+45+15=90 — the FIRST call
+        // Hand-checked: nq_products total is 30+45+15=90 -  the FIRST call
         // already used the model's nq_products answer, not the keyword
         // guess of nq_orders (which would read 350).
         $this->assertEquals(90.0, $this->total($first), "precondition: the model's own dataset (nq_products) answers 90, not the keyword guess's 350");
@@ -393,7 +393,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         // was the one taken first.
         //
         // It cost far too much. Missing on a keyword-guess disagreement means
-        // missing whenever the guess and the model disagree — which is the
+        // missing whenever the guess and the model disagree -  which is the
         // normal case, and the reason parseIntent() exists at all instead of
         // DatasetSeeder::detect() alone. Every repeat of an ordinary question
         // paid for another API call.
@@ -402,7 +402,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         // Both asks here are the same words with no hint, so both carry the
         // same scope and the row is eligible. The overwrite is gone, so the
         // hit returns the model's own answer rather than the guess's. The
-        // guarantee below — same question, same number — is what this test
+        // guarantee below -  same question, same number -  is what this test
         // was always really defending, and it holds now at zero cost instead
         // of one API call per repeat.
         $this->assertLessThanOrEqual(
@@ -412,7 +412,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         );
         $this->assertSame('success', $second['status'] ?? null, json_encode($second));
 
-        // THE RED ASSERTION (the number). Today this is 350.0 — the
+        // THE RED ASSERTION (the number). Today this is 350.0 -  the
         // keyword guess's nq_orders total, silently substituted for the
         // model's own nq_products answer.
         $this->assertEquals(
@@ -423,10 +423,10 @@ class CacheDatasetMismatchMissTest extends TestCase
     }
 
     /**
-     * WHAT THIS TEST CATCHES (guard, not a defect — unchanged from NQ-003,
+     * WHAT THIS TEST CATCHES (guard, not a defect -  unchanged from NQ-003,
      * must not regress): `TwoTierQueryCache::findForDataset()` refuses to
      * even ATTEMPT a fuzzy match when `resolveAskingDataset()` cannot place
-     * the asking question on any dataset at all — with two datasets
+     * the asking question on any dataset at all -  with two datasets
      * registered and no hint, no state, and no alias word in the text,
      * `count($keys) === 1 ? $keys[0] : null` returns null, and
      * `findForDataset()`'s `if ($datasetHint === null) { return null; }`
@@ -437,11 +437,11 @@ class CacheDatasetMismatchMissTest extends TestCase
      * deleted), so it is expected to PASS today and must keep passing
      * after the fix. The phrase pair below is chosen to score ABOVE the
      * configured similarity threshold by the shipped
-     * `calculateSimilarity()` algorithm — measured directly against that
+     * `calculateSimilarity()` algorithm -  measured directly against that
      * function, not approximated: normalized to "overall revenue summary"
      * / "overall revenue total", Jaccard = 2/4 = 0.5, Levenshtein-similarity
      * = 1 - 6/23 = 0.73913, so 0.6*0.5 + 0.4*0.73913 = 0.59565, above the
-     * 0.55 threshold configured below — so if this guard ever regressed,
+     * 0.55 threshold configured below -  so if this guard ever regressed,
      * the second call would fuzzy-match the first
      * one's cached nq_orders answer instead of resolving its own dataset
      * fresh.
@@ -485,7 +485,7 @@ class CacheDatasetMismatchMissTest extends TestCase
         $this->app->forgetInstance(QueryOrchestrator::class);
 
         // Neither phrase contains "orders", "products", "nq_orders" or
-        // "nq_products" — DatasetSeeder::detect() cannot place either one,
+        // "nq_products" -  DatasetSeeder::detect() cannot place either one,
         // and with two datasets registered resolveAskingDataset() cannot
         // fall back to "the only dataset" either.
         $q1 = 'overall revenue summary';

@@ -3,7 +3,7 @@
 /**
  * The target of rel_sales' two-column foreign key. It exists so that composite
  * join rendering is exercised against a table the SqlValidator actually
- * permits — the prompt only offers joins to whitelisted tables.
+ * permits -  the prompt only offers joins to whitelisted tables.
  */
 return [
     'name' => 'Regions',

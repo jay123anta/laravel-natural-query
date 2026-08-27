@@ -33,7 +33,7 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
                 t.table_type AS type,
                 -- Must match on BOTH schema and name. pg_class is database-wide,
                 -- so filtering on relname alone raises a cardinality violation
-                -- the moment two schemas hold a table of the same name — the
+                -- the moment two schemas hold a table of the same name -  the
                 -- normal layout when one schema is used per subject area.
                 (
                     SELECT pc.reltuples::bigint
@@ -123,7 +123,7 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
         // and it is wrong for any composite foreign key: it returns the
         // cartesian product of the two column lists. A two-column key came
         // back as four "relationships", two of them pairing entirely unrelated
-        // columns — which would then be handed to the model as join
+        // columns -  which would then be handed to the model as join
         // conditions. referential_constraints lets each local column be
         // matched to the referenced column in the same ordinal position.
         $fks = $conn->select("
@@ -236,6 +236,6 @@ class PostgresIntrospector implements SchemaIntrospectorInterface
         };
     }
 
-    // suggestRole() lives in the SuggestsColumnRoles trait — it was duplicated
+    // suggestRole() lives in the SuggestsColumnRoles trait -  it was duplicated
     // here and in MysqlIntrospector, and the two copies had already drifted.
 }

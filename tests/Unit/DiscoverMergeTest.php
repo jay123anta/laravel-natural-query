@@ -11,10 +11,10 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Re-running discovery must not destroy what a human wrote.
  *
- * The generated file has two layers. The structural layer — which columns
- * exist and their types — comes from the database and should be refreshed.
- * The human layer — descriptions, aliases, llm_instructions, computed_metrics,
- * example_queries, and the judgement calls about which column is a measure —
+ * The generated file has two layers. The structural layer -  which columns
+ * exist and their types -  comes from the database and should be refreshed.
+ * The human layer -  descriptions, aliases, llm_instructions, computed_metrics,
+ * example_queries, and the judgement calls about which column is a measure -
  * cannot be recovered from the database and is what makes the dataset usable.
  *
  * Before --merge existed the only choices were to skip the file (keeping a

@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * The package answered questions and told nobody anything. There was no way to
  * attribute cost to a user, no way to alert on a provider outage, no way to
- * review the questions being answered badly — short of patching the package or
+ * review the questions being answered badly -  short of patching the package or
  * scraping logs. For a feature that spends money on every request and can be
  * confidently wrong, that is the gap that matters most in production.
  *
@@ -119,7 +119,7 @@ class ObservabilityTest extends TestCase
     /**
      * Result rows are deliberately absent. A listener that wanted the data can
      * re-run the SQL; putting rows on an event walks them into log drivers,
-     * queue payloads and error trackers — the one direction this package
+     * queue payloads and error trackers -  the one direction this package
      * exists to keep data out of.
      */
     #[Test]
@@ -232,7 +232,7 @@ class ObservabilityTest extends TestCase
     }
 
     /**
-     * Answering one question can take several calls — a fallback, a retry, the
+     * Answering one question can take several calls -  a fallback, a retry, the
      * steps of a decomposed question. Reporting only the last would understate
      * exactly the questions that cost the most.
      */
@@ -251,7 +251,7 @@ class ObservabilityTest extends TestCase
 
     /**
      * The provider is a singleton for the request, so without a reset the
-     * second question of a conversation reports the first one's tokens too —
+     * second question of a conversation reports the first one's tokens too -
      * turning per-question cost into a running total nobody asked for.
      */
     #[Test]

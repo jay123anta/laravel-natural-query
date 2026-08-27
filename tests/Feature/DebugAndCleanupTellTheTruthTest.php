@@ -21,7 +21,7 @@ use PHPUnit\Framework\Attributes\Test;
  * B. In the shipped default `query_mode: auto`, most questions are answered by
  *    intent parsing, whose prompt is built inside the provider. The debugger
  *    always builds a SQL-generation prompt, so it shows one the engine never
- *    sends — and then, new in this release, declares it REFUSED for a question
+ *    sends -  and then, new in this release, declares it REFUSED for a question
  *    the engine answers without difficulty, because prompts.max_chars does not
  *    apply to intent mode at all.
  *
@@ -29,8 +29,8 @@ use PHPUnit\Framework\Attributes\Test;
  *    in active use. clear() ANDs its filters and the command passes its
  *    --days=30 and --min-hits=2 defaults alongside --dataset, so only rows that
  *    are simultaneously stale AND barely used are removed. docs/CACHING.md
- *    recommends the flag for exactly the opposite case — a schema file changed
- *    and its cached answers are now wrong — where the rows are being hit daily.
+ *    recommends the flag for exactly the opposite case -  a schema file changed
+ *    and its cached answers are now wrong -  where the rows are being hit daily.
  */
 class DebugAndCleanupTellTheTruthTest extends TestCase
 {
@@ -111,7 +111,7 @@ class DebugAndCleanupTellTheTruthTest extends TestCase
             0,
             DB::table($table)->where('dataset', 'nq_orders')->count(),
             'purging a dataset left its rows in place, because --days=30 and --min-hits=2 were ANDed in '
-                . 'behind the user\'s back — so the documented remedy for a stale answer still does nothing'
+                . 'behind the user\'s back -  so the documented remedy for a stale answer still does nothing'
         );
     }
 

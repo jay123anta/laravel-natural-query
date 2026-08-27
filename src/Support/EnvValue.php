@@ -21,7 +21,7 @@ namespace Jayanta\NaturalQuery\Support;
  *                                        seven providers at once.
  *
  * A commented-out line someone half-restored, a value deleted during
- * debugging, a `.env.example` copied and blanked — all produce it, and none
+ * debugging, a `.env.example` copied and blanked -  all produce it, and none
  * of them look like a misconfiguration to the person who did it.
  *
  * OllamaProvider already guarded its own copy of this, in its constructor,

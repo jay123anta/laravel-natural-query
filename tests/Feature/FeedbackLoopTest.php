@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
  * Does submitted feedback actually reach the next prompt?
  *
  * The package advertises that corrections teach the model, and the wiring
- * looks right by inspection — but "looks right" is how the ai-guard
+ * looks right by inspection -  but "looks right" is how the ai-guard
  * integration passed review while never once firing. A feature that silently
  * does nothing is worse than one that does not exist, because nobody goes
  * looking for it.

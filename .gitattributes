@@ -1,6 +1,6 @@
 * text=auto
 
-# Keep the distributed package lean — dev-only files are not shipped to
+# Keep the distributed package lean -  dev-only files are not shipped to
 # adopters via `composer require`.
 /.github            export-ignore
 /tests              export-ignore
@@ -12,7 +12,7 @@
 
 # README media. It has to be committed so GitHub and Packagist can render it
 # from a raw URL, but a multi-megabyte GIF has no business inside every
-# `composer require` — it would be downloaded into vendor/ by every adopter,
+# `composer require` -  it would be downloaded into vendor/ by every adopter,
 # forever, to be looked at by nobody.
 /art                export-ignore
 /docs/demo.gif      export-ignore

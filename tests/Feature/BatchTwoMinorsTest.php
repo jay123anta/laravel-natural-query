@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\Test;
  * The smaller half of the second review batch.
  *
  * None of these returns a wrong number. Each makes the package cost more,
- * degrade worse, or lie in a log — which is how the expensive ones started.
+ * degrade worse, or lie in a log -  which is how the expensive ones started.
  */
 class BatchTwoMinorsTest extends TestCase
 {
@@ -108,7 +108,7 @@ class BatchTwoMinorsTest extends TestCase
         $this->artisan('migrate', ['--force' => true])->run();
 
         // The threshold is not what is under test here, and leaving it at the
-        // shipped 0.85 would need a wording pair engineered to clear it — which
+        // shipped 0.85 would need a wording pair engineered to clear it -  which
         // makes the test about the similarity arithmetic instead of about the
         // shortlist. Lowered so the only thing that can decide the outcome is
         // whether the wanted row survived the candidate query.
@@ -145,7 +145,7 @@ class BatchTwoMinorsTest extends TestCase
             ]);
         }
 
-        // Different wording after normalisation — "years" is a distinct token
+        // Different wording after normalisation -  "years" is a distinct token
         // from "year", so this cannot be answered by the exact tier and must
         // go through fuzzy. (The earlier version of this test asked with a
         // leading "the", which is a filler word: both wordings normalised

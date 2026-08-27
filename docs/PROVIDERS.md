@@ -24,7 +24,7 @@ OLLAMA_NUM_CTX=8192
 ```
 
 **`OLLAMA_NUM_CTX` matters more than it looks.** It is how many tokens the
-model may read, and Ollama's own default — 4096, or 2048 on older builds — is
+model may read, and Ollama's own default -  4096, or 2048 on older builds -  is
 easily exceeded once your schema block is in the prompt.
 
 Ollama does not reject an oversized prompt. It drops the beginning and answers
@@ -74,7 +74,7 @@ SELFHOSTED_LLM_MODEL=qwen2.5-coder:14b
 
 For anything else, add your own block under `llm.providers` in
 `config/naturalquery.php` with a `base_url` + `model`, then set
-`NATURALQUERY_LLM_DRIVER=<your-block-name>`. That is the whole procedure —
+`NATURALQUERY_LLM_DRIVER=<your-block-name>`. That is the whole procedure - 
 here is Mistral, added exactly that way and verified end to end:
 
 ```php
@@ -93,7 +93,7 @@ MISTRAL_API_KEY=...
 ```
 
 `naturalquery:doctor` then confirms the driver, the key and that the model is
-live — and tells you precisely what is missing if the block is wrong.
+live -  and tells you precisely what is missing if the block is wrong.
 
 Tip for self-hosted servers that reject OpenAI's `response_format` parameter:
 set `force_json => false` in the block. Fully air-gapped deployments (government, healthcare) can pair a
@@ -133,7 +133,7 @@ All queries go to that dataset. No detection needed.
 
 ### Multi-dataset projects
 
-With several schema files loaded — one dataset each — the package works out
+With several schema files loaded -  one dataset each -  the package works out
 which one a question is about. Routing is for the cases where the wording alone
 is not a giveaway: map a word users say to the dataset that answers it.
 

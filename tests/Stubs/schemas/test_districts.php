@@ -32,7 +32,7 @@ return [
 
     'computed_metrics' => [
         'coverage_pct' => [
-            // Scalar row expression — valid ONLY without GROUP BY
+            // Scalar row expression -  valid ONLY without GROUP BY
             'expression' => 'ROUND(covered_households * 100.0 / total_households, 2)',
             'description' => 'Coverage percentage',
             'unit' => '%',

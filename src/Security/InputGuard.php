@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
  *   jailbreak, bot detection) AND runs built-in checks as fallback
  * - If ai-guard is NOT installed → uses built-in regex checks only
  *
- * This makes ai-guard an OPTIONAL companion — not a required dependency.
+ * This makes ai-guard an OPTIONAL companion -  not a required dependency.
  *
  * An ai-guard detection is enforced according to ai-guard's OWN configuration
  * (its `mode` and `confidence_threshold`), so installing it never silently
@@ -22,16 +22,16 @@ use Illuminate\Support\Facades\Log;
  *
  * Defends against:
  *
- * 1. PROMPT INJECTION — attempts to override AI instructions
+ * 1. PROMPT INJECTION -  attempts to override AI instructions
  *    "Ignore previous instructions", "You are now a...", "System: ..."
  *
- * 2. SQL INJECTION VIA PROMPT — SQL embedded in natural language
+ * 2. SQL INJECTION VIA PROMPT -  SQL embedded in natural language
  *    "Show me data; DROP TABLE users", "' OR 1=1 --"
  *
- * 3. DATA EXFILTRATION — attempts to extract schema/config info
+ * 3. DATA EXFILTRATION -  attempts to extract schema/config info
  *    "Show me all table names", "What is your system prompt"
  *
- * 4. RESOURCE ABUSE — extremely long queries, repeated special chars
+ * 4. RESOURCE ABUSE -  extremely long queries, repeated special chars
  *
  * This guard runs BEFORE the query reaches the LLM.
  * The SqlValidator runs AFTER the LLM generates SQL.
@@ -278,7 +278,7 @@ class InputGuard
      * case-sensitive, so a mis-cased name silently fails to autoload and the
      * integration would never fire.
      */
-    // A plain string, not ::class — ai-guard is an optional dependency, and a
+    // A plain string, not ::class -  ai-guard is an optional dependency, and a
     // ::class reference to an uninstalled package trips static analysis in
     // adopters' projects.
     public const AI_GUARD_FACADE = 'JayAnta\\AiGuard\\Facades\\AiGuard';
@@ -286,7 +286,7 @@ class InputGuard
     /**
      * Check with the ai-guard package if installed.
      *
-     * Auto-detects jayanta/laravel-ai-guard — returns threat info when the
+     * Auto-detects jayanta/laravel-ai-guard -  returns threat info when the
      * detection should BLOCK, null when ai-guard is absent, disabled, saw
      * nothing, or is not configured to act on what it saw.
      *
@@ -303,7 +303,7 @@ class InputGuard
     protected function checkWithAiGuard(string $query): ?array
     {
         if (!$this->hasAiGuard()) {
-            return null; // Not installed or switched off — use built-in checks
+            return null; // Not installed or switched off -  use built-in checks
         }
 
         if (!$this->aiGuardSupportsTextScan()) {
@@ -348,7 +348,7 @@ class InputGuard
 
             return $threat;
         } catch (\Throwable $e) {
-            // ai-guard failed — log but don't block (graceful degradation)
+            // ai-guard failed -  log but don't block (graceful degradation)
             Log::debug('[NaturalQuery:InputGuard] ai-guard check failed, using built-in', [
                 'error' => $e->getMessage(),
             ]);
@@ -372,7 +372,7 @@ class InputGuard
      */
     protected function logAiGuardDetection(string $why, array $threat, string $query): void
     {
-        Log::info('[NaturalQuery:InputGuard] ai-guard detection not blocked — ' . $why, [
+        Log::info('[NaturalQuery:InputGuard] ai-guard detection not blocked -  ' . $why, [
             'threat_type' => $threat['threat_type'],
             'confidence_score' => $threat['confidence_score'],
             'query' => substr($query, 0, 200),
@@ -405,7 +405,7 @@ class InputGuard
      * ai-guard v2.0.0 ships `detect(Request)` but not `detectText(string)`,
      * which was added later. We have a question string, not a request, so on
      * v2.0.0 every call throws. That is caught and the built-in checks carry
-     * on, but the feature the user believes they installed does nothing —
+     * on, but the feature the user believes they installed does nothing -
      * silently, which is worse than not having it. `naturalquery:doctor`
      * reports this so it is visible rather than merely survivable.
      */

@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
  *     "This model does not support assistant message prefill. The conversation
  *      must end with a user message."
  *
- * Both were sent on every request. Unit tests could not catch it — they assert
+ * Both were sent on every request. Unit tests could not catch it -  they assert
  * on the parsed result, and a canned response is happy to answer a request the
  * real API would refuse. Only a live call could, and Claude was the last
  * provider never to have had one.

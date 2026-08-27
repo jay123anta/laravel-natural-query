@@ -24,12 +24,12 @@ use PHPUnit\Framework\Attributes\Test;
  *   orders page asks   -> scope mismatch, miss, regenerate, UPDATE row to orders
  *
  * Neither page ever gets a hit, forever, and each pays an API call every time.
- * The cache is not merely conservative here — it is 0% for any wording used on
+ * The cache is not merely conservative here -  it is 0% for any wording used on
  * more than one scoped page, which on a multi-tenant or multi-page install is
  * the normal case rather than an edge one.
  *
- * The scope belongs in the key. It is already in the hash's other dimension —
- * `generateHash()` folds in the contract version for exactly this reason — so
+ * The scope belongs in the key. It is already in the hash's other dimension -
+ * `generateHash()` folds in the contract version for exactly this reason -  so
  * a scoped question and an unscoped one simply address different rows.
  *
  * (#11) And in the shipped default `auto` mode, a question whose cached row
@@ -91,7 +91,7 @@ class CacheScopesCoexistTest extends TestCase
     /**
      * Two scoped pages, same wording, alternating. Both must end up cached and
      * both must keep answering their own dataset. nq_orders is 350,
-     * nq_products is 90 — both readable from the fixture.
+     * nq_products is 90 -  both readable from the fixture.
      */
     #[Test]
     public function two_scoped_pages_asking_the_same_words_both_get_cache_hits()
@@ -151,12 +151,12 @@ class CacheScopesCoexistTest extends TestCase
     }
 
     /**
-     * #6 — a lookup the engine throws away must not be counted as reuse.
+     * #6 -  a lookup the engine throws away must not be counted as reuse.
      *
      * hit_count is incremented inside the cache the moment it returns a row,
      * before the engine has decided whether the row is usable. A conversation
      * turn is never served from cache, so every follow-up whose words matched
-     * something inflated that row's hit_count — and naturalquery:cache-stats,
+     * something inflated that row's hit_count -  and naturalquery:cache-stats,
      * plus --min-hits, read it.
      */
     #[Test]
@@ -186,7 +186,7 @@ class CacheScopesCoexistTest extends TestCase
     }
 
     /**
-     * #11 — auto mode must not pay for an intent call it is about to discard.
+     * #11 -  auto mode must not pay for an intent call it is about to discard.
      */
     #[Test]
     public function auto_mode_replays_a_cached_sql_recipe_without_an_intent_call()

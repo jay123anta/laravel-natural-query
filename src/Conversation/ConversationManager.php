@@ -75,7 +75,7 @@ class ConversationManager
 
         // Ambiguity compounds. Past a handful of consecutive refinements nobody
         // remembers which filters are live, and resolution degrades faster than
-        // the user notices — so say so rather than resolving into nonsense.
+        // the user notices -  so say so rather than resolving into nonsense.
         $cap = (int) config('naturalquery.conversation.max_refinements', 6);
 
         if ($cap > 0 && $classification !== TurnClassifier::NEW_QUERY && $state->refinements >= $cap) {
@@ -111,7 +111,7 @@ class ConversationManager
 
         // The state goes to the log next to the SQL. When an answer is wrong,
         // the first question is whether the turn was misread or the state was
-        // — two different bugs with two different fixes, and no way to tell
+        // -  two different bugs with two different fixes, and no way to tell
         // them apart afterwards without both recorded together.
         Log::info('[NaturalQuery:Conversation] Turn resolved', [
             'session' => $this->scopeSession($sessionId),
@@ -131,8 +131,18 @@ class ConversationManager
         ];
 
         // Shown above the answer, so a misread is caught rather than trusted.
+        //
+        // The period is labelled onto a COPY, for this render only. It
+        // describes the answer just produced, not the conversation, so the
+        // state that was persisted a few lines up must not carry it into the
+        // next turn. Without this the widget — which prefers `state_summary`
+        // whenever it is present — showed a strictly less informative line
+        // than `parsed_summary` sitting in the same payload, and a month's
+        // total and an all-time total again read identically.
         $result['state'] = $next->toIntent();
-        $result['state_summary'] = $next->summary($this->registry);
+        $result['state_summary'] = $next
+            ->withPeriod($result['parsed_query']['period'] ?? null)
+            ->summary($this->registry);
 
         return $result;
     }
@@ -140,7 +150,7 @@ class ConversationManager
     /**
      * Step back to how things stood before the last turn.
      *
-     * "No, go back to revenue" is a restore, not another interpretation —
+     * "No, go back to revenue" is a restore, not another interpretation -
      * every turn's state is kept, so returning to one is exact.
      */
     public function rewind(string $sessionId, int $steps = 1): array
@@ -163,7 +173,7 @@ class ConversationManager
         // The same conversation block state() returns, plus the fact that this
         // one was a rewind. It used to report only the turn number, so a client
         // that had just gone back could not tell whether it could go back
-        // again without asking a second time — and the natural thing to do
+        // again without asking a second time -  and the natural thing to do
         // with that missing answer is to leave the control enabled and let the
         // user find out by pressing it.
         return [
@@ -288,7 +298,7 @@ class ConversationManager
      * The conversation as it currently stands.
      *
      * A front end that reloads the page has lost everything it was showing, and
-     * the state is server-side — so without this it cannot restore the filters
+     * the state is server-side -  so without this it cannot restore the filters
      * in force or the "reading this as" line, and the next follow-up resolves
      * against context the user can no longer see. Shaped like the payload a
      * query returns, so the same rendering code handles both.

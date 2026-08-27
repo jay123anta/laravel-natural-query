@@ -128,7 +128,7 @@ class ResponseFormatterTest extends TestCase
     /**
      * When a query joins, the model aliases the label column to whatever it
      * likes, so the schema's group_column is often absent from the result.
-     * Every row then rendered as "?" — a correct answer that looked broken.
+     * Every row then rendered as "?" -  a correct answer that looked broken.
      */
     #[Test]
     public function rows_are_labelled_even_when_the_group_column_is_not_in_the_result()

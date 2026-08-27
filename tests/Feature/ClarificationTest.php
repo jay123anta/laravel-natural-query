@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Asking "which is the best?" of a single-dataset app produced "Which dataset
  * would you like to query?" with one button on it. Clicking that button re-sent
- * the same question, got back the same response, and redrew the same card —
+ * the same question, got back the same response, and redrew the same card -
  * so the widget looked broken while behaving exactly as written.
  *
  * The dataset was never in doubt. The model says clarification_type=dataset
@@ -87,7 +87,7 @@ class ClarificationTest extends TestCase
     /**
      * "Revenue by region" is line_total in one table and region in another.
      * The model correctly reports it cannot group the dataset it chose by a
-     * column that dataset does not have — and the prompt tells it to say
+     * column that dataset does not have -  and the prompt tells it to say
      * 'ambiguous' in exactly that case.
      *
      * Turning that into "which metric did you mean?" is a dead end: the user
@@ -140,7 +140,7 @@ class ClarificationTest extends TestCase
 
     /**
      * Every clarification used to carry the dataset list, so a METRIC question
-     * rendered the dataset name as an extra button among the metrics —
+     * rendered the dataset name as an extra button among the metrics -
      * "Orders" beside "Quantity" and "Revenue". Clicking it re-sent the same
      * question with the dataset it already had, received the same response, and
      * redrew the same card. A button that does nothing, on the screen whose

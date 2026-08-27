@@ -51,7 +51,7 @@ class SqliteIntrospectorTest extends TestCase
             FOREIGN KEY (customer_id) REFERENCES sq_customers(id)
         )');
 
-        // A foreign key with the target column OMITTED — meaning "the primary
+        // A foreign key with the target column OMITTED -  meaning "the primary
         // key". Common in hand-written SQLite and the form that produced a
         // JOIN with nothing on one side.
         DB::statement('CREATE TABLE sq_implicit (
@@ -103,7 +103,7 @@ class SqliteIntrospectorTest extends TestCase
 
     /**
      * SQLite types are advisory and wildly inconsistent in the wild. They are
-     * normalised by affinity, with date and boolean checked first — both have
+     * normalised by affinity, with date and boolean checked first -  both have
      * NUMERIC affinity, but a DATE column is meant as a date and the time
      * filter depends on recognising it.
      */
@@ -182,7 +182,7 @@ class SqliteIntrospectorTest extends TestCase
     /**
      * A composite key must come back as ONE constraint with its columns paired
      * by position. Two constraints, or a mispaired one, produces a join on half
-     * a key — which matches rows it should not and inflates every total.
+     * a key -  which matches rows it should not and inflates every total.
      */
     #[Test]
     public function a_composite_foreign_key_is_reported_as_one_constraint()

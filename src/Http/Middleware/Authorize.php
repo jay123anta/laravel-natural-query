@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Gate;
  *
  *     RouteNotFoundException: Route [login] not defined
  *
- * — on `/naturalquery/demo`, the page the README tells them to visit. The
+ * -  on `/naturalquery/demo`, the page the README tells them to visit. The
  * package appeared broken when it was working exactly as configured.
  *
  * So this follows the pattern Telescope and Horizon use for the same problem: a
@@ -44,15 +44,15 @@ class Authorize
             return $next($request);
         }
 
-        // 403, not a redirect. There may be nowhere to redirect to — that was
-        // the original bug — and the widget reads the status and says "you
+        // 403, not a redirect. There may be nowhere to redirect to -  that was
+        // the original bug -  and the widget reads the status and says "you
         // need to be signed in" rather than guessing.
         abort(403, 'Not authorised to use NaturalQuery. Define a viewNaturalQuery gate, or sign in.');
     }
 
     protected function allowed(Request $request): bool
     {
-        // The app has an opinion, so it is the only one that counts — including
+        // The app has an opinion, so it is the only one that counts -  including
         // when it says no in local.
         if (Gate::has('viewNaturalQuery')) {
             return Gate::forUser($request->user())->allows('viewNaturalQuery');

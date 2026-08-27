@@ -8,7 +8,7 @@ use Jayanta\NaturalQuery\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
- * "How many orders by status" cannot be answered from aggregatable columns —
+ * "How many orders by status" cannot be answered from aggregatable columns -
  * counting rows is not summing a measure. With no metric to resolve, the
  * question fell through to the schema default and came back as revenue per
  * status: the right grouping, the wrong question, and a number with nothing

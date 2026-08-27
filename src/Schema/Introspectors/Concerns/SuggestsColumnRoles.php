@@ -12,7 +12,7 @@ namespace Jayanta\NaturalQuery\Schema\Introspectors\Concerns;
  * the join that would have answered the question.
  *
  * Both introspectors used to carry their own copy of this and had already
- * drifted — the MySQL one did not treat TEXT columns as dimensions.
+ * drifted -  the MySQL one did not treat TEXT columns as dimensions.
  */
 trait SuggestsColumnRoles
 {
@@ -30,7 +30,7 @@ trait SuggestsColumnRoles
 
         // A key that points at another row is not a quantity. Detected by name
         // because a column can reference another table without a declared
-        // constraint, which is common enough to matter — and discovery
+        // constraint, which is common enough to matter -  and discovery
         // upgrades this to `foreign_key` when a real constraint is found.
         if ($this->looksLikeKeyColumn($nameLower)) {
             return 'foreign_key';

@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * Covers the optional jayanta/laravel-ai-guard integration.
  *
- * ai-guard is NOT a dev dependency — the package must work without it — so the
+ * ai-guard is NOT a dev dependency -  the package must work without it -  so the
  * detector call is stubbed. What is under test is NaturalQuery's half of the
  * contract: the facade name, the result keys it reads, and when a detection is
  * allowed to block.
@@ -127,7 +127,7 @@ class AiGuardIntegrationTest extends TestCase
 
     /**
      * ai-guard's detector returns 'confidence_score'. Reading a 'score' key
-     * instead scores every threat 0, which never clears the threshold — the
+     * instead scores every threat 0, which never clears the threshold -  the
      * integration looks wired up but blocks nothing.
      */
     #[Test]
@@ -142,7 +142,7 @@ class AiGuardIntegrationTest extends TestCase
 
         $this->assertTrue(
             $guard->validate(self::BENIGN)['safe'],
-            "a 'score' key carries no confidence — nothing should clear the threshold"
+            "a 'score' key carries no confidence -  nothing should clear the threshold"
         );
     }
 
@@ -169,7 +169,7 @@ class AiGuardIntegrationTest extends TestCase
      * Found by installing the real package: ai-guard v2.0.0 ships
      * `detect(Request)` but not `detectText(string)`, which was added later.
      * We hold a question string, not a request, so on that version every call
-     * throws. The catch meant the built-in checks carried on — safe, but the
+     * throws. The catch meant the built-in checks carried on -  safe, but the
      * user believed they had a layer they did not have, and nothing said so.
      *
      * Being installed is therefore not the same as being usable.
@@ -233,7 +233,7 @@ class AiGuardIntegrationTest extends TestCase
 /**
  * InputGuard with the ai-guard package simulated as installed.
  *
- * Only the two seams that touch the absent package are overridden — the
+ * Only the two seams that touch the absent package are overridden -  the
  * enablement, threshold and mode logic under test is the real thing.
  */
 class FakeAiGuardInputGuard extends InputGuard

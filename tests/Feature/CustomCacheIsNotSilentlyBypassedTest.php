@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\Test;
  * Two ways an adopter's cache stopped being called, both silent.
  *
  * A. A CUSTOM QueryCacheInterface IS NEVER READ.
- * findInCache() used to return null outright — bypassing the cache — whenever
+ * findInCache() used to return null outright -  bypassing the cache -  whenever
  * an asking dataset was known and the cache did not implement
  * ScopesCacheByDataset. resolveAskingDataset() returns the sole key
  * unconditionally on a single-dataset install, which is the common shape, so
@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\Test;
  * B. A SUBCLASS THAT OVERRIDES find() IS SKIPPED.
  * Overriding find() on the bundled cache is the natural way to add a tenant or
  * permission gate. But TwoTierQueryCache implements ScopesCacheByDataset, the
- * subclass inherits that, and the engine therefore calls findForDataset() —
+ * subclass inherits that, and the engine therefore calls findForDataset() -
  * which does not go through find(). The gate never runs and nothing says so.
  * On a multi-tenant install that is a cross-tenant read.
  *
