@@ -281,16 +281,82 @@ class RequiredFilterHoldsOnEveryPathTest extends TestCase
 
         $result = $this->app->make(QueryOrchestrator::class)->query('total revenue', 'nq_orders');
 
-        // Proving the replay branch actually ran, so this test cannot pass by
-        // quietly missing the cache and letting the obedient provider answer.
-        $this->assertTrue(
-            $result['metadata']['cache_hit'] ?? false,
-            'the planted recipe was never replayed, so this test proves nothing: ' . json_encode($result)
+        // The forbidden total must not be served...
+        $this->assertNotEquals(
+            800.0,
+            $this->total($result),
+            'a cached recipe that omits the required filter was replayed straight to the database; '
+                . 'rows never expire, so this wording would return the forbidden total for ever'
         );
 
-        $this->assertRefusedByTheRule($result);
+        // ...and the question must still be ANSWERABLE. Refusing was the first
+        // fix and it was worse than it looked: rows have no expiry and the
+        // provider is never re-consulted, so a row cached before the adopter
+        // wrote the rule refused permanently, and the fuzzy tier handed the
+        // same dead row to every rewording. The refusal even said "ask again",
+        // which could not work.
+        $this->assertSame(
+            'success',
+            $result['status'] ?? null,
+            'a stale recipe left the question permanently unanswerable instead of being discarded '
+                . 'and regenerated: ' . json_encode($result)
+        );
 
-        $this->assertSame('error', $result['status'] ?? null, 'the replayed recipe was served');
+        $this->assertEquals(
+            300.0,
+            $this->total($result),
+            'the regenerated answer should obey the rule: 100 + 200 paid, with the 500 cancelled '
+                . 'row excluded'
+        );
+    }
+
+    /**
+     * And the row heals, so the cost is one provider call rather than one per
+     * ask for ever. store() overwrites on the unique question hash the moment
+     * a fresh answer succeeds.
+     */
+    #[Test]
+    public function a_discarded_recipe_is_replaced_rather_than_re_fetched_every_time()
+    {
+        config([
+            'naturalquery.cache.enabled' => true,
+            'naturalquery.verification.enabled' => false,
+        ]);
+        $this->artisan('migrate', ['--force' => true])->run();
+        $this->seedOrders();
+
+        $this->app->make(QueryCacheInterface::class)->store('total revenue', [
+            'dataset' => 'nq_orders',
+            'metric' => 'revenue',
+            'query_type' => 'aggregation',
+            '_asking_scope' => 'nq_orders',
+            '_sql_result' => [
+                'success' => true,
+                'sql' => 'SELECT SUM(revenue) AS revenue FROM nq_orders',
+                'bindings' => [],
+                'dataset' => 'nq_orders',
+                'metric' => 'revenue',
+                'query_type' => 'aggregation',
+            ],
+        ]);
+
+        $provider = $this->provider([
+            'sql' => "SELECT SUM(revenue) AS revenue FROM nq_orders WHERE status != 'cancelled'",
+            'dataset' => 'nq_orders',
+            'metric' => 'revenue',
+            'query_type' => 'aggregation',
+        ]);
+
+        $orchestrator = $this->app->make(QueryOrchestrator::class);
+        $orchestrator->query('total revenue', 'nq_orders');
+        $second = $orchestrator->query('total revenue', 'nq_orders');
+
+        $this->assertEquals(300.0, $this->total($second));
+        $this->assertTrue(
+            $second['metadata']['cache_hit'] ?? false,
+            'the healed row was not reused, so every later ask pays for the provider again: '
+                . json_encode($second['metadata'] ?? [])
+        );
     }
 
     /**

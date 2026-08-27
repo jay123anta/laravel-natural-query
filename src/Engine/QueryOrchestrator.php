@@ -1346,9 +1346,33 @@ class QueryOrchestrator
         // SQL, so it wants the rows that carry some.
         if ($cached && !$inConversation && isset($cached['intent']['_sql_result'])) {
             $sqlResult = $cached['intent']['_sql_result'];
-            $this->markCacheHit($metadata, $cached);
+            $recipeDataset = $sqlResult['dataset'] ?? null;
 
-            return $this->validateAndExecute($sqlResult, $sqlResult['dataset'] ?? null, $metadata);
+            // A recipe the CURRENT rules would refuse is a stale row, not an
+            // answer. Rows carry no expiry, so one cached before the adopter
+            // wrote a required_filter kept being replayed into a refusal:
+            // permanently, because the provider was never consulted again, and
+            // for every rewording too, because the fuzzy tier matched the same
+            // dead row. The advice in the refusal - ask again - could not work.
+            //
+            // Falling through regenerates once and the row heals itself:
+            // store() overwrites on the unique question hash as soon as a
+            // fresh answer succeeds. One provider call instead of a question
+            // that could never be answered again.
+            $staleRule = $this->requiredFilterMissing(
+                $sqlResult['sql'] ?? '',
+                $recipeDataset ? $this->registry->get($recipeDataset) : null
+            );
+
+            if ($staleRule === null) {
+                $this->markCacheHit($metadata, $cached);
+
+                return $this->validateAndExecute($sqlResult, $recipeDataset, $metadata);
+            }
+
+            Log::info('[NaturalQuery] Discarding a cached recipe that a schema rule now forbids', [
+                'dataset' => $recipeDataset,
+            ]);
         }
 
         // Step 1: Identify the dataset (priority: hint → routing → keywords → LLM intent)
