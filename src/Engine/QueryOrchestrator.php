@@ -2385,9 +2385,42 @@ class QueryOrchestrator
      */
     protected function sanitizeDbError(string $message): string
     {
-        // Remove SQL details, keep only the human-readable part
-        if (preg_match('/ERROR:\s*(.+?)(?:\(|$)/i', $message, $m)) {
-            return trim($m[1]);
+        // Keep the human-readable part, drop the SQL and the bindings.
+        //
+        // Three dialects say it three ways, and only one of them used to come
+        // through. PostgreSQL writes `ERROR:  relation "x" does not exist` but
+        // follows it with a newline and a LINE marker, so a pattern without
+        // /s stopped at the right place by luck. MySQL writes
+        // `SQLSTATE[42S02]: Base table or view not found: 1146 Table 'a.b'
+        // doesn't exist` and carries no ERROR: token at all, so every MySQL
+        // fault reduced to the generic sentence - on the stack this package is
+        // most often installed on.
+        //
+        // That mattered more once a database error stopped being reworded into
+        // "could not understand the query": the message a user now sees is
+        // this one, so it has to say something.
+        $patterns = [
+            '/ERROR:\s*(.+?)(?:\r?\n|\(|$)/i',        // PostgreSQL
+            '/SQLSTATE\[[^\]]+\]:\s*(?:[^:]+:\s*)?(?:\d+\s+)?(.+?)(?:\r?\n|\(SQL:|$)/i', // MySQL, SQLite
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (!preg_match($pattern, $message, $m) || trim($m[1]) === '') {
+                continue;
+            }
+
+            // Never echo the statement back, whichever branch matched. Laravel
+            // appends "(Connection: mysql, SQL: select ...)" to the driver's
+            // message, so stripping only "(SQL:" left the whole query in a
+            // string shown to the user.
+            $clean = preg_replace('/\s*\((?:Connection:|SQL:).*$/is', '', $m[1]) ?? '';
+
+            // Drivers prefix their own error number; it means nothing here.
+            $clean = preg_replace('/^\d+\s+/', '', trim($clean)) ?? '';
+
+            if ($clean !== '') {
+                return $clean;
+            }
         }
 
         return 'An error occurred while querying the database.';

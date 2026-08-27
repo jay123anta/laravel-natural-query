@@ -357,6 +357,16 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-lock
 
+      # Reports, never gates. A library ships no lock, so an advisory here is
+      # almost always against a DEV dependency resolved fresh on this runner -
+      # something the adopter will never install. Failing the build on it would
+      # turn somebody else's release into a red tick on this repository, and
+      # the fix would be to wait. Surfacing it is still worth doing: a direct
+      # dependency is the case that matters, and this is where it shows up.
+      - name: Report dependency advisories
+        continue-on-error: true
+        run: composer audit --format=summary
+
   # ---------------------------------------------------------------------------
   # Provider conformance.
   #

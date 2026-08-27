@@ -44,6 +44,19 @@ use Jayanta\NaturalQuery\Security\InputGuard;
 use Jayanta\NaturalQuery\Security\SqlValidator;
 use Jayanta\NaturalQuery\Support\EnvValue;
 
+/**
+ * Deliberately NOT a DeferrableProvider, and it cannot become one.
+ *
+ * Deferring means Laravel skips boot() until something resolves a binding this
+ * provider promises. boot() here does work nothing resolves a binding for:
+ * it registers routes, loads views and the Blade component, and loads
+ * migrations. A deferred provider would leave `/naturalquery/*` returning 404
+ * and `<x-naturalquery::widget />` failing to render, on an install where
+ * everything looks correctly configured.
+ *
+ * register() is side-effect free and only binds, so the usual reason to defer
+ * - keeping a heavy provider off every request - does not apply either.
+ */
 class NaturalQueryServiceProvider extends ServiceProvider
 {
     public function register(): void

@@ -8,7 +8,6 @@
 Thumbs.db
 .env
 composer.lock
-package-lock.json
 
 # PHPUnit
 .phpunit.result.cache
