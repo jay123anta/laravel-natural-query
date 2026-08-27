@@ -191,6 +191,13 @@ measure to total, that users say "client" for `customer_name`, and that
 cancelled orders do not count, it is reliable for the questions those datasets
 are meant to answer.
 
+That last one is a rule, not a hint. A `required_filter` in a schema file is
+**enforced where the SQL is executed** - a generated query that omits it is
+refused rather than answered, on every route that reaches your database,
+including a cached one replayed later. It is the one setting whose whole
+purpose is that the answer is wrong without it, so it is not left to the model
+to remember. → [docs/SCHEMA.md](docs/SCHEMA.md)
+
 **It is not magic.** Pointed at an undescribed database and asked something
 vague, any text-to-SQL system will sometimes produce a confident, wrong answer.
 
@@ -247,15 +254,26 @@ narrows, drills down and rewinds:
 | Gemini 2.5 Flash | 17/17 |
 | Claude Sonnet 5 | 17/17 |
 | DeepSeek v4 Flash | 17/17 |
+| DeepSeek v4 Flash, via an OpenAI-compatible router | 17/17 |
 | Mistral Large | 17/17 |
-| Llama 3.3 70B (open weights) | 17/17 |
+| NVIDIA Nemotron 3 Super 120B | 15/17 |
+| Groq `gpt-oss-120b` | 14/17 |
 | Llama 3.1 8B (open weights) | 12/17 |
 
-**Model size matters more than vendor.** The 70B open-weight model scores the
-same as the four frontier hosted ones, and runs on a single good GPU. The 8B
-drops filters and ignores date periods - asked for July it returns the whole
-table, confidently - so **use a 70B-class model or better wherever a wrong
-number matters.**
+**Model size matters more than vendor, and one capability separates the tiers.**
+Everything above answers totals, filters, averages, periods and a conversation
+that narrows, drills down and rewinds. What divides them is **multi-step
+decomposition** - "compare July with August" - which both 120B-class models
+failed and every frontier model passed. The 8B is worse again: it drops filters
+and ignores date periods, so asked for July it returns the whole table,
+confidently.
+
+**Use a frontier model wherever a wrong number matters.** A 120B open-weight
+model is a reasonable choice if you do not need comparison questions.
+
+The fourth row is the portability claim, measured: a service this package has
+no built-in support for, reached with nothing but a `base_url` and a model
+name.
 
 Conversation state is the exception worth noting: narrowing, drill-down and
 rewind pass even on the 8B, because they are resolved in PHP rather than left
@@ -293,7 +311,7 @@ entirely offline against Ollama.
 The parts that are not: SELECT-only validation against a schema-derived
 whitelist, a cache that cannot answer one question with another question's
 result, rate limits reported as rate limits, and a benchmark that tells you how
-often you are wrong. Those took this package four adversarial review rounds and
+often you are wrong. Those took this package many adversarial review rounds and
 710 tests, and every one of them exists because something went wrong first.
 
 ## Documentation

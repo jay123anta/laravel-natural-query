@@ -113,7 +113,14 @@ return [
             ],
             'groq' => [
                 'api_key' => env('GROQ_API_KEY'),
-                'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+                // Was llama-3.3-70b-versatile. Groq retired every Llama model,
+                // so that default returned HTTP 404 on every question for
+                // anyone who set the driver and no model - the second time a
+                // shipped default has died this way, after gemini-2.0-flash.
+                // Verified served, and measured at 14/17 on the conformance
+                // battery; the misses were free-tier rate limits plus
+                // multi-step decomposition, which 120B-class models fail.
+                'model' => env('GROQ_MODEL', 'openai/gpt-oss-120b'),
                 'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
                 'timeout' => is_numeric(env('NATURALQUERY_TIMEOUT')) ? (int) env('NATURALQUERY_TIMEOUT') : 30,
                 'max_retries' => 3,
