@@ -255,29 +255,28 @@ narrows, drills down and rewinds:
 | Claude Sonnet 5 | 17/17 |
 | DeepSeek v4 Flash | 17/17 |
 | DeepSeek v4 Flash, via an OpenAI-compatible router | 17/17 |
+| `gpt-oss-20b` (open weights) | 17/17 |
 | Mistral Large | 17/17 |
-| NVIDIA Nemotron 3 Super 120B | 15/17 |
-| Groq `gpt-oss-120b` | 14/17 |
+| Nemotron 3 Super 120B (open weights) | 15/17 |
 | Llama 3.1 8B (open weights) | 12/17 |
 
-**Model size matters more than vendor, and one capability separates the tiers.**
-Everything above answers totals, filters, averages, periods and a conversation
-that narrows, drills down and rewinds. What divides them is **multi-step
-decomposition** - "compare July with August" - which both 120B-class models
-failed and every frontier model passed. The 8B is worse again: it drops filters
-and ignores date periods, so asked for July it returns the whole table,
-confidently.
+**Below about 30B, expect trouble.** The 8B drops filters and ignores date
+periods - asked for July it returns the whole table, confidently. That is the
+one clear line in this data.
 
-**Use a frontier model wherever a wrong number matters.** A 120B open-weight
-model is a reasonable choice if you do not need comparison questions.
-
-The fourth row is the portability claim, measured: a service this package has
-no built-in support for, reached with nothing but a `base_url` and a model
-name.
+**Above it, capability does not track parameter count.** A 20B open-weight
+model scored 17/17, including the multi-step decomposition ("compare July with
+August") that a 120B model failed. Do not assume a bigger open-weight model is
+a safer one; the batteries take a minute to run, so measure the model you
+intend to use.
 
 Conversation state is the exception worth noting: narrowing, drill-down and
 rewind pass even on the 8B, because they are resolved in PHP rather than left
 to the model.
+
+The fourth row is the portability claim, measured: a service this package has
+no built-in support for, reached with nothing but a `base_url` and a model
+name.
 
 ```bash
 NATURALQUERY_CONFORMANCE=1 NATURALQUERY_LLM_DRIVER=claude \
