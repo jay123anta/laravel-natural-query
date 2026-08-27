@@ -5,7 +5,7 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-08-26
 
 ### Added
 - **Every answer says how the question was understood.** `parsed_summary` is a
@@ -93,11 +93,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   answer rather than an error.
 
 - **`naturalquery:doctor` flags small models.** Measured on this package's own
-  battery: Llama 3.1 8B scores 12/17, dropping filters and ignoring date
-  periods; 70B-class and current hosted models score 17/17. Someone running an
-  8B model locally and seeing wrong answers would otherwise blame the package.
-  The check matches explicit parameter counts only -  not words like "mini",
-  which would catch capable hosted models this package has never measured.
+  conformance battery, models below roughly 20B drop filters and ignore date
+  periods - asked for July, the whole table comes back. Someone running a small
+  model locally and seeing wrong answers would otherwise blame the package. The
+  check matches explicit parameter counts only -  not words like "mini", which
+  would catch capable hosted models this package has never measured.
 
 ### Fixed
 - **A capital letter could change the question.** `query_type` decides whether

@@ -259,26 +259,26 @@ narrows, drills down and rewinds:
 | Mistral Large | 17/17 |
 | Muse Glimmer 30B (open weights) | 15/17 |
 | Nemotron 3 Super 120B (open weights) | 15/17 |
-| Llama 3.1 8B (open weights) | 12/17 |
 
 **Capability does not track parameter count, and models fail differently.**
 A 20B scored 17/17 including the multi-step decomposition ("compare July with
-August") that a 120B failed. Three distinct failure modes showed up:
-
-- **8B** - drops filters and ignores date periods. Asked for July it returns
-  the whole table, confidently.
-- **30B** - answers a scalar question with an unrequested breakdown. Asked for
-  *the* average it returned an average per client.
-- **120B** - handles single questions cleanly but cannot decompose a comparison
-  into steps.
+August") that a 120B failed. Where models do miss, they miss in different
+places: one answers a scalar question with an unrequested breakdown - asked for
+*the* average it returns an average per client - while another handles single
+questions cleanly and cannot decompose a comparison into steps.
 
 So there is no single number to rank models by for this job. The battery takes
 about a minute; **run it against the model you actually intend to use** rather
 than inferring from size or vendor.
 
+**Small local models are the one case to be careful with.** Below roughly 20B,
+expect dropped filters and ignored date periods - asked for July, the whole
+table comes back, confidently. If you are running a model on your own hardware
+and a wrong number matters, measure it before you trust it.
+
 Conversation state is the exception worth noting: narrowing, drill-down and
-rewind pass even on the 8B, because they are resolved in PHP rather than left
-to the model.
+rewind hold up even on small models, because they are resolved in PHP rather
+than left to the model.
 
 The fourth row is the portability claim, measured: a service this package has
 no built-in support for, reached with nothing but a `base_url` and a model
