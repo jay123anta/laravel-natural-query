@@ -65,7 +65,12 @@ class PackagingTest extends TestCase
     {
         $ignored = $this->exportIgnoredPaths();
 
-        foreach (['tests', '.github', 'phpunit.xml'] as $devPath) {
+        foreach ([
+            'tests', '.github', 'phpunit.xml',
+            // Tooling and contributor docs. Small, but an adopter downloads
+            // them into vendor/ on every install and can do nothing with them.
+            'pint.json', 'phpstan.neon.dist', 'CONTRIBUTING.md', 'SECURITY.md',
+        ] as $devPath) {
             $this->assertContains(
                 $devPath,
                 $ignored,

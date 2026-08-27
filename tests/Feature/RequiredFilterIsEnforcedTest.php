@@ -5,6 +5,7 @@ namespace Jayanta\NaturalQuery\Tests\Feature;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
+use Jayanta\NaturalQuery\Engine\ErrorCode;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -94,6 +95,22 @@ class RequiredFilterIsEnforcedTest extends TestCase
         $this->disobedientProvider('SELECT SUM(revenue) AS revenue FROM nq_orders');
 
         $result = $this->app->make(QueryOrchestrator::class)->query('total revenue', 'nq_orders');
+
+        // The reason code, not just the number. `total()` returns 0.0 for any
+        // error response because an error carries no rows, so asserting only
+        // `!= 800.0` passes when the query fails for ANY reason at all -
+        // proven by swapping this refusal for a rate-limit error and watching
+        // the whole suite stay green. A schema rule reported as a 429 with
+        // `retryable: true` sends the caller into a retry loop against
+        // something the engine has already marked unretriable, which is the
+        // failure Rule 0 names, running backwards.
+        $this->assertSame('error', $result['status'] ?? null, json_encode($result));
+
+        $this->assertSame(
+            ErrorCode::CANNOT_ANSWER,
+            $result['error_code'] ?? null,
+            'the query was rejected, but not as an unanswerable one: ' . json_encode($result)
+        );
 
         $this->assertNotEquals(
             800.0,

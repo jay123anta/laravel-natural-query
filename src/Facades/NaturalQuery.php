@@ -17,6 +17,8 @@ use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
  * @method static array getDatasetMetrics(string $datasetKey)
  * @method static array healthCheck()
  * @method static \Jayanta\NaturalQuery\Schema\SchemaRegistry registry()
+ * @method static array getCacheStats()
+ * @method static int clearCache(?string $dataset = null, int $olderThanDays = 0, int $minHits = 0)
  *
  * @see QueryOrchestrator
  */
