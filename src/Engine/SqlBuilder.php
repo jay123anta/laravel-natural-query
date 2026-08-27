@@ -299,6 +299,11 @@ class SqlBuilder
                 // the WHERE clause, so its presence is what makes `time_filter`
                 // trustworthy.
                 'time_column' => $time['column'] ?? null,
+                // The bounds themselves, so a conversation can carry the period
+                // forward. A label cannot be merged with a follow-up's; two
+                // dates can.
+                'date_from' => $time['from'] ?? null,
+                'date_to' => $time['to'] ?? null,
                 'filter_column' => $filtersAnotherColumn ? ($filters['columns'][0] ?? null) : null,
                 'filter_columns' => $filters['columns'] ?? [],
                 'filters' => $filters['pairs'] ?? [],
@@ -531,6 +536,15 @@ class SqlBuilder
             'bindings' => $bindings,
             'column' => $column,
             'label' => $this->describePeriod($from, $to),
+            // The resolved bounds, not just the label rendered from them.
+            // Only the label used to leave this method, so a conversation
+            // could never carry a period: ConversationManager builds the next
+            // state from `parsed_query`, and `date_from`/`date_to` had no
+            // route into it. "Revenue in July" then "only in West" answered
+            // West ALL TIME, six times the right figure, with nothing in the
+            // response saying the month had gone.
+            'from' => $from,
+            'to' => $to,
         ];
     }
 

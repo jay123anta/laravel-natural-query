@@ -57,6 +57,14 @@ class ResponseFormatter
                 // executed SQL demonstrably narrowed on the date column, so
                 // what a caller reads is a period that was applied or nothing.
                 'period' => $queryResult['time_filter'] ?? null,
+                // The bounds behind that label. `period` is for a human to
+                // read; these are what a conversation carries forward, because
+                // ConversationManager builds the next turn's state from this
+                // array. Without them a period could never survive a
+                // narrowing turn, and "revenue in July" followed by "only in
+                // West" answered West all-time.
+                'date_from' => $queryResult['date_from'] ?? null,
+                'date_to' => $queryResult['date_to'] ?? null,
                 'limit' => $queryResult['limit'] ?? null,
                 'order' => $queryResult['order'] ?? null,
                 'query_type' => $queryResult['query_type'] ?? 'ranking',
