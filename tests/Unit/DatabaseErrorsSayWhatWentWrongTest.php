@@ -52,6 +52,48 @@ class DatabaseErrorsSayWhatWentWrongTest extends TestCase
                     . "\nLINE 1: select sum(revenue) from shop_ordrs",
                 'relation "shop_ordrs" does not exist',
             ],
+
+            // Carries no "error:" token anywhere, so it can only be answered
+            // by the SQLSTATE branch. The row above it can be answered by
+            // either - PostgreSQL's pattern used to match the "error:" inside
+            // "General error:" - so deleting the SQLite branch left that row
+            // green and the driver it is named for untested.
+            'sqlite not null' => [
+                'SQLSTATE[23000]: Integrity constraint violation: 19 NOT NULL constraint '
+                    . 'failed: orders.total (Connection: sqlite, SQL: select sum(total) from orders)',
+                'NOT NULL constraint failed: orders.total',
+            ],
+
+            // The cause contains a parenthesis. Terminating the PostgreSQL
+            // pattern at the first "(" cut this to "function sum", which reads
+            // like a column name rather than an error and tells the user
+            // nothing about the type mismatch that actually stopped them.
+            'postgres function signature' => [
+                'SQLSTATE[42883]: Undefined function: 7 ERROR:  function sum(character varying) '
+                    . "does not exist\nLINE 1: select sum(name) from orders",
+                'function sum(character varying) does not exist',
+            ],
+
+            // "Grouping error:" is a word followed by the token, so the
+            // PostgreSQL pattern used to match THERE and hand back its own
+            // "ERROR:  " prefix as part of the cause.
+            'postgres grouping' => [
+                'SQLSTATE[42803]: Grouping error: 7 ERROR:  column "o.region" must appear in the '
+                    . 'GROUP BY clause or be used in an aggregate function',
+                'column "o.region" must appear in the GROUP BY clause or be used in an aggregate function',
+            ],
+
+            // The statement Laravel appends carries the bindings interpolated,
+            // so a filter value containing "error:" put the user's own query
+            // text where the cause belongs. Stripping the statement before
+            // matching, rather than out of the captured group afterwards, is
+            // what stops the patterns ever seeing it.
+            'mysql value containing the error token' => [
+                "SQLSTATE[42S22]: Column not found: 1054 Unknown column 'statuss' in 'where clause' "
+                    . '(Connection: mysql, SQL: select sum(`total`) from `orders` '
+                    . 'where `status` = ERROR: unpaid)',
+                "Unknown column 'statuss' in 'where clause'",
+            ],
         ];
     }
 

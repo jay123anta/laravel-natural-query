@@ -2434,9 +2434,29 @@ class QueryOrchestrator
         // That mattered more once a database error stopped being reworded into
         // "could not understand the query": the message a user now sees is
         // this one, so it has to say something.
+        // Never echo the statement back - and strip it BEFORE matching, not
+        // out of the captured group afterwards. Laravel appends "(Connection:
+        // mysql, SQL: select ...)" with the bindings already interpolated, so
+        // matching first ran the patterns over the user's own query text: a
+        // question filtering on a value containing "error:" put that value
+        // where the cause belongs, and the user was shown a fragment of their
+        // own question instead of what went wrong.
+        $message = preg_replace('/\s*\((?:Connection:|SQL:).*$/is', '', $message) ?? $message;
+
         $patterns = [
-            '/ERROR:\s*(.+?)(?:\r?\n|\(|$)/i',        // PostgreSQL
-            '/SQLSTATE\[[^\]]+\]:\s*(?:[^:]+:\s*)?(?:\d+\s+)?(.+?)(?:\r?\n|\(SQL:|$)/i', // MySQL, SQLite
+            // PostgreSQL. The lookbehind is what stops it claiming the other
+            // dialects' messages: SQLite says "General error: 1 no such table"
+            // and MySQL "Grouping error: 7 ...", and a bare /ERROR:/i matched
+            // the token inside those words, so the SQLSTATE branch below never
+            // ran for them. PostgreSQL's own marker follows a number ("...: 7
+            // ERROR:  relation"), never a word.
+            //
+            // No "(" terminator either. It truncated the cause at the first
+            // parenthesis, so "function sum(character varying) does not exist"
+            // reached the user as "function sum" - which reads like a column
+            // name rather than an error. The statement is already gone by here.
+            '/(?<![a-z] )ERROR:\s*(.+?)(?:\r?\n|$)/i',
+            '/SQLSTATE\[[^\]]+\]:\s*(?:[^:]+:\s*)?(?:\d+\s+)?(.+?)(?:\r?\n|$)/i', // MySQL, SQLite
         ];
 
         foreach ($patterns as $pattern) {
@@ -2444,14 +2464,8 @@ class QueryOrchestrator
                 continue;
             }
 
-            // Never echo the statement back, whichever branch matched. Laravel
-            // appends "(Connection: mysql, SQL: select ...)" to the driver's
-            // message, so stripping only "(SQL:" left the whole query in a
-            // string shown to the user.
-            $clean = preg_replace('/\s*\((?:Connection:|SQL:).*$/is', '', $m[1]) ?? '';
-
             // Drivers prefix their own error number; it means nothing here.
-            $clean = preg_replace('/^\d+\s+/', '', trim($clean)) ?? '';
+            $clean = preg_replace('/^\d+\s+/', '', trim($m[1])) ?? '';
 
             if ($clean !== '') {
                 return $clean;
