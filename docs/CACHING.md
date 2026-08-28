@@ -17,7 +17,7 @@ Two shapes, depending on how the question was answered.
 
 | Mode | Stored | Replayed by |
 |---|---|---|
-| `intent` | The parsed intent -  dataset, metric, filters, grouping, period | `SqlBuilder`, which rebuilds the SQL |
+| `intent` | The parsed intent -  dataset, metric, filters, grouping | `SqlBuilder`, which rebuilds the SQL |
 | `sql_generation` | The finished SQL, under `_sql_result` | Replayed verbatim |
 
 The two are **not** interchangeable, and the engine will not read one as the
@@ -29,6 +29,38 @@ pays for a fresh call.
 
 Nothing from your data is ever stored: the row holds the question text, the
 structure the AI derived from it, and the SQL. No result rows, no values.
+
+## Dated questions are never cached
+
+Since 2.2.1, a question whose answer covers a period is answered by the model
+every time. It is the one thing the cache cannot do safely.
+
+The key is the question's **words**, and those do not change when the correct
+answer does. "Revenue last month" asked in July resolves to June; asked in
+August it means July. Cached, the August ask replayed June -  the wrong number,
+with no provider call, no expiry to age it out, and the fuzzy tier handing the
+same dead row to every rewording. There was no way for the user to escape it
+and nothing in the answer that looked wrong.
+
+Both routes are covered, and both are judged on the **SQL that ran**:
+
+- `intent` -  an intent carrying `date_from` or `date_to` is not stored.
+- `sql_generation` -  a recipe whose SQL pins a moment is not stored. The test
+  is a four-digit year anywhere in the statement, which catches the literal
+  `'2026-06-01'` and the bare comparison in `YEAR(placed_on) = 2026`.
+
+`NOW()`, `CURRENT_DATE` and friends re-evaluate on every execution, so a recipe
+built on them stays correct next month and stays cacheable.
+
+The check is deliberately blunt in the safe direction: a false positive costs
+one API call, a false negative serves a wrong number for ever. Refusals are
+logged at debug level (`Not caching a recipe that pins a date`) if you want to
+see how often it fires.
+
+**Upgrading:** rows written before 2.2.1 carry those dates and are retired by
+the intent contract version, so they stop being served the moment you upgrade.
+You do not need to run `naturalquery:cache-cleanup`, though it will reclaim
+the space.
 
 ## Two tiers
 

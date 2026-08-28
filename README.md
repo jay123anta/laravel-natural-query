@@ -317,7 +317,7 @@ The parts that are not: SELECT-only validation against a schema-derived
 whitelist, a cache that cannot answer one question with another question's
 result, rate limits reported as rate limits, and a benchmark that tells you how
 often you are wrong. Those took this package many adversarial review rounds and
-726 tests, and every one of them exists because something went wrong first.
+739 tests, and every one of them exists because something went wrong first.
 
 ## Documentation
 

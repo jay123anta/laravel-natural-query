@@ -93,6 +93,30 @@ Follow-ups are never answered from, or written to, the query cache: "only in
 West" means one thing after a revenue question and another after an order
 count.
 
+**A period carries between turns, and can be widened.** Since 2.2.1, "revenue
+in July 2026" followed by "only in West" answers West *in July*. Before that
+the window was silently dropped and the follow-up covered all time -  an answer
+six times larger than the right one, reading exactly like a correct answer to
+the question asked.
+
+Because it carries, it also needs a way out. A turn that names no dates is
+inheriting the window, not clearing it -  a model omitting a field must never
+be read as an instruction. Say so explicitly to widen:
+
+> "revenue in July 2026" → "only in West" → **"and across all time"**
+
+*all time*, *all dates*, *every year*, *without the date filter*, *drop the
+date range* and *the whole period* are all recognised. **New topic** and
+**rewind** clear it too. The current window is always visible in
+`state.date_from` / `state.date_to` and in the state summary line, so a user
+can see what is still in force rather than having to remember it.
+
+On the `sql_generation` route the period does **not** carry. The model wrote
+the `WHERE` itself and the engine cannot read the dates back out of arbitrary
+SQL, so it says nothing rather than guessing -  name the period again in the
+follow-up. Intent mode, and `auto` mode on questions the intent contract
+covers, carry it normally.
+
 ## Chatbots: multi-step answers and follow-ups
 
 Two features exist for conversational front-ends. Both are on by default and

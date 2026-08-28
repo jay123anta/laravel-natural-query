@@ -140,6 +140,11 @@ your server or any model provider.
     "period": "2026-07-01 to 2026-07-31",   // the dates actually applied, or
                                   // `null` -  never a range the query did not
                                   // use, and never a period a model claimed
+    "date_from": "2026-07-01",    // the same window as two dates rather than a
+    "date_to": "2026-07-31",      // label, so a follow-up can inherit it.
+                                  // Added in 2.2.1. Both `null` in
+                                  // sql_generation mode, where the model wrote
+                                  // the WHERE and the engine cannot read it
     "group_value": "West",
     "limit": 5,
     "order": "DESC",
@@ -278,6 +283,16 @@ and gets reworded.
 Validation failures return **422** with Laravel's standard `errors` object.
 Exceeding `limits.queries_per_day` returns **429** with
 `metadata.limit_reached`.
+
+**`database_error` carries the driver's own cause**, on MySQL and SQLite as
+well as PostgreSQL -  *"Unknown column 'revenoo' in 'field list'"* rather than
+a generic sentence. The statement and its bindings are always stripped first,
+so the SQL is never echoed back. What remains is the driver's text, and a few
+messages embed the offending **value** in it (MySQL's *"Truncated incorrect
+DOUBLE value: '…'"*). That text reaches the user and the `QuestionFailed`
+event; if your error tracker is third-party, that is worth knowing. Nothing
+from it is ever sent to an LLM provider -  a retry is rebuilt from the schema
+and the original question.
 
 ---
 

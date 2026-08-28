@@ -5,6 +5,84 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-08-28
+
+Correctness only. No configuration changed, no API was removed, and nothing
+needs to be republished. Every item is a wrong answer that could be served
+confidently, which is the failure this package treats as the worst one.
+
+### Fixed
+
+- **A question about a period is no longer answered from the cache.** The cache
+  key is the question's *words*, and those do not change when the correct
+  answer does. "Revenue last month" asked in July resolved to June and was
+  stored; asked again in August it replayed June -  the wrong number, with the
+  provider never consulted, no expiry to age the row out, and the fuzzy tier
+  handing the same dead row to every rewording. Nothing about the answer looked
+  wrong and there was no way for the user to escape it.
+
+  Both routes are covered and both are judged on **the SQL that ran**: an
+  intent carrying `date_from`/`date_to` is not stored, and a generated recipe
+  whose SQL pins a moment is not stored. `NOW()` and `CURRENT_DATE`
+  re-evaluate on replay, so recipes built on them stay cacheable. Refusals are
+  logged at debug level. See `docs/CACHING.md`.
+
+- **Rows cached by earlier versions are retired on upgrade.** Gating only the
+  write left every row 2.2.0 had already written eligible on read, so the
+  installs that actually had the bug above kept serving it for ever. The intent
+  contract version now retires them; `naturalquery:cache-cleanup` reclaims the
+  space but is not required.
+
+- **A period established in a conversation survives the next turn.** "Revenue
+  in July 2026" followed by "only in West" answered West *all-time* -  an
+  answer six times larger than the right one, reading exactly like a correct
+  answer to the question asked. `parsed_query` carried a rendered label but
+  never the two dates, so no conversation had ever held a date range.
+
+- **...and can be widened again.** A carried window with no way to remove it is
+  its own wrong answer: "and across all time" was classified as a refinement,
+  the model correctly returned no dates, and the answer stayed pinned to July.
+  A turn that names no dates is inheriting the window; saying *all time*, *all
+  dates*, *every year*, *without the date filter* or *the whole period*
+  clears it. On `sql_generation` the period does not carry at all -  the model
+  wrote the `WHERE` and the engine will not guess at arbitrary SQL rather than
+  report something it cannot verify.
+
+- **Database failures say what went wrong on MySQL and SQLite**, not only
+  PostgreSQL. Every non-PostgreSQL fault used to collapse to "An error
+  occurred while querying the database" -  on the stack this package is most
+  often installed on. The statement and its bindings are stripped *before* the
+  cause is extracted, so a filter value containing `error:` can no longer be
+  served back to the user in place of the cause, and a cause containing a
+  parenthesis (`function sum(character varying) does not exist`) is no longer
+  truncated to something that reads like a column name.
+
+- **A cached recipe is re-checked against the schema rules that now apply.**
+  One cached before an adopter added a `required_filter` was replayed into a
+  refusal for ever, and the advice in that refusal -  ask again -  could not
+  work. It now regenerates once and the row heals. A recipe naming a table the
+  validator no longer whitelists still reports `not_understood`; that is
+  tracked and not fixed here.
+
+### Added
+
+- `parsed_query.date_from` and `parsed_query.date_to` -  the window an answer
+  actually applied, as dates rather than the existing rendered `period` label,
+  so a client can carry it. Both `null` in `sql_generation` mode. Additive;
+  nothing was renamed or removed.
+
+### Known issues
+
+- On the `sql_generation` route a period is not inherited by a follow-up. Name
+  it again in the follow-up question.
+- `required_filter` is matched literally, so SQL that satisfies the rule by
+  other means (`status NOT IN ('cancelled')` against a rule written
+  `status != 'cancelled'`) is still refused, and the regeneration above pays
+  for a provider call each time it happens.
+- `database_error` text is the driver's own, and a few MySQL messages embed the
+  offending value. It reaches the user and the `QuestionFailed` event; it is
+  never sent to a provider.
+
 ## [2.2.0] - 2026-08-26
 
 ### Added
