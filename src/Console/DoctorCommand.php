@@ -170,8 +170,8 @@ class DoctorCommand extends Command
      *
      * Two settings hit this in 2.1.0 alone. One of them
      * (cache.similarity_threshold) used to fail towards a silent wrong answer
-     * rather than a crash; since 2.3.0 it no longer decides a fuzzy match at
-     * all, so drift in it is harmless - but drift in the block AROUND it is
+     * rather than a crash; it was retired with the fuzzy tier in 2.3.0, so
+     * drift in that key is harmless now - but drift in the block AROUND it is
      * not, and that is what this checks.
      */
     protected function checkPublishedConfigDrift(): void

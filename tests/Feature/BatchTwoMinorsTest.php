@@ -100,62 +100,6 @@ class BatchTwoMinorsTest extends TestCase
                 . 'happened to be declared on its own abstract base rather than on the concrete class'
         );
     }
-
-    /** The fuzzy shortlist must be wide enough to survive a busy neighbour scope. */
-    #[Test]
-    public function the_fuzzy_shortlist_is_not_crowded_out_by_another_scope()
-    {
-        $this->artisan('migrate', ['--force' => true])->run();
-
-        // The threshold is not what is under test here, and leaving it at the
-        // shipped 0.85 would need a wording pair engineered to clear it -  which
-        // makes the test about the similarity arithmetic instead of about the
-        // shortlist. Lowered so the only thing that can decide the outcome is
-        // whether the wanted row survived the candidate query.
-        config([
-            'naturalquery.cache.similarity_threshold' => 0.5,
-            // Fuzzy matching is opt-in since 2.1.0; this test is about it.
-            'naturalquery.cache.fuzzy_matching' => true,
-        ]);
-
-        $cache = $this->app->make(TwoTierQueryCache::class);
-        $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
-
-        // The row we want, cached under nq_products and rarely used.
-        $cache->store('total revenue by category for the year', [
-            'dataset' => 'nq_products',
-            'metric' => 'revenue',
-            '_asking_scope' => 'nq_products',
-        ]);
-
-        // 60 much hotter rows under a different scope, all matching the same
-        // significant words. Under the old shortlist of 50 these crowd the
-        // wanted row out entirely.
-        for ($i = 0; $i < 60; $i++) {
-            DB::table($table)->insert([
-                'query_hash' => hash('sha256', "filler-{$i}"),
-                'contract_version' => 4,
-                'original_query' => "total revenue by category for the year variant {$i}",
-                'normalized_query' => $cache->normalizeQuery("total revenue by category for the year variant {$i}"),
-                'dataset' => 'nq_orders',
-                'intent' => json_encode(['dataset' => 'nq_orders', '_asking_scope' => 'nq_orders']),
-                'hit_count' => 1000 + $i,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        // Different wording after normalisation -  "years" is a distinct token
-        // from "year", so this cannot be answered by the exact tier and must
-        // go through fuzzy. (The earlier version of this test asked with a
-        // leading "the", which is a filler word: both wordings normalised
-        // identically, it was an exact hit, and the fuzzy tier was never
-        // reached at all. It passed with the fix reverted.)
-        $this->assertNotNull(
-            $cache->findForDataset('total revenue by category for the years', 'nq_products'),
-            'the fuzzy tier stopped working for a quiet scope because a busier one filled the shortlist'
-        );
-    }
 }
 
 /** A cache whose find() lives on its own base, not on TwoTierQueryCache. */

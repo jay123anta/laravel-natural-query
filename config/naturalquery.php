@@ -592,52 +592,37 @@ return [
         // Cache TTL in seconds (default: 24 hours)
         'ttl' => is_numeric(env('NATURALQUERY_CACHE_TTL')) ? (int) env('NATURALQUERY_CACHE_TTL') : 86400,
 
-        // NO LONGER DECIDES A FUZZY HIT, since 2.3.0. Kept so that a published
-        // config carrying it keeps loading, and still used to rank candidates
-        // that have already been judged safe. Setting it has no effect on
-        // WHICH questions match.
+        // NO LONGER READ, since 2.3.0. Kept only so that a config published by
+        // an earlier version keeps loading. Setting it does nothing.
         //
-        // It was removed as the gate because the score it thresholds turned
-        // out to be anti-correlated with safety. Measured on this
-        // implementation, at the 0.85 this used to default to:
+        // It thresholded a lexical similarity score, and that score turned out
+        // to be anti-correlated with safety. Measured on the implementation
+        // that shipped, at this key's own default of 0.85:
         //
-        //   grade a / grade b, stated precisely       0.883, 0.892   REUSED
-        //   top 10 / bottom 10 customers              0.468          missed
-        //   revenue in 2025 / in 2026                 0.673          missed
-        //   "custmers" / "customers"                  0.356          missed
-        //   "pendign" / "pending" orders              0.728          missed
+        //   ...for pending orders in grade a / grade b   0.883   REUSED
+        //   ...and category...in 2025 grade a / grade b  0.892   REUSED
+        //   revenue in 2025 / in 2026                    0.673   missed
+        //   top 10 / bottom 10 customers                 0.468   missed
+        //   "summry" / "summary", a real typo            0.818   missed
+        //   a real paraphrase                            0.447   missed
         //
-        // The two pairs that must never match scored HIGHER than every pair
-        // that should. No value of this setting separates those sets, so the
-        // tier reused the wrong answers and rejected the typos it exists for.
-        // What decides now is the DIFFERENCE between two questions rather than
-        // their overlap -  see TwoTierQueryCache::differsOnlyByATypo().
+        // The pairs that must never match scored HIGHER than every pair that
+        // should, so no value of this key separated them.
         'similarity_threshold' => is_numeric(env('NATURALQUERY_CACHE_SIMILARITY')) ? (float) env('NATURALQUERY_CACHE_SIMILARITY') : 0.85,
 
-        // Reuse a cached answer for a question that is merely SIMILAR, rather
-        // than identical. Still OFF by default, but what it does when you turn
-        // it on changed completely in 2.3.0.
+        // NO LONGER READ, since 2.3.0. The fuzzy tier it enabled has been
+        // removed, not merely defaulted off, so an app that set this years ago
+        // gets the safe behaviour on upgrade rather than the one it configured.
         //
-        // Queries are normalised before comparison -  lowercased, filler words
-        // dropped, synonyms folded, de-duplicated, sorted -  so two that come
-        // out equal are already an exact hit. Everything this tier judges
-        // therefore differs in real, meaning-bearing tokens. Scoring the
-        // OVERLAP of such a pair rewarded length: the more precisely someone
-        // stated a question, the likelier it was to be answered with a
-        // different one, and "grade a" vs "grade b" scored 0.892.
+        // The cache still reuses an answer for the same question asked again.
+        // What it no longer does is GUESS: normalizeQuery() already folds away
+        // case, filler words, synonyms, duplication and word order before the
+        // lookup, so anything still different after that differs in MEANING,
+        // and scoring how much of that difference two questions share was
+        // measured reusing "grade a" for "grade b".
         //
-        // It now matches on the DIFFERENCE. Exactly one token may differ, on
-        // each side, and the two must be plausible misspellings of each other -
-        // never a digit, never shorter than four characters, one edit or one
-        // adjacent transposition. So it reuses an answer for "custmers" and
-        // "pendign", and refuses "grade a" for "grade b", "2025" for "2026",
-        // "top" for "bottom" and "last month" for "this month".
-        //
-        // It is narrower than it was and it is meant to be: a typo is the only
-        // thing two questions can differ by and still be the same question.
-        // Left off by default because that is a real behaviour change and the
-        // evidence for flipping a default should come from installs, not from
-        // the author. Read docs/CACHING.md first.
+        // Paraphrases belong in the synonym map above, where they fold during
+        // normalisation into EXACT hits that nothing has to guess at.
         'fuzzy_matching' => env('NATURALQUERY_CACHE_FUZZY', false),
 
         // Tier 1 cache store (null = auto-detect from config/cache.php)

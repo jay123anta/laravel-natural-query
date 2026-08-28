@@ -7,45 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Removed
 
-- **The fuzzy cache tier now matches typos, and only typos.** It used to
-  threshold a similarity score, and that score turned out to be
-  anti-correlated with safety. Measured on the shipped scorer at the `0.85`
-  the package defaulted to:
+- **The fuzzy cache tier is gone.** It matched questions by wording similarity,
+  was off by default, and could return a different question's answer. Removed
+  rather than defaulted off again, so an app that enabled it years ago gets the
+  safe behaviour on upgrade instead of the one its config file asks for.
 
-  | Question pair | Score | Old behaviour |
+  It scored `0.6 × Jaccard + 0.4 × Levenshtein` against a threshold, and that
+  score turned out to be anti-correlated with safety. Measured at the `0.85`
+  the package shipped:
+
+  | Question pair | Score | Behaviour |
   |---|---|---|
-  | `…by region for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
+  | `…for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
   | `…and category…in 2025 for grade a` / `grade b` | **0.892** | **reused — wrong answer** |
+  | `revenue in 2025` / `in 2026` | 0.673 | missed |
+  | `top 10 customers` / `bottom 10 customers` | 0.468 | missed |
   | `revenue summry…` / `revenue summary…` (a typo) | 0.818 | missed |
-  | `revenue summary for the orders channel` / `orders channel revenue overview` | 0.447 | missed |
+  | a genuine paraphrase | 0.447 | missed |
 
   The pairs that must never match scored *higher* than every pair that should,
-  so at its own default the tier reused the one thing it had to refuse and
-  refused both things it existed for. That is structural, not calibration:
-  `normalizeQuery()` already folds away everything two questions can
-  innocently differ by — case, filler, synonyms, order — so whatever survives
-  it is meaning, and an overlap score is dominated by the tokens two questions
-  *share*. It therefore grew more confident the longer and more specific the
-  question became.
+  so no threshold separated them — at its own default the tier reused the one
+  thing it had to refuse and refused both things it existed for.
 
-  A hit now requires that exactly one token differs on each side and that the
-  two are plausible misspellings of one another: one edit or one adjacent
-  transposition, never a token carrying a digit, never one shorter than four
-  characters. No model, no embedding service, no network call.
+  That is structural rather than calibration. `normalizeQuery()` already folds
+  away everything two questions can innocently differ by — case, filler words,
+  synonyms, duplication, word order — so whatever is still different afterwards
+  differs in **meaning**, and an overlap score is dominated by the tokens two
+  questions *share*. It therefore grew more confident the longer and more
+  specific the question became. `grade a` against `grade b` is the same shape of
+  difference as `summary` against `overview`.
 
-  **The cost:** genuine paraphrases no longer hit. `summary` and `overview` are
-  two unrelated words in one slot, and so are `grade a` and `grade b`; nothing
-  lexical tells them apart. At the shipped default that paraphrase already
-  missed, so nobody on the defaults loses anything — only an install that had
-  lowered `similarity_threshold` to around `0.55`, which was also being served
-  `grade a` for `grade b`. Paraphrases belong in the synonym map, where they
-  fold during normalisation into *exact* hits.
+  **The cost:** a typo or a paraphrase now misses and pays for a provider call.
+  At the shipped `0.85` both already missed, so nobody running the defaults
+  loses anything — only an install that had lowered `similarity_threshold` to
+  around `0.55`, which was also being served `grade a` for `grade b`.
 
-  Still off by default. `cache.similarity_threshold` no longer decides a match;
-  it is still read so published configs keep loading, and now only ranks
-  candidates already judged safe.
+  **Paraphrases belong in the synonym map**, where they fold during
+  normalisation into *exact* hits that nothing has to guess at.
+
+- `cache.fuzzy_matching` and `cache.similarity_threshold` are **no longer
+  read**. Both keys remain in the shipped config, with comments explaining why,
+  so an app carrying them keeps booting. `naturalquery:cache-stats` prints a
+  line when `fuzzy_matching` is still set.
+
+- `TwoTierQueryCache::findFuzzyMatch()` and `calculateSimilarity()` are
+  removed. They were documented extension points; a subclass that overrode them
+  will no longer have them called. Nothing else in the class changed shape —
+  `findForDataset()` still takes the dataset hint, which it folds into the row
+  hash so two pages scoped to different datasets never share a row.
 
 ## [2.2.1] - 2026-08-28
 

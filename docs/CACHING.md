@@ -38,9 +38,9 @@ every time. It is the one thing the cache cannot do safely.
 The key is the question's **words**, and those do not change when the correct
 answer does. "Revenue last month" asked in July resolves to June; asked in
 August it means July. Cached, the August ask replayed June -  the wrong number,
-with no provider call, no expiry to age it out, and the fuzzy tier handing the
-same dead row to every rewording. There was no way for the user to escape it
-and nothing in the answer that looked wrong.
+with no provider call and no expiry to age it out — and until 2.3.0 the fuzzy
+tier handed the same dead row to every rewording as well. There was no way for
+the user to escape it and nothing in the answer that looked wrong.
 
 Both routes are covered, and both are judged on the **SQL that ran**:
 
@@ -67,81 +67,64 @@ the space.
 **Tier 1** is your Laravel cache store (Redis, Memcached, file, database) keyed
 by hash. It is checked first and honours `cache.ttl`.
 
-**Tier 2** is the `naturalquery_cache` table, and it has two stages:
+**Tier 2** is the `naturalquery_cache` table, matched **exactly** on the
+normalised question: lowercased, filler words dropped, synonyms folded,
+duplicates removed, words sorted. "Show me the top 5 customers" and "top 5
+customers" are the same key.
 
-- **exact** -  the same question after normalisation (lowercased, filler words
-  dropped, synonyms folded, words sorted). "Show me the top 5 customers" and
-  "top 5 customers" are the same key.
-- **fuzzy** -  `0.6 × Jaccard + 0.4 × Levenshtein`, above
-  `cache.similarity_threshold` (default `0.85`). **Off by default** since
-  2.1.0 -  see below.
+That normalisation is where the reuse actually comes from, and it is worth
+knowing what it already absorbs — case, punctuation, filler, word order,
+duplication, and any synonym pair you have configured. A question only misses
+if it differs in a way none of those explain.
 
 Tier 2 rows do not expire. Use `naturalquery:cache-cleanup` to age them out.
 
-### Fuzzy matching is opt-in, and why
+### There is no fuzzy tier, and why
 
 ```env
-NATURALQUERY_CACHE_FUZZY=true    # default false
+NATURALQUERY_CACHE_FUZZY=true    # NO LONGER READ - removed in 2.3.0
 ```
 
-**It matches typos, and nothing else.** Since 2.3.0 a fuzzy hit means the two
-questions differ by exactly one token on each side, and those two tokens are
-plausible misspellings of one another — one edit, or one adjacent
-transposition. Never a token carrying a digit, and never one shorter than four
-characters.
+The cache used to have a third stage that matched questions by *wording*
+similarity, off by default. It has been **removed**, not defaulted off again,
+so an app that enabled it years ago gets the safe behaviour on upgrade rather
+than the one its config file asks for. `naturalquery:cache-stats` says so if
+the key is still set.
 
-So it reuses an answer for `custmers`, `pendign` and `regions`, and refuses
-`grade a` for `grade b`, `2025` for `2026`, `top` for `bottom`, and
-`last month` for `this month`.
+It scored `0.6 × Jaccard + 0.4 × Levenshtein` against a threshold, and that
+score turned out to be anti-correlated with safety. Measured at the `0.85` the
+package shipped:
 
-### Why it is not a similarity score any more
-
-Queries are normalised before comparison: lowercased, filler words dropped,
-synonyms folded, de-duplicated and **sorted**. Two that come out equal are
-already an exact hit. So every pair this tier judges differs in real,
-meaning-bearing tokens — and a similarity score is dominated by the tokens they
-*share*, which means it climbs as a question gets longer and more specific.
-
-Measured on the old scorer, at the `0.85` the package shipped:
-
-| Question pair | Score | Old behaviour |
+| Question pair | Score | Behaviour |
 |---|---|---|
-| `revenue for grade a` / `grade b` | 0.739 | missed |
-| `…by region for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
+| `…for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
 | `…and category…in 2025 for grade a` / `grade b` | **0.892** | **reused — wrong answer** |
 | `revenue in 2025` / `in 2026` | 0.673 | missed |
 | `top 10 customers` / `bottom 10 customers` | 0.468 | missed |
 | `revenue summry…` / `revenue summary…` (a typo) | 0.818 | missed |
 | `revenue summary for the orders channel` / `orders channel revenue overview` | 0.447 | missed |
 
-The pairs that must never match scored **higher** than every pair that should.
-No threshold separates those two sets, so at its own default this tier reused
-the one thing it had to refuse and refused both things it existed for.
+The pairs that must never match scored **higher** than every pair that should,
+so no threshold separated them. At its own default the tier reused the one
+thing it had to refuse and refused both things it existed for.
 
-Deciding on the **difference** rather than the overlap inverts that, and it
-needs no model, no embedding service and no network call.
+That is structural, not calibration. Normalisation has already folded away
+everything two questions can innocently differ by, so whatever is still
+different afterwards differs in **meaning** — and an overlap score is dominated
+by the tokens two questions *share*, which makes it more confident the longer
+and more specific the question gets. `grade a` against `grade b` is the same
+shape of difference as `summary` against `overview`; nothing lexical tells them
+apart.
 
-### What it costs
+**What it costs.** A typo now misses and pays for a provider call. So does a
+paraphrase. At the shipped `0.85` both already missed, so nobody on the
+defaults loses anything — only an install that had lowered
+`similarity_threshold` to around `0.55`, and that install was also being served
+`grade a` for `grade b`.
 
-**Genuine paraphrases no longer hit.** `revenue summary for the orders channel`
-and `orders channel revenue overview` now cost a provider call. They have to:
-`summary` and `overview` are two unrelated words in one slot, and so are
-`grade a` and `grade b` — nothing lexical tells those apart.
-
-At the shipped default of `0.85` that paraphrase already missed, so nobody
-running the defaults loses anything. Only an install that had lowered
-`similarity_threshold` to around `0.55` was being served it — and that install
-was also being served `grade a` for `grade b`.
-
-**Paraphrases belong in the synonym map**, where they are folded during
-normalisation and become *exact* hits that nothing has to guess at.
-
-`similarity_threshold` no longer decides a match. It is still read so a
-published config keeps loading, and is used only to rank candidates that have
-already been judged safe.
-
-Still **off by default**: it is a real behaviour change, and the evidence for
-flipping a default should come from installs rather than from the author.
+**Paraphrases belong in the synonym map**, where they fold during normalisation
+into *exact* hits that nothing has to guess at. That is the supported way to
+make two wordings mean the same thing, and it is deterministic.
 
 ## Scope: when a row may be reused
 

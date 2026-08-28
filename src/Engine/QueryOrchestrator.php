@@ -1831,8 +1831,9 @@ class QueryOrchestrator
      * The model turns "last month" into absolute dates, and the whole intent
      * was cached, dates included. So the question asked in July stored a June
      * window and the same words asked in August replayed June - the wrong
-     * number, with no provider call, and no escape: Tier 2 rows carry no
-     * expiry and the fuzzy tier hands the same row to every rewording.
+     * number, with no provider call and no escape: Tier 2 rows carry no expiry,
+     * and until 2.3.0 the fuzzy tier handed the same row to every rewording of
+     * the question too.
      *
      * The cache is keyed on the question's WORDS, and those do not change when
      * the correct answer does. That makes any intent carrying dates
@@ -1890,9 +1891,9 @@ class QueryOrchestrator
      *
      * Deliberately broad in the safe direction. This decides only whether to
      * CACHE: a false positive costs one provider call, while a false negative
-     * serves a wrong number for ever - Tier 2 rows carry no expiry and the
-     * fuzzy tier hands the same dead row to every rewording. So a four-digit
-     * year anywhere in the statement is enough, even inside a table name.
+     * serves a wrong number for ever - Tier 2 rows carry no expiry. So a
+     * four-digit year anywhere in the statement is enough, even inside a
+     * table name.
      */
     private function sqlPinsAMoment(string $sql): bool
     {

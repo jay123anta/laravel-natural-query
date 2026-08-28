@@ -60,9 +60,18 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
         );
     }
 
-    /** Opting in must still work, or the setting is decoration. */
+    /**
+     * The old opt-in is inert, and turning it on must not bring it back.
+     *
+     * `cache.fuzzy_matching` and `cache.similarity_threshold` are still read
+     * from a published config so that an app carrying them keeps booting, but
+     * nothing consults them any more. An adopter who set them years ago and
+     * upgrades must get the safe behaviour, not the one they configured -
+     * which is the whole point of removing the tier rather than defaulting it
+     * off again.
+     */
     #[Test]
-    public function fuzzy_matching_still_works_when_it_is_turned_on()
+    public function turning_the_old_fuzzy_setting_on_does_not_bring_it_back()
     {
         $this->artisan('migrate', ['--force' => true])->run();
         config(['naturalquery.cache.fuzzy_matching' => true, 'naturalquery.cache.similarity_threshold' => 0.5]);
@@ -76,9 +85,19 @@ class FuzzyOffAndValidatedOnlyTest extends TestCase
             '_asking_scope' => $scope,
         ]);
 
-        $this->assertNotNull(
+        // "years" is a distinct token from "year" after normalisation, so this
+        // cannot be an exact hit. It used to be a fuzzy one.
+        $this->assertNull(
             $cache->findForDataset('total revenue for the years', $scope),
-            'the opt-in does nothing, so the setting is decoration'
+            'a differently worded question was answered from cache with the removed tier '
+                . 're-enabled by config, so the setting is still wired to something'
+        );
+
+        // The counterweight: the cache still answers the SAME question. Without
+        // this, deleting the cache outright would also pass the assertion above.
+        $this->assertNotNull(
+            $cache->findForDataset('total revenue for the year', $scope),
+            'the exact tier stopped working, which is not what removing the fuzzy tier was for'
         );
     }
 

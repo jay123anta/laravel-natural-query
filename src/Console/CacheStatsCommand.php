@@ -10,10 +10,11 @@ use Jayanta\NaturalQuery\Contracts\QueryCacheInterface;
  *
  * `getStatistics()` has existed since 1.0.0 and nothing surfaced it, so the
  * only way to know whether caching was earning its keep was to read the table
- * by hand. That matters more since 2.1.0: fuzzy matching is off by default and
- * a row is only reused within the dataset scope it was cached under, so hit
- * rates are lower on purpose -  and an operator with no numbers cannot tell
- * "correctly conservative" from "silently broken".
+ * by hand. That matters more with every release that makes the cache stricter:
+ * a row is only reused within the dataset scope it was cached under, dated
+ * questions are never cached at all, and since 2.3.0 nothing matches on
+ * wording. Hit rates are lower on purpose -  and an operator with no numbers
+ * cannot tell "correctly conservative" from "silently broken".
  *
  * Read-only. Sends nothing anywhere.
  */
@@ -82,9 +83,14 @@ class CacheStatsCommand extends Command
         $this->line(sprintf('  Fast tier (Tier 1)          %s', ($stats['tier1_enabled'] ?? false)
             ? 'on via ' . ($stats['tier1_store'] ?? 'default')
             : 'off'));
-        $this->line(sprintf('  Fuzzy matching              %s', config('naturalquery.cache.fuzzy_matching', false)
-            ? 'on -  see docs/CACHING.md for the trade'
-            : 'off (default)'));
+        // Shown only when the stale key is still set. Removing the tier in
+        // 2.3.0 rather than defaulting it off means an app that turned it on
+        // years ago now behaves differently from its own config file, and the
+        // config file is the last place anyone looks. Say so where they are
+        // already looking at cache numbers.
+        if (config('naturalquery.cache.fuzzy_matching', false)) {
+            $this->line('  Fuzzy matching              set, but REMOVED in 2.3.0 -  nothing reads it');
+        }
 
         $top = $stats['top_queries'] ?? [];
 

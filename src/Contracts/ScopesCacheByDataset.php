@@ -33,8 +33,11 @@ namespace Jayanta\NaturalQuery\Contracts;
  * scope is therefore no less safe than one that can.
  *
  * What this interface buys is narrowing -  an implementation that knows the
- * asking dataset can filter its own fuzzy tier instead of returning
- * candidates the engine will discard.
+ * asking dataset can filter its own candidates instead of returning ones the
+ * engine will discard. The bundled cache folds the hint into the row hash, so
+ * two pages scoped to different datasets never share a row for the same
+ * wording; a custom implementation that matches on wording needs it far more,
+ * which is what the $datasetHint notes below are about.
  *
  * The engine used to BYPASS a cache that did not implement this whenever a
  * dataset was known, on the theory that skipping cost one API call and a

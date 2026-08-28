@@ -7,7 +7,7 @@ namespace Jayanta\NaturalQuery\Contracts;
  *
  * Two-tier cache for storing parsed intents and avoiding repeated AI calls.
  * Tier 1: Fast cache (Redis/memory) for exact matches
- * Tier 2: Database with fuzzy matching for similar queries
+ * Tier 2: Database, exact matches on the normalised question
  */
 interface QueryCacheInterface
 {
@@ -25,7 +25,13 @@ interface QueryCacheInterface
      *
      *   [
      *     'cached'           => true,
-     *     'cache_match_type' => 'exact' | 'fuzzy',   // reported as metadata
+     *     'cache_match_type' => 'exact' | 'fuzzy',   // reported as metadata.
+     *                                                // The bundled cache only
+     *                                                // ever returns 'exact'
+     *                                                // since 2.3.0; 'fuzzy'
+     *                                                // stays valid for a
+     *                                                // custom implementation
+     *                                                // that matches on wording
      *     'intent'           => [...],               // EXACTLY what store() received
      *     'dataset'          => $intent['dataset'] ?? null,
      *   ]

@@ -13,12 +13,12 @@ use Jayanta\NaturalQuery\Contracts\ScopesCacheByDataset;
  * Two-Tier Query Cache
  *
  * Tier 1 (Redis/Memory): Fast exact-match lookups via Laravel Cache (~1ms)
- * Tier 2 (Database): Persistent storage + fuzzy matching + analytics (~5-20ms)
+ * Tier 2 (Database): Persistent storage + analytics (~5-20ms)
  *
  * Flow:
  * 1. Check Tier 1 for exact hash match (fastest)
  * 2. If miss, check Tier 2 for exact hash match
- * 3. If miss, try fuzzy match in Tier 2 (Levenshtein + Jaccard)
+ * 3. If miss, the model answers it. There is no third tier.
  * 4. On hit, update hit count
  * 5. Store new entries in both tiers
  */
@@ -59,8 +59,6 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
 
     protected int $cacheTtlSeconds;
 
-    protected float $similarityThreshold;
-
     protected bool $useTier1;
 
     protected string $tier1Prefix;
@@ -68,20 +66,6 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     protected ?string $tier1Store;
 
     protected string $tableName;
-
-    /**
-     * The scope of the lookup in progress, for findFuzzyMatch().
-     *
-     * Set by findForDataset() immediately before the fuzzy tier runs.
-     * Per-call state on a shared object is not free, and it is here only
-     * because findFuzzyMatch() is a protected extension point whose
-     * signature cannot change without fataling adopter subclasses. The
-     * window is synchronous and one method wide.
-     */
-    protected ?string $askingScopeForLookup = null;
-
-    /** Opt-in; see findFuzzyMatch() for why it defaults off. */
-    protected bool $fuzzyEnabled;
 
     /**
      * A numeric setting, or the documented default when it is unusable.
@@ -106,13 +90,10 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         // install, and Laravel's one-level merge means an app that published
         // config/naturalquery.php before 2.1.0 never evaluates them -  its
         // older `cache` block replaces the package's wholesale. A blank
-        // `NATURALQUERY_CACHE_SIMILARITY=` then arrives here as the empty
-        // string, `(float) ''` is 0.0, and every fuzzy candidate clears the
-        // threshold. That is the opposite of the blank-env failure this
-        // release fixed elsewhere: not a crash, a silent wrong number.
+        // `NATURALQUERY_CACHE_TTL=` then arrives here as the empty string and
+        // `(int) ''` is 0 -  a cache that expires everything the instant it is
+        // written, which looks like a cache that is simply never hit.
         $this->cacheTtlSeconds = $this->numeric('naturalquery.cache.ttl', 86400);
-        $this->similarityThreshold = (float) $this->numeric('naturalquery.cache.similarity_threshold', 0.85);
-        $this->fuzzyEnabled = (bool) config('naturalquery.cache.fuzzy_matching', false);
         $this->tier1Prefix = config('naturalquery.cache.tier1_prefix', 'naturalquery:');
         $this->tableName = config('naturalquery.cache.table_name', 'naturalquery_cache');
 
@@ -132,19 +113,15 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
     /**
      * Find a cached result for a query.
      *
-     * $datasetHint (NQ-003) is the dataset the ASKING question resolves to,
-     * not a filter on which row's text may match -  Tier 1 and Tier 2 exact
-     * stay purely hash-based, unchanged, because an identical normalized
-     * question under the current contract version is already a strong
-     * enough signal that this is the same question asked before. It is
-     * consulted only to decide whether the FUZZY tier may run at all: fuzzy
-     * matches by TEXT alone, so a row it returns can belong to any dataset,
-     * and the caller (QueryOrchestrator) is the one that can tell whether a
-     * hit answers the dataset actually asked about, and re-target or refuse
-     * it accordingly. Without any way to name the asking dataset there is
-     * nothing to check that against, so fuzzy matching is skipped rather
-     * than guessed at -  a miss costs one API call, a wrong hit costs a
-     * wrong answer (AGENTS.md §0).
+     * $datasetHint (NQ-003) is the dataset the ASKING question resolves to. It
+     * is folded into the hash by scopedKey(), so two pages scoped to different
+     * datasets never share a row for the same wording -  "what is the total?"
+     * means one thing on an orders page and another on a visits page, and the
+     * question text cannot tell them apart.
+     *
+     * It used to have a second job: gating the fuzzy tier, which matched on
+     * TEXT alone and so could return a row belonging to any dataset. That tier
+     * is gone as of 2.3.0 and this parameter now does one thing.
      */
     public function find(string $query): ?array
     {
@@ -206,33 +183,16 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             return $result;
         }
 
-        // TIER 2: Fuzzy match, within the same asking scope.
+        // There is no third tier. A question that does not normalise onto a row
+        // already here is a MISS, and the model answers it.
         //
-        // It used to return null here whenever the scope was unresolved,
-        // because fuzzy matches by TEXT and a row it returned could belong to
-        // any dataset. The per-candidate scope filter inside findFuzzyMatch()
-        // now handles that directly, INCLUDING the null case: an unscoped
-        // question matches only rows that were themselves cached unscoped.
-        //
-        // Keeping the early return on top of that filter cost every fuzzy hit
-        // for every unscoped question -  the general chat box on a
-        // multi-dataset install, which is the shape most adopters ship -  while
-        // protecting against nothing the filter does not already cover.
-        if (!$this->fuzzyEnabled) {
-            Log::debug('[NaturalQuery:Cache] Miss (fuzzy matching is off)');
-
-            return null;
-        }
-
-        $this->askingScopeForLookup = $datasetHint;
-        $fuzzyMatch = $this->findFuzzyMatch($normalized);
-        if ($fuzzyMatch) {
-            $this->incrementHitCount($fuzzyMatch->id);
-            Log::debug('[NaturalQuery:Cache] Tier 2 fuzzy hit', ['similarity' => $fuzzyMatch->similarity ?? 'N/A']);
-
-            return $this->formatCacheResult($fuzzyMatch, 'fuzzy');
-        }
-
+        // Tier 2 used to fall through to a fuzzy match on wording. Removed in
+        // 2.3.0, because normalizeQuery() has already folded away everything
+        // two questions can innocently differ by - case, filler words,
+        // synonyms, duplication, word order. Whatever is still different after
+        // that differs in MEANING, and scoring how much of it two questions
+        // share was measured reusing "grade a" for "grade b" while refusing the
+        // typos the tier existed for. See CHANGELOG.md.
         Log::debug('[NaturalQuery:Cache] Cache miss', ['query' => $query]);
 
         return null;
@@ -568,219 +528,6 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
             ->where('query_hash', $hash)
             ->where('contract_version', static::INTENT_CONTRACT_VERSION)
             ->first();
-    }
-
-    /**
-     * The version filter is not redundant with the hash.
-     *
-     * Fuzzy matching finds rows by their normalized TEXT, so it never touches
-     * the hash and the contract version folded into it had no effect here at
-     * all. Bumping the constant made the exact tier miss an old row and the
-     * fuzzy tier serve the very same row a moment later -  which quietly
-     * defeated every previous bump too, not just this one.
-     */
-    /**
-     * The nearest row by wording, within the same asking scope.
-     *
-     * OFF BY DEFAULT SINCE 2.1.0, and the reason is structural rather than a
-     * threshold that needs tuning.
-     *
-     * normalizeQuery() lowercases, drops filler words, folds synonyms,
-     * de-duplicates and SORTS. Two normalized strings that are equal are
-     * already an exact-tier hit. So every string pair this tier ever sees
-     * differs in real, meaning-bearing tokens -  and the score is dominated by
-     * the tokens they SHARE, which means it rises as the questions get longer
-     * and more specific. Measured on the shipped implementation, one value
-     * token swapped:
-     *
-     *   revenue for grade a / b                                   0.673  safe
-     *   total revenue for grade a / b                             0.741  safe
-     *   total revenue by region for pending orders in grade a / b 0.858  HIT
-     *   ...and category...in 2025 for grade a / b                 0.875  HIT
-     *
-     * The more precisely a user states their question, the likelier this tier
-     * is to answer it with a different one. That is backwards, and no
-     * threshold fixes it: 0.875 is already above any value that leaves the
-     * tier useful. The config has warned since 2.0.0 that "top 10 customers"
-     * and "bottom 10 customers" score 0.65, which is the same defect at a
-     * shorter length.
-     *
-     * It survives as an opt-in because it does what it was built for on
-     * genuine re-runs and typos, and some installs value the saved calls more
-     * than the risk. Enable with cache.fuzzy_matching, and read
-     * docs/CACHING.md first.
-     *
-     * The exact tiers get their scope from the hash. This one matches by TEXT,
-     * so without the same filter it returns candidates from other scopes that
-     * the engine then discards -  and it has already counted them as hits by
-     * then, so naturalquery:cache-stats reported reuse for rows that were
-     * never once served.
-     */
-    protected function findFuzzyMatch(string $normalizedQuery): ?object
-    {
-        // Read from the property rather than taken as a parameter, for the
-        // same reason as generateHash(): this method is protected on a class
-        // adopters are told to subclass, and widening it fatals anyone who
-        // overrode the old signature at class load.
-        $askingScope = $this->askingScopeForLookup;
-
-        $words = explode(' ', $normalizedQuery);
-        $significantWords = array_filter($words, fn ($w) => strlen($w) > 3);
-
-        if (empty($significantWords)) {
-            return null;
-        }
-
-        $candidates = DB::table($this->tableName)
-            ->where('contract_version', static::INTENT_CONTRACT_VERSION)
-            ->where(function ($query) use ($significantWords) {
-                foreach ($significantWords as $word) {
-                    $query->orWhere('normalized_query', 'LIKE', "%{$word}%");
-                }
-            })
-            // The scope filter below runs in PHP, because the scope lives
-            // inside the intent JSON and cannot be indexed portably. So the
-            // shortlist has to be wide enough that the right-scope candidates
-            // are not crowded out of it: ordered by hit_count, 50 rows on a
-            // busy multi-dataset install can be entirely other scopes, and the
-            // fuzzy tier would silently stop working for the newer one.
-            ->orderBy('hit_count', 'desc')
-            ->limit(200)
-            ->get();
-
-        if ($candidates->isEmpty()) {
-            return null;
-        }
-
-        $bestMatch = null;
-        $bestSimilarity = 0;
-
-        foreach ($candidates as $candidate) {
-            $stored = json_decode($candidate->intent ?? '', true);
-            if (($stored['_asking_scope'] ?? null) !== $askingScope) {
-                continue;
-            }
-
-            // The GATE decides, not the score. calculateSimilarity() still
-            // runs, but only to choose between candidates that have already
-            // been judged safe, and to give the log line a number.
-            if (!$this->differsOnlyByATypo($normalizedQuery, $candidate->normalized_query)) {
-                continue;
-            }
-
-            $similarity = $this->calculateSimilarity($normalizedQuery, $candidate->normalized_query);
-            if ($similarity > $bestSimilarity) {
-                $bestSimilarity = $similarity;
-                $bestMatch = $candidate;
-                $bestMatch->similarity = $similarity;
-            }
-        }
-
-        return $bestMatch;
-    }
-
-    /**
-     * Do these two questions differ only by a typo?
-     *
-     * This REPLACES the similarity threshold as the thing that decides a fuzzy
-     * hit, because the score turned out to be anti-correlated with safety.
-     * Measured on the shipped scorer, threshold at 0.85:
-     *
-     *   grade a / grade b, stated precisely        0.883, 0.892   HIT, wrong
-     *   top 10 / bottom 10 customers               0.468          miss
-     *   revenue in 2025 / in 2026                  0.673          miss
-     *   "custmers" / "customers"                   0.356          miss, WRONG
-     *   "pendign" / "pending" orders               0.728          miss, WRONG
-     *
-     * The dangerous pairs score HIGHER than every safe one, so no threshold
-     * separates the two sets and the tier rejected exactly what it was built
-     * for. That is structural, not calibration. normalizeQuery() has already
-     * removed everything two questions can innocently differ by - it
-     * lowercases, drops fillers, folds synonyms, de-duplicates and sorts, so a
-     * pair that survives it still equal was an exact hit. Whatever is left is
-     * meaning, and the score is dominated by the tokens they SHARE, which is
-     * why it climbs as a question gets longer and more specific.
-     *
-     * Deciding on the DIFFERENCE inverts that. Exactly one token may differ on
-     * each side, and the two must be plausible misspellings of one another:
-     *
-     *   - Never when either carries a digit. "2025" and "2026" are one edit
-     *     apart and are different questions, as are "top 10" and "top 20".
-     *   - Never below four characters. "grade a" and "grade b" are one edit
-     *     apart, and single letters are ordinary VALUES in real schemas -
-     *     grade A, block B, zone 1.
-     *   - One edit otherwise, or one adjacent transposition, which is the
-     *     commonest typo there is and which Levenshtein scores as two.
-     *
-     * A missing or extra token is never a typo: "revenue by region" and
-     * "revenue by region total" ask different things.
-     */
-    protected function differsOnlyByATypo(string $a, string $b): bool
-    {
-        $onlyA = array_values(array_diff(explode(' ', $a), explode(' ', $b)));
-        $onlyB = array_values(array_diff(explode(' ', $b), explode(' ', $a)));
-
-        // Nothing differs (an exact hit, not this tier's business), or more
-        // than one token does - and two differences compound rather than
-        // cancel, so there is no safe reading of them.
-        if (count($onlyA) !== 1 || count($onlyB) !== 1) {
-            return false;
-        }
-
-        [$x, $y] = [$onlyA[0], $onlyB[0]];
-
-        if (preg_match('/\d/', $x) || preg_match('/\d/', $y)) {
-            return false;
-        }
-
-        if (strlen($x) < 4 || strlen($y) < 4) {
-            return false;
-        }
-
-        $distance = levenshtein($x, $y);
-
-        if ($distance <= 1) {
-            return true;
-        }
-
-        return $distance === 2 && $this->isAdjacentTransposition($x, $y);
-    }
-
-    /** "pendign" for "pending" -  two edits by Levenshtein, one slip by hand. */
-    protected function isAdjacentTransposition(string $x, string $y): bool
-    {
-        if (strlen($x) !== strlen($y)) {
-            return false;
-        }
-
-        for ($i = 0, $n = strlen($x) - 1; $i < $n; $i++) {
-            $swapped = $x;
-            [$swapped[$i], $swapped[$i + 1]] = [$swapped[$i + 1], $swapped[$i]];
-
-            if ($swapped === $y) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected function calculateSimilarity(string $query1, string $query2): float
-    {
-        // Jaccard similarity (word overlap)
-        $words1 = explode(' ', $query1);
-        $words2 = explode(' ', $query2);
-        $intersection = count(array_intersect($words1, $words2));
-        $union = count(array_unique(array_merge($words1, $words2)));
-        $jaccard = $union > 0 ? $intersection / $union : 0;
-
-        // Levenshtein similarity (character-level)
-        $maxLen = max(strlen($query1), strlen($query2));
-        $lev = levenshtein($query1, $query2);
-        $levSimilarity = $maxLen > 0 ? 1 - ($lev / $maxLen) : 1;
-
-        // Weighted: favor word overlap for semantic matching
-        return (0.6 * $jaccard) + (0.4 * $levSimilarity);
     }
 
     protected function incrementHitCount(int $id): void
