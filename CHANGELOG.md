@@ -5,6 +5,48 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The fuzzy cache tier now matches typos, and only typos.** It used to
+  threshold a similarity score, and that score turned out to be
+  anti-correlated with safety. Measured on the shipped scorer at the `0.85`
+  the package defaulted to:
+
+  | Question pair | Score | Old behaviour |
+  |---|---|---|
+  | `…by region for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
+  | `…and category…in 2025 for grade a` / `grade b` | **0.892** | **reused — wrong answer** |
+  | `revenue summry…` / `revenue summary…` (a typo) | 0.818 | missed |
+  | `revenue summary for the orders channel` / `orders channel revenue overview` | 0.447 | missed |
+
+  The pairs that must never match scored *higher* than every pair that should,
+  so at its own default the tier reused the one thing it had to refuse and
+  refused both things it existed for. That is structural, not calibration:
+  `normalizeQuery()` already folds away everything two questions can
+  innocently differ by — case, filler, synonyms, order — so whatever survives
+  it is meaning, and an overlap score is dominated by the tokens two questions
+  *share*. It therefore grew more confident the longer and more specific the
+  question became.
+
+  A hit now requires that exactly one token differs on each side and that the
+  two are plausible misspellings of one another: one edit or one adjacent
+  transposition, never a token carrying a digit, never one shorter than four
+  characters. No model, no embedding service, no network call.
+
+  **The cost:** genuine paraphrases no longer hit. `summary` and `overview` are
+  two unrelated words in one slot, and so are `grade a` and `grade b`; nothing
+  lexical tells them apart. At the shipped default that paraphrase already
+  missed, so nobody on the defaults loses anything — only an install that had
+  lowered `similarity_threshold` to around `0.55`, which was also being served
+  `grade a` for `grade b`. Paraphrases belong in the synonym map, where they
+  fold during normalisation into *exact* hits.
+
+  Still off by default. `cache.similarity_threshold` no longer decides a match;
+  it is still read so published configs keep loading, and now only ranks
+  candidates already judged safe.
+
 ## [2.2.1] - 2026-08-28
 
 Correctness only. No configuration changed, no API was removed, and nothing

@@ -168,9 +168,11 @@ class DoctorCommand extends Command
      * NATURALQUERY_PROMPT_MAX_CHARS, nothing happens, and there is no error to
      * search for.
      *
-     * Two settings hit this in 2.1.0 alone, and one of them
-     * (cache.similarity_threshold) fails towards a silent wrong answer rather
-     * than a crash. Worth a check of its own.
+     * Two settings hit this in 2.1.0 alone. One of them
+     * (cache.similarity_threshold) used to fail towards a silent wrong answer
+     * rather than a crash; since 2.3.0 it no longer decides a fuzzy match at
+     * all, so drift in it is harmless - but drift in the block AROUND it is
+     * not, and that is what this checks.
      */
     protected function checkPublishedConfigDrift(): void
     {

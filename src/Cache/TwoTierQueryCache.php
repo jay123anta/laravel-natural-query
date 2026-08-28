@@ -661,8 +661,15 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
                 continue;
             }
 
+            // The GATE decides, not the score. calculateSimilarity() still
+            // runs, but only to choose between candidates that have already
+            // been judged safe, and to give the log line a number.
+            if (!$this->differsOnlyByATypo($normalizedQuery, $candidate->normalized_query)) {
+                continue;
+            }
+
             $similarity = $this->calculateSimilarity($normalizedQuery, $candidate->normalized_query);
-            if ($similarity >= $this->similarityThreshold && $similarity > $bestSimilarity) {
+            if ($similarity > $bestSimilarity) {
                 $bestSimilarity = $similarity;
                 $bestMatch = $candidate;
                 $bestMatch->similarity = $similarity;
@@ -670,6 +677,92 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
         }
 
         return $bestMatch;
+    }
+
+    /**
+     * Do these two questions differ only by a typo?
+     *
+     * This REPLACES the similarity threshold as the thing that decides a fuzzy
+     * hit, because the score turned out to be anti-correlated with safety.
+     * Measured on the shipped scorer, threshold at 0.85:
+     *
+     *   grade a / grade b, stated precisely        0.883, 0.892   HIT, wrong
+     *   top 10 / bottom 10 customers               0.468          miss
+     *   revenue in 2025 / in 2026                  0.673          miss
+     *   "custmers" / "customers"                   0.356          miss, WRONG
+     *   "pendign" / "pending" orders               0.728          miss, WRONG
+     *
+     * The dangerous pairs score HIGHER than every safe one, so no threshold
+     * separates the two sets and the tier rejected exactly what it was built
+     * for. That is structural, not calibration. normalizeQuery() has already
+     * removed everything two questions can innocently differ by - it
+     * lowercases, drops fillers, folds synonyms, de-duplicates and sorts, so a
+     * pair that survives it still equal was an exact hit. Whatever is left is
+     * meaning, and the score is dominated by the tokens they SHARE, which is
+     * why it climbs as a question gets longer and more specific.
+     *
+     * Deciding on the DIFFERENCE inverts that. Exactly one token may differ on
+     * each side, and the two must be plausible misspellings of one another:
+     *
+     *   - Never when either carries a digit. "2025" and "2026" are one edit
+     *     apart and are different questions, as are "top 10" and "top 20".
+     *   - Never below four characters. "grade a" and "grade b" are one edit
+     *     apart, and single letters are ordinary VALUES in real schemas -
+     *     grade A, block B, zone 1.
+     *   - One edit otherwise, or one adjacent transposition, which is the
+     *     commonest typo there is and which Levenshtein scores as two.
+     *
+     * A missing or extra token is never a typo: "revenue by region" and
+     * "revenue by region total" ask different things.
+     */
+    protected function differsOnlyByATypo(string $a, string $b): bool
+    {
+        $onlyA = array_values(array_diff(explode(' ', $a), explode(' ', $b)));
+        $onlyB = array_values(array_diff(explode(' ', $b), explode(' ', $a)));
+
+        // Nothing differs (an exact hit, not this tier's business), or more
+        // than one token does - and two differences compound rather than
+        // cancel, so there is no safe reading of them.
+        if (count($onlyA) !== 1 || count($onlyB) !== 1) {
+            return false;
+        }
+
+        [$x, $y] = [$onlyA[0], $onlyB[0]];
+
+        if (preg_match('/\d/', $x) || preg_match('/\d/', $y)) {
+            return false;
+        }
+
+        if (strlen($x) < 4 || strlen($y) < 4) {
+            return false;
+        }
+
+        $distance = levenshtein($x, $y);
+
+        if ($distance <= 1) {
+            return true;
+        }
+
+        return $distance === 2 && $this->isAdjacentTransposition($x, $y);
+    }
+
+    /** "pendign" for "pending" -  two edits by Levenshtein, one slip by hand. */
+    protected function isAdjacentTransposition(string $x, string $y): bool
+    {
+        if (strlen($x) !== strlen($y)) {
+            return false;
+        }
+
+        for ($i = 0, $n = strlen($x) - 1; $i < $n; $i++) {
+            $swapped = $x;
+            [$swapped[$i], $swapped[$i + 1]] = [$swapped[$i + 1], $swapped[$i]];
+
+            if ($swapped === $y) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function calculateSimilarity(string $query1, string $query2): float

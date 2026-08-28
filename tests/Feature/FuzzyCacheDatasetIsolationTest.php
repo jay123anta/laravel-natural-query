@@ -235,12 +235,16 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
     /**
      * WHAT THIS TEST CATCHES (guard, not a defect): a fix that closes the
      * cross-dataset gap by disabling fuzzy matching outright, rather than
-     * making it dataset-aware, would make this fail too. Two genuine
-     * paraphrases of the SAME dataset's question -  "revenue summary for the
-     * orders channel" vs "orders channel revenue overview", measured at
-     * 0.5923 by the real algorithm -  must still answer from cache with zero
-     * extra provider calls. If a later fix makes this red, that is the
-     * honest cost of the fix, not something to hide by deleting the test.
+     * making it dataset-aware, would make this fail too. Something this tier
+     * SHOULD serve must still be served from cache with zero extra provider
+     * calls.
+     *
+     * That example used to be a paraphrase -  "revenue summary for the orders
+     * channel" vs "orders channel revenue overview" -  with the threshold
+     * lowered to 0.55 to admit it. 2.3.0 stopped matching on the similarity
+     * score, so the example is a TYPO now. Changing it is the honest cost of
+     * that fix rather than something hidden by deleting the test, and the cost
+     * is recorded in full by the test that follows this one.
      */
     #[Test]
     public function a_fuzzy_hit_within_the_same_dataset_still_answers_from_cache()
@@ -248,15 +252,16 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
         config([
             'naturalquery.cache.enabled' => true,
             // Fuzzy matching is opt-in since 2.1.0; this file tests that tier.
+            // similarity_threshold is deliberately NOT set: since 2.3.0 it no
+            // longer decides a match, and setting it here would imply it does.
             'naturalquery.cache.fuzzy_matching' => true,
-            'naturalquery.cache.similarity_threshold' => 0.55,
         ]);
         $this->artisan('migrate', ['--force' => true])->run();
 
         $provider = $this->wiredProvider();
 
         $q1 = 'revenue summary for the orders channel';
-        $q3 = 'orders channel revenue overview';
+        $q3 = 'revenue summry for the orders channel';   // one slip, one edit
 
         $first = $this->app->make(QueryOrchestrator::class)->query($q1);
         $this->assertSame('success', $first['status'] ?? null, json_encode($first));
@@ -267,7 +272,7 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
         $this->assertSame(
             1,
             count($provider->methodsCalled()),
-            'expected the paraphrase to be served from cache, not a second provider call: '
+            'expected the typo to be served from cache, not a second provider call: '
                 . json_encode($provider->calls)
         );
         $this->assertSame('fuzzy', $second['metadata']['cache_match_type'] ?? null, json_encode($second));
@@ -275,7 +280,58 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
         $this->assertEquals(
             350.0,
             $this->total($second),
-            'a genuine same-dataset paraphrase should still answer 350 from cache'
+            'a one-character misspelling should still answer 350 from cache'
+        );
+    }
+
+    /**
+     * THE HONEST COST of matching on the difference instead of the score.
+     *
+     * A genuine paraphrase of the same question now MISSES and pays for a
+     * provider call. It has to: "summary" and "overview" are two unrelated
+     * words in the same slot, and so are "grade a" and "grade b". Nothing
+     * lexical tells those apart, which is why the old scorer admitted the
+     * second pair at 0.883 while rejecting this one at 0.447 -  it rewarded
+     * the tokens two questions SHARE, so it grew more confident the longer and
+     * more specific the question became.
+     *
+     * At the 0.85 this package actually shipped, this paraphrase already
+     * missed. Only an install that had lowered the threshold to around 0.55
+     * was being served it -  and that install was also being served "grade a"
+     * for "grade b". So the cost is real, but it is not new, and nobody
+     * running the defaults pays it.
+     *
+     * Paraphrases belong in the synonym map, where they are folded during
+     * normalisation and become EXACT hits that no scorer has to guess at.
+     */
+    #[Test]
+    public function a_paraphrase_is_no_longer_served_from_cache()
+    {
+        config([
+            'naturalquery.cache.enabled' => true,
+            'naturalquery.cache.fuzzy_matching' => true,
+        ]);
+        $this->artisan('migrate', ['--force' => true])->run();
+
+        $provider = $this->wiredProvider();
+
+        $first = $this->app->make(QueryOrchestrator::class)->query('revenue summary for the orders channel');
+        $this->assertSame('success', $first['status'] ?? null, json_encode($first));
+        $callsAfterFirst = count($provider->methodsCalled());
+
+        $second = $this->app->make(QueryOrchestrator::class)->query('orders channel revenue overview');
+
+        $this->assertSame(
+            $callsAfterFirst + 1,
+            count($provider->methodsCalled()),
+            'a paraphrase must cost exactly one fresh provider call now, not zero'
+        );
+        $this->assertSame('success', $second['status'] ?? null, json_encode($second));
+        $this->assertNotSame(
+            'fuzzy',
+            $second['metadata']['cache_match_type'] ?? null,
+            'the paraphrase was served from the fuzzy tier, which can no longer tell it from a '
+                . 'swapped value'
         );
     }
 

@@ -84,31 +84,64 @@ Tier 2 rows do not expire. Use `naturalquery:cache-cleanup` to age them out.
 NATURALQUERY_CACHE_FUZZY=true    # default false
 ```
 
-It is a **lexical** comparison -  shared words and edit distance. It does not
-understand meaning.
+**It matches typos, and nothing else.** Since 2.3.0 a fuzzy hit means the two
+questions differ by exactly one token on each side, and those two tokens are
+plausible misspellings of one another — one edit, or one adjacent
+transposition. Never a token carrying a digit, and never one shorter than four
+characters.
 
-The deeper problem is not the threshold. Queries are normalised before
-comparison: lowercased, filler words dropped, synonyms folded, de-duplicated
-and **sorted**. Two that come out equal are already an exact hit. So every pair
-this tier ever judges differs in real, meaning-bearing tokens -  and the score
-is dominated by the tokens they *share*. Swap a single value and measure:
+So it reuses an answer for `custmers`, `pendign` and `regions`, and refuses
+`grade a` for `grade b`, `2025` for `2026`, `top` for `bottom`, and
+`last month` for `this month`.
 
-| Question pair, one value swapped | Score |
-|---|---|
-| `revenue for grade a` / `grade b` | 0.673 |
-| `total revenue for grade a` / `grade b` | 0.741 |
-| `total revenue by region for pending orders in grade a` / `grade b` | **0.858** |
-| `…by region and category…in 2025 for grade a` / `grade b` | **0.875** |
+### Why it is not a similarity score any more
 
-The more precisely someone states their question, the likelier this tier is to
-answer it with a different one. That is backwards, and no threshold fixes it:
-0.875 is already above any value that leaves the feature doing anything. The
-same defect at shorter length is why "top 10 customers by revenue" and
-**"bottom 10 customers by revenue"** score `0.65`.
+Queries are normalised before comparison: lowercased, filler words dropped,
+synonyms folded, de-duplicated and **sorted**. Two that come out equal are
+already an exact hit. So every pair this tier judges differs in real,
+meaning-bearing tokens — and a similarity score is dominated by the tokens they
+*share*, which means it climbs as a question gets longer and more specific.
 
-Turn it on if repeated near-identical wording is costing real money and you
-accept that trade. Raise the threshold for fewer reuses; set `cache.enabled`
-to `false` to switch off caching entirely.
+Measured on the old scorer, at the `0.85` the package shipped:
+
+| Question pair | Score | Old behaviour |
+|---|---|---|
+| `revenue for grade a` / `grade b` | 0.739 | missed |
+| `…by region for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
+| `…and category…in 2025 for grade a` / `grade b` | **0.892** | **reused — wrong answer** |
+| `revenue in 2025` / `in 2026` | 0.673 | missed |
+| `top 10 customers` / `bottom 10 customers` | 0.468 | missed |
+| `revenue summry…` / `revenue summary…` (a typo) | 0.818 | missed |
+| `revenue summary for the orders channel` / `orders channel revenue overview` | 0.447 | missed |
+
+The pairs that must never match scored **higher** than every pair that should.
+No threshold separates those two sets, so at its own default this tier reused
+the one thing it had to refuse and refused both things it existed for.
+
+Deciding on the **difference** rather than the overlap inverts that, and it
+needs no model, no embedding service and no network call.
+
+### What it costs
+
+**Genuine paraphrases no longer hit.** `revenue summary for the orders channel`
+and `orders channel revenue overview` now cost a provider call. They have to:
+`summary` and `overview` are two unrelated words in one slot, and so are
+`grade a` and `grade b` — nothing lexical tells those apart.
+
+At the shipped default of `0.85` that paraphrase already missed, so nobody
+running the defaults loses anything. Only an install that had lowered
+`similarity_threshold` to around `0.55` was being served it — and that install
+was also being served `grade a` for `grade b`.
+
+**Paraphrases belong in the synonym map**, where they are folded during
+normalisation and become *exact* hits that nothing has to guess at.
+
+`similarity_threshold` no longer decides a match. It is still read so a
+published config keeps loading, and is used only to rank candidates that have
+already been judged safe.
+
+Still **off by default**: it is a real behaviour change, and the evidence for
+flipping a default should come from installs rather than from the author.
 
 ## Scope: when a row may be reused
 
