@@ -489,8 +489,15 @@ class TwoTierQueryCache implements QueryCacheInterface, ScopesCacheByDataset
      * eligible for unscoped questions -  which is exactly the cross-dataset
      * hit this release exists to close. Missing it must mean unknown, and
      * unknown must miss.
+     *
+     * 5 -  2.2.1 stopped caching questions that resolve to a date. Rows
+     * written by 2.2.0 and earlier carry those dates, and gating only the
+     * WRITE left every one of them eligible on read: an install that already
+     * had the stale-period bug kept serving it for ever, and upgrading did
+     * not fix the installs that actually had it. Rows carry no expiry, so
+     * retiring the contract is the only thing that reaches them.
      */
-    protected const INTENT_CONTRACT_VERSION = 4;
+    protected const INTENT_CONTRACT_VERSION = 5;
 
     /**
      * The words a row is keyed by, with the asking scope folded in.

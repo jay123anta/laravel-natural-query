@@ -177,8 +177,15 @@ class DatasetRenameUpgradeTest extends TestCase
             ]);
         };
 
+        // Read from the constant, never written as a literal. Hardcoding the
+        // pair meant that bumping the contract - the one event this test
+        // exists for - turned the proof half red and told a maintainer their
+        // bump was broken when it was the fixture that had gone stale.
+        $current = (new \ReflectionClass(TwoTierQueryCache::class))
+            ->getConstant('INTENT_CONTRACT_VERSION');
+
         // A row from the contract before this one.
-        $insert($cached, 3);
+        $insert($cached, $current - 1);
 
         $this->assertNull(
             $cache->findForDataset($asked, $scope),
@@ -189,7 +196,7 @@ class DatasetRenameUpgradeTest extends TestCase
         // close enough in wording to be found. If this half ever goes red, the
         // half above has stopped meaning anything.
         DB::table($this->cacheTable())->delete();
-        $insert($cached, 4);
+        $insert($cached, $current);
 
         $this->assertNotNull(
             $cache->findForDataset($asked, $scope),
