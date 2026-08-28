@@ -45,12 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   | Question pair | Score | Behaviour |
   |---|---|---|
-  | `…for pending orders in grade a` / `grade b` | **0.883** | **reused — wrong answer** |
-  | `…and category…in 2025 for grade a` / `grade b` | **0.892** | **reused — wrong answer** |
-  | `revenue in 2025` / `in 2026` | 0.673 | missed |
-  | `top 10 customers` / `bottom 10 customers` | 0.468 | missed |
-  | `revenue summry…` / `revenue summary…` (a typo) | 0.818 | missed |
-  | a genuine paraphrase | 0.447 | missed |
+  | `revenue for grade a` / `grade b` | 0.673 | missed |
+  | `…for pending orders in grade a` / `grade b` | **0.858** | **reused — wrong answer** |
+  | `…and category…in 2025 for grade a` / `grade b` | **0.875** | **reused — wrong answer** |
+  | `revenue in 2025` / `in 2026` | 0.567 | missed |
+  | `top 10 customers` / `bottom 10 customers` | 0.648 | missed |
+  | `revenue summry…` / `revenue summary…` (a typo) | 0.747 | missed |
+  | a genuine paraphrase | 0.592 | missed |
 
   The pairs that must never match scored *higher* than every pair that should,
   so no threshold separated them — at its own default the tier reused the one

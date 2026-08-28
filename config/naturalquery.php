@@ -599,12 +599,13 @@ return [
         // to be anti-correlated with safety. Measured on the implementation
         // that shipped, at this key's own default of 0.85:
         //
-        //   ...for pending orders in grade a / grade b   0.883   REUSED
-        //   ...and category...in 2025 grade a / grade b  0.892   REUSED
-        //   revenue in 2025 / in 2026                    0.673   missed
-        //   top 10 / bottom 10 customers                 0.468   missed
-        //   "summry" / "summary", a real typo            0.818   missed
-        //   a real paraphrase                            0.447   missed
+        //   revenue for grade a / grade b                0.673   missed
+        //   ...for pending orders in grade a / grade b   0.858   REUSED
+        //   ...and category...in 2025 grade a / grade b  0.875   REUSED
+        //   revenue in 2025 / in 2026                    0.567   missed
+        //   top 10 / bottom 10 customers                 0.648   missed
+        //   "summry" / "summary", a real typo            0.747   missed
+        //   a real paraphrase                            0.592   missed
         //
         // The pairs that must never match scored HIGHER than every pair that
         // should, so no value of this key separated them.

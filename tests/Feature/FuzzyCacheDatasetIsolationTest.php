@@ -157,23 +157,22 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
     }
 
     /**
-     * WHAT THIS TEST CATCHES: a fuzzy cache hit replaying a DIFFERENT
-     * dataset's cached SQL for a question that names its own dataset by its
-     * own alias word ("products"), because `findFuzzyMatch()` scores
-     * candidates on text alone.
+     * WHAT THIS TEST CATCHES: a cache hit replaying a DIFFERENT dataset's
+     * cached SQL for a question that names its own dataset by its own alias
+     * word ("products").
      *
-     * Similarity is measured directly against the shipped
-     * `calculateSimilarity()` algorithm, not the approximate `similar_text()`
-     * figure the original defect report used: "revenue summary for the
-     * orders channel" vs "revenue summary for the products channel" scores
-     * 0.6975 (0.6 * Jaccard 0.6 + 0.4 * Levenshtein-similarity 0.84375).
-     * `similarity_threshold` is set to 0.55 -  comfortably below that, and
-     * still a majority-overlap bar, not a degenerate one -  purely to make
-     * the reproduction deterministic. The gap being pinned is structural:
-     * the matcher has no dataset field to consult at ANY threshold loose
-     * enough to catch real paraphrases (the shipped config comments its own
-     * "top 10" vs "bottom 10" = 0.65 warning), which is exactly why NQ-003's
-     * fix direction rules out "raise the threshold" as an answer.
+     * HISTORY: the route in was the fuzzy tier, which scored candidates on
+     * text alone and so had no dataset field to consult at any threshold loose
+     * enough to be useful. That tier was removed in 2.3.0 and the config keys
+     * below are inert, so this pair now misses for a second reason as well as
+     * the one being pinned.
+     *
+     * The keys are left set on purpose. The assertion is about the `_sql_result`
+     * branch refusing a mismatched dataset rather than retargeting it, and that
+     * branch is reachable from the exact tiers too - a later change that
+     * reintroduced any wording match, or that widened what an exact hit may be
+     * replayed onto, would land here. Deleting the config lines would quietly
+     * narrow what this guards.
      *
      * NQ-003-FIX: this used to assert the fuzzy hit was retargeted for FREE
      * (zero extra provider calls) onto the right number, because in this
@@ -281,7 +280,7 @@ class FuzzyCacheDatasetIsolationTest extends TestCase
      * afterwards differs in MEANING - and "summary" against "overview" is the
      * same shape of difference as "grade a" against "grade b". Nothing lexical
      * tells them apart, which is why the old scorer reused the second pair at
-     * 0.883 while refusing this one at 0.447: it rewarded the tokens two
+     * 0.858 while refusing this one at 0.592: it rewarded the tokens two
      * questions SHARE, so it grew more confident the longer and more specific
      * the question became.
      *
