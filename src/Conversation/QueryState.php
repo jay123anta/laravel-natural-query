@@ -154,6 +154,7 @@ class QueryState
         // missing.
         $namesMeasure = $question === null || $this->namesAMeasure($question);
         $namesBreakdown = $question === null || $this->namesABreakdown($question);
+        $widensToAllTime = $question !== null && $this->namesEveryPeriod($question);
 
         foreach (self::SLOTS as $slot) {
             if ($slot === 'filters') {
@@ -182,9 +183,43 @@ class QueryState
             $merged['filter_column'] = null;
         }
 
+        // "and across all time" widens, and merge() cannot see that in the
+        // intent: a slot the turn did not fill and a slot the turn deliberately
+        // cleared both arrive as null, so an established window simply survived
+        // and the answer stayed pinned to a month the user had just asked to
+        // leave. Every natural spelling of it classifies as a refinement, so
+        // there was no escape but New topic or rewind.
+        //
+        // Before the period carried between turns this state was unreachable -
+        // making it carry is what turned it into a wrong answer. Widening needs
+        // a route of its own for the same reason removing a filter does: an
+        // omission by the model must never be read as an instruction.
+        if ($widensToAllTime) {
+            $merged['date_from'] = null;
+            $merged['date_to'] = null;
+        }
+
         $merged['filters'] = $this->accumulateFilters($intent);
 
         return new self($merged, $seq, $this->refinements + 1);
+    }
+
+    /**
+     * Does the instruction ask to DROP the period rather than narrow it?
+     *
+     * Narrow on purpose. A false positive throws away a window the user asked
+     * for, so nothing here matches a phrase that could just as well introduce
+     * one - "overall revenue in July" names a period and must keep it.
+     */
+    protected function namesEveryPeriod(string $question): bool
+    {
+        return (bool) preg_match(
+            '/\b(?:all[\s-]*time|all\s+of\s+time|all\s+dates|all\s+years|every\s+year|'
+            . 'any\s+date|no\s+date\s+filter|without\s+the\s+date(?:\s+filter)?|'
+            . '(?:remove|drop|ignore|forget)\s+the\s+date(?:\s+filter|\s+range)?|'
+            . '(?:whole|entire|full)\s+(?:period|history)|every\s+period)\b/i',
+            $question
+        );
     }
 
     /**
