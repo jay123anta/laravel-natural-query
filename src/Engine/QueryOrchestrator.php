@@ -1854,17 +1854,52 @@ class QueryOrchestrator
         // about "last month" bakes that month's dates into it as literals, so
         // replaying the recipe next month is stale in exactly the same way -
         // and worse, because nothing downstream can even see the dates.
-        // `time_filter` is set whenever an answer covered a period, on either
-        // route, so it is the marker that travels.
+        //
+        // Keyed on the SQL, never on `time_filter`. On this route that field
+        // is `$data['period']` - what the model SAYS about the WHERE it wrote,
+        // an optional free-text field. A model that filtered dates and omitted
+        // it disarmed this guard entirely, so the defect this method exists to
+        // prevent survived on the other route; a model that writes the string
+        // "none" instead of a null armed it on every question and switched
+        // caching off completely, with nothing logged. Rule 8: a guard keys on
+        // what the SQL does, never on what the model says about itself.
         $recipe = $intent['_sql_result'] ?? null;
 
         if (is_array($recipe)) {
-            return ($recipe['time_filter'] ?? null) === null
-                && ($recipe['date_from'] ?? null) === null
-                && ($recipe['date_to'] ?? null) === null;
+            if ($this->sqlPinsAMoment((string) ($recipe['sql'] ?? ''))) {
+                Log::debug('[NaturalQuery] Not caching a recipe that pins a date', [
+                    'dataset' => $recipe['dataset'] ?? null,
+                ]);
+
+                return false;
+            }
+
+            return true;
         }
 
         return true;
+    }
+
+    /**
+     * Does this SQL bake a moment in time into itself?
+     *
+     * Only LITERALS go stale. `NOW()`, `CURRENT_DATE` and friends re-evaluate
+     * on every execution, so a recipe built on them is still correct next
+     * month and stays cacheable. It is `'2026-06-01'`, and the bare year in
+     * `YEAR(placed_on) = 2026`, that pin an answer to a month already gone.
+     *
+     * Deliberately broad in the safe direction. This decides only whether to
+     * CACHE: a false positive costs one provider call, while a false negative
+     * serves a wrong number for ever - Tier 2 rows carry no expiry and the
+     * fuzzy tier hands the same dead row to every rewording. So a four-digit
+     * year anywhere in the statement is enough, even inside a table name.
+     */
+    private function sqlPinsAMoment(string $sql): bool
+    {
+        // One pattern covers every shape that goes stale: the ISO literal
+        // '2026-06-01', the quoted month '2026-06', and the bare comparison
+        // in YEAR(placed_on) = 2026 or EXTRACT(YEAR FROM placed_on) = 2026.
+        return (bool) preg_match('/\b(?:19|20)\d{2}\b/', $sql);
     }
 
     private function rememberIntent(string $query, array $intent, ?string $askingScope): void

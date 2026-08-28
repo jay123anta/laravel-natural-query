@@ -123,9 +123,14 @@ class ACachedPeriodIsNotReplayedIntoANewMonthTest extends TestCase
         $table = config('naturalquery.cache.table_name', 'naturalquery_cache');
         $before = DB::table($table)->count();
 
-        $this->ask('revenue last month', [
+        [$result] = $this->ask('revenue last month', [
             'date_from' => '2026-06-01', 'date_to' => '2026-06-30',
         ]);
+
+        // Counting rows that are not there passes just as well when the answer
+        // failed and the guard never ran at all - a rate limit made this test
+        // green while proving nothing.
+        $this->assertSame('success', $result['status'] ?? null, json_encode($result));
 
         $this->assertSame(
             $before,
