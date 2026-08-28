@@ -2125,6 +2125,15 @@ class QueryOrchestrator
      * work. `naturalquery:doctor` diagnoses this exactly; the query path was
      * discarding what it already knew.
      *
+     * UNSAFE_SQL is on it for the same reason. A recipe cached before a table
+     * was renamed still names the old one, the validator refuses it against
+     * the schema-derived whitelist -  correctly, and with a message saying so -
+     * and that message was then replaced by "Could not understand the query.
+     * Try mentioning a dataset name. Available: Orders (nq_orders)". The
+     * dataset is named, the question was read perfectly, and the advice cannot
+     * work. This is consulted only after the regeneration strategy above has
+     * declined, so the recovery that strategy provides is untouched.
+     *
      * Renamed from `isProviderFailure()` when DATABASE_ERROR joined the list.
      * A database fault is not a provider fault, and the old name invited an
      * obvious refactor — hoisting this check into the retry gate above — that
@@ -2139,7 +2148,12 @@ class QueryOrchestrator
     {
         return in_array(
             $result['error_code'] ?? null,
-            [ErrorCode::PROVIDER_ERROR, ErrorCode::RATE_LIMITED, ErrorCode::DATABASE_ERROR],
+            [
+                ErrorCode::PROVIDER_ERROR,
+                ErrorCode::RATE_LIMITED,
+                ErrorCode::DATABASE_ERROR,
+                ErrorCode::UNSAFE_SQL,
+            ],
             true
         );
     }

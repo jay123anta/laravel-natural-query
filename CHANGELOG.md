@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stale cache row no longer blames the question.** A recipe cached before a
+  table was renamed names the old table; the validator refuses it against the
+  schema-derived whitelist, correctly and with a message saying so — and that
+  message was then replaced with *"Could not understand the query. Try
+  mentioning a dataset name. Available: …"*. The question had been read
+  perfectly, the dataset was named, and following the advice could never work.
+  Rows carry no expiry, so it said this for ever at zero provider calls.
+
+  `unsafe_sql` now survives that path. The replacement only ever happened after
+  the regeneration strategy had already declined, so a question that names its
+  dataset is still regenerated and still recovers on the second call.
+
+- **The prompt asks for `required_filter` verbatim.** The guard that enforces it
+  is a literal string match and has to stay one — it decides whether rows the
+  schema says must never be counted were excluded, so a looser match would be
+  guessing about the one thing nobody may guess about. Failing closed has a
+  cost: a model writing `status NOT IN ('cancelled')` against a rule written
+  `status != 'cancelled'` is refused, correct SQL and all, leaving the dataset
+  unanswerable until someone notices. So the prompt gives rather than the guard
+  — it now asks for the predicate character for character and names the rewrite
+  models actually produce. Loosening the guard to meet the model would have
+  traded a refusal for a wrong number.
+
 ### Removed
 
 - **The fuzzy cache tier is gone.** It matched questions by wording similarity,

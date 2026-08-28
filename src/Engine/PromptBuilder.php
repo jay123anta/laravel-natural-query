@@ -319,11 +319,28 @@ PROMPT;
             }
         }
 
-        // Required filter
+        // Required filter.
+        //
+        // VERBATIM is asked for on purpose. The guard that enforces this
+        // (QueryOrchestrator::requiredFilterMissing) is a literal string match
+        // and has to stay one: it decides whether rows the schema says must
+        // never be counted were excluded, so a loose match that accepted an
+        // equivalent-looking predicate would be guessing about the one thing
+        // nobody may guess about. Failing closed there means a model that
+        // writes `status NOT IN ('cancelled')` for a rule written
+        // `status != 'cancelled'` is refused - correct SQL, refused, and the
+        // dataset unanswerable until someone notices.
+        //
+        // So the prompt is what gives, not the guard. Asking for the exact
+        // characters makes the check satisfiable instead of loosening it.
         $requiredFilter = $primary['required_filter'] ?? null;
         if ($requiredFilter) {
             $lines[] = '';
-            $lines[] = "  REQUIRED FILTER (always include in WHERE): {$requiredFilter}";
+            $lines[] = '  REQUIRED FILTER -  this dataset excludes rows that must never be counted.';
+            $lines[] = '  Copy the predicate below into your WHERE clause EXACTLY as written,';
+            $lines[] = '  character for character. Do not rewrite it (no NOT IN, no reordering,';
+            $lines[] = '  no requoting) -  an equivalent form is rejected and the query fails.';
+            $lines[] = "      {$requiredFilter}";
         }
 
         // Query patterns (SQL templates for different query types)

@@ -292,6 +292,20 @@ model was asked nicely* to *the text must be there* -  and `intent` mode remains
 the route where the filter is **applied** rather than checked. If a rule has to
 hold absolutely, use `intent` mode for that dataset.
 
+**The match is literal, so write the predicate the way SQL is usually written.**
+The check compares text, after collapsing whitespace and folding `<>` to `!=`,
+and it stays that way on purpose: a looser match would be guessing about
+whether rows you said must never count were excluded, which is the one thing
+worth failing closed on. The cost of that is real - a model answering
+`status NOT IN ('cancelled')` for a rule written `status != 'cancelled'` is
+refused, correct SQL and all, and the dataset stays unanswerable until someone
+looks. The prompt asks the model for your predicate character for character to
+keep that rare, but a rule written in an unusual form makes it likelier. If
+every question against a dataset starts failing with "required filter ... that
+the query did not apply", that is what has happened: simplify the predicate, or
+move the dataset to `intent` mode where the filter is applied rather than
+checked.
+
 Other uses of the same setting:
 
 ```php

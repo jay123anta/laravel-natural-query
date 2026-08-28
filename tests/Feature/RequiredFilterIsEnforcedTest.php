@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Jayanta\NaturalQuery\Contracts\LlmProviderInterface;
 use Jayanta\NaturalQuery\Engine\ErrorCode;
+use Jayanta\NaturalQuery\Engine\PromptBuilder;
 use Jayanta\NaturalQuery\Engine\QueryOrchestrator;
 use Jayanta\NaturalQuery\Tests\Support\RecordingProvider;
 use Jayanta\NaturalQuery\Tests\TestCase;
@@ -20,9 +21,19 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * It was enforced on one route and requested on the other. Intent mode appends
  * it to the SQL in SqlBuilder, so the model cannot omit it. SQL generation put
- * a line in the prompt -  "REQUIRED FILTER (always include in WHERE)" -  and
- * hoped. A model that ignored it produced a total including every cancelled
- * order, reported success, and nothing downstream re-checked.
+ * a line in the prompt and hoped. A model that ignored it produced a total
+ * including every cancelled order, reported success, and nothing downstream
+ * re-checked. The check now sits where SQL executes, so both routes are held
+ * to it.
+ *
+ * That check is a LITERAL string match, and it has to stay one: it decides
+ * whether rows the schema says must never be counted were excluded, so a loose
+ * match that accepted an equivalent-looking predicate would be guessing about
+ * the one thing nobody may guess about. Failing closed has a cost - a model
+ * writing `status NOT IN ('cancelled')` against a rule written
+ * `status != 'cancelled'` is refused, correct SQL and all - so the PROMPT is
+ * what gives: it asks for the predicate character for character. Loosening the
+ * guard to meet the model would trade a refusal for a wrong number.
  *
  * That is the shape of every defect this release has fixed: a guarantee that
  * holds on the path it was written for and not the one beside it. And it is
@@ -159,5 +170,40 @@ class RequiredFilterIsEnforcedTest extends TestCase
         $result = $this->app->make(QueryOrchestrator::class)->query('total revenue', 'nq_orders');
 
         $this->assertEquals(300.0, $this->total($result), 'intent mode stopped applying the required filter');
+    }
+
+    /**
+     * The prompt has to ask for the predicate VERBATIM, or the guard is a trap.
+     *
+     * requiredFilterMissing() is a literal match and must stay one - loosening
+     * it to accept an equivalent predicate would be guessing about whether rows
+     * the schema forbids were excluded. The consequence is that a model writing
+     * a correct-but-differently-spelled filter is refused, and the dataset is
+     * unanswerable until someone notices. Asking for the exact characters is
+     * what makes the check satisfiable rather than merely strict.
+     */
+    #[Test]
+    public function the_prompt_asks_for_the_required_filter_character_for_character()
+    {
+        $prompt = $this->app->make(PromptBuilder::class)->buildSqlPrompt('nq_orders', 'total revenue');
+
+        $this->assertStringContainsString(
+            "status != 'cancelled'",
+            $prompt,
+            'the prompt does not carry the predicate the guard will look for'
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/EXACTLY as written|character for character/i',
+            $prompt,
+            'the prompt asks for the filter but not for it verbatim, so a model is free to write '
+                . 'an equivalent form that the literal guard then refuses'
+        );
+
+        $this->assertStringContainsString(
+            'NOT IN',
+            $prompt,
+            'the prompt does not warn against the specific rewrite models actually produce'
+        );
     }
 }
