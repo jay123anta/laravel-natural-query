@@ -1,7 +1,7 @@
 {
     "name": "jayanta/laravel-natural-query",
-    "description": "Privacy-safe natural language to SQL engine for Laravel. AI sees only your schema, never your data. Supports voice & text input with pluggable AI providers (Gemini, OpenAI, Claude, Ollama).",
-    "keywords": ["laravel", "natural-language", "sql", "ai", "voice", "text-to-sql", "privacy", "database", "query", "gemini", "openai", "claude"],
+    "description": "A natural-language query box for your own Laravel app, for data you are not allowed to send anywhere. The AI receives your schema structure only -  never a row. Voice or text, any provider, or a model you run yourself.",
+    "keywords": ["laravel", "natural-language", "sql", "ai", "voice", "text-to-sql", "privacy", "database", "query", "gemini", "openai", "claude", "nl2sql", "self-hosted", "ollama", "gdpr", "local-llm", "reporting"],
     "type": "library",
     "license": "MIT",
     "authors": [

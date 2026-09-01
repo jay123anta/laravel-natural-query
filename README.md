@@ -6,8 +6,8 @@
 
 # Laravel NaturalQuery
 
-**Let people ask your database questions in English -  by voice or by typing - 
-without your data ever leaving your server.**
+**A natural-language query box you can put inside your own Laravel app - for
+data you are not allowed to send anywhere.**
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/jay123anta/laravel-natural-query/main/docs/demo.gif" alt="Asking a database a question in English -  the model receives only table and column names" width="100%">
@@ -15,15 +15,31 @@ without your data ever leaving your server.**
 
 
 
-The AI is sent your **schema structure only** - table names, column names,
-types, and the words your users use for them. It returns SQL. Your server
-validates that SQL, runs it locally, and formats the rows. **Not one row is
-ever sent upstream**, and that is enforced by tests, not by intent.
+Almost every "ask your data" product works by sending rows to a model. If the
+data is under GDPR or DPDP, or belongs to a client who has not agreed to that,
+the conversation ends there.
+
+This one sends the model your **schema structure only** - table names, column
+names, types, and the words your users use for them. It returns SQL. Your
+server validates that SQL, runs it locally, and formats the rows. **Not one row
+is ever sent upstream**, and that is enforced by tests, not by intent.
+
+Three things follow that a hosted tool cannot offer:
+
+- **You can ship it to your own users.** It is a Blade component inside your
+  application, not a separate analytics seat they have to buy and log in to.
+- **The data-protection conversation is short.** What leaves is schema
+  structure and the question someone typed. Nothing else has a path out - see
+  [docs/SECURITY.md](docs/SECURITY.md) for how that is enforced and tested.
+- **It can run with nothing leaving your network at all.** Point it at a model
+  on your own hardware and even the schema stays in-house.
 
 **Any model, hosted or your own.** Gemini, Claude, OpenAI, DeepSeek, Mistral,
 Groq, OpenRouter - or a model you run yourself on Ollama, vLLM, LM Studio or
-llama.cpp. One config block, no code changes. Self-hosting goes further still:
-nothing leaves your network at all, not even the schema.
+llama.cpp. One config block, no code changes.
+
+People can ask by typing or by speaking - the browser does the listening, so no
+audio reaches your server either.
 
 ```php
 $result = NaturalQuery::query("top 5 customers by revenue");
@@ -108,7 +124,8 @@ $result = NaturalQuery::query('total revenue by region last month');
   "parsed_summary": "Orders · revenue · by region · 2026-07-01 to 2026-07-31",
   "parsed_query": {
     "metric": "revenue", "group_by": "region",
-    "filters": [], "period": "2026-07-01 to 2026-07-31"
+    "filters": [], "period": "2026-07-01 to 2026-07-31",
+    "date_from": "2026-07-01", "date_to": "2026-07-31"
   }
 }
 ```
