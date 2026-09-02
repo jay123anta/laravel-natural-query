@@ -314,6 +314,19 @@ pass often measures the rate limit rather than the model - add
 
 ## How this differs from the alternatives
 
+**[beyondcode/laravel-ask-database](https://github.com/beyondcode/laravel-ask-database)**
+is the package most people find first, and the one this is most often compared
+to. It asked the same question in 2023, collected 302 stars, and was
+**archived in February 2024**. It calls OpenAI's GPT-3 specifically, needs an
+OpenAI key, and its own README describes it as a learning resource for prompt
+engineering rather than something to run.
+
+If you arrived here after finding that one archived, this is the maintained
+answer to the same question -  and a different shape of answer: any provider or
+a model on your own hardware, SELECT-only validation against a schema-derived
+whitelist, conversation state, and a privacy wall that is tested rather than
+promised.
+
 **[prism-php/prism](https://packagist.org/packages/prism-php/prism)** and
 **[openai-php/laravel](https://packagist.org/packages/openai-php/laravel)** are
 the layer *below* this one. They give you a clean, provider-agnostic way to
