@@ -239,4 +239,82 @@ class IntentCoverageTest extends TestCase
             $this->assertNotSame('non_sum_aggregate', $this->coverage()->exceeds($query), $query);
         }
     }
+
+    /**
+     * A negated existence question is not expressible in the contract at all.
+     *
+     * "Which orders have not shipped" needs NOT EXISTS, NOT IN, or a LEFT JOIN
+     * with an IS NULL test. The contract holds one measure, one grouping, one
+     * name filter, one period, an order and a limit -  there is nowhere to put
+     * the negation. So it was dropped and the remainder answered: asked which
+     * orders had not shipped, every order came back. "All of them" reads like
+     * a real answer to that question, which is what makes it worse than a
+     * refusal.
+     *
+     * The `exclusion` rule did not catch these. It matches excluding, except,
+     * apart from and without -  none of which is how anyone phrases this.
+     */
+    #[Test]
+    public function a_negated_existence_question_escalates()
+    {
+        foreach ([
+            'which customers have never opened a support ticket',
+            'customers who have never ordered',
+            'which orders have not been paid',
+            'which orders have not shipped yet',
+            'what are the names of all stadiums that did not have a concert in 2014',
+            'products that were never sold',
+            'customers with no orders',
+        ] as $query) {
+            $this->assertSame(
+                'anti_join',
+                $this->coverage()->exceeds($query),
+                "'{$query}' needs SQL the contract cannot express, and dropping the negation "
+                    . 'answers the opposite question'
+            );
+        }
+    }
+
+    /**
+     * THE COUNTERWEIGHT. Escalating swaps one API call for another rather than
+     * adding one, but it costs determinism -  so a rule that fires on questions
+     * the contract handles is a real regression.
+     *
+     * Superlatives are the case measured and deliberately LEFT ALONE. Across
+     * the 164 questions in the benchmark and Spider sets, a singular-
+     * superlative rule newly escalated 7, and the gold SQL for all 7 was plain
+     * GROUP BY / ORDER BY / LIMIT that the contract can express. Whatever makes
+     * those questions fail, it is not routing, and escalating them would spend
+     * determinism for nothing. Do not add one without measuring again.
+     */
+    #[Test]
+    public function questions_the_contract_can_still_express_are_left_alone()
+    {
+        foreach ([
+            'which carrier shipped the most orders',
+            'which supplier products generated the most revenue',
+            'what is the year that had the most concerts',
+            'top 5 customers by revenue',
+            'bottom 10 regions by revenue',
+            'revenue by region',
+        ] as $query) {
+            $this->assertNull(
+                $this->coverage()->exceeds($query),
+                "'{$query}' has gold SQL the intent contract can express, so escalating it "
+                    . 'buys nothing and loses determinism'
+            );
+        }
+    }
+
+    /** The same question, spelled with a word instead of a digit. */
+    #[Test]
+    public function a_group_filter_escalates_whichever_way_the_number_is_written()
+    {
+        $this->assertSame('having', $this->coverage()->exceeds('which customers have opened more than 1 support ticket'));
+        $this->assertSame(
+            'having',
+            $this->coverage()->exceeds('which customers placed more than one order'),
+            'whether the rule fired depended on whether the user typed "1" or "one"'
+        );
+    }
 }

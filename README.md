@@ -237,8 +237,27 @@ correction, not a cure.
 
 Where it is weakest, from those runs: superlatives that need a LIMIT
 ("which carrier shipped the most"), HAVING clauses, and anti-joins
-("customers who have never ordered"). Those are limits of the approach, not
-of your schema, and no amount of curation fixes them.
+("customers who have never ordered"). No amount of curation fixes these -
+they are properties of the question, not of your schema.
+
+Two of the three turned out to be a **routing** fault rather than a limit of
+the approach, and are addressed as of 2.4.0. An anti-join needs `NOT EXISTS`,
+which the intent contract cannot express at all, and the escalation rules did
+not recognise the wording - so the negation was dropped and every order came
+back for "which orders have not shipped". Those questions now go to SQL
+generation, which can write it. Same for a group filter spelled with a word
+rather than a digit: "more than 1 order" escalated and "more than one order"
+did not.
+
+The superlatives are a different story, and worth stating because it is the
+opposite of what it looks like: their gold SQL is plain `GROUP BY` / `ORDER BY`
+/ `LIMIT`, which the contract expresses perfectly well. Measured across all 164
+questions in both sets, escalating them would move seven questions to SQL
+generation and buy nothing. Whatever makes them fail is not routing, so they
+are deliberately left alone until it is measured.
+
+**None of this changes the scores above.** They are re-measured, not predicted;
+the numbers here stay until a benchmark run replaces them.
 
 The honest framing is **a fast analyst for datasets you have curated**, not an
 oracle for arbitrary databases. Every mitigation here follows from that: SQL is
@@ -347,7 +366,7 @@ The parts that are not: SELECT-only validation against a schema-derived
 whitelist, a cache that cannot answer one question with another question's
 result, rate limits reported as rate limits, and a benchmark that tells you how
 often you are wrong. Those took this package many adversarial review rounds and
-742 tests, and every one of them exists because something went wrong first.
+745 tests, and every one of them exists because something went wrong first.
 
 ## Documentation
 

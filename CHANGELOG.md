@@ -5,6 +5,46 @@ All notable changes to `jayanta/laravel-natural-query` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A question that negates existence is no longer answered as its opposite.**
+  "Which orders have not shipped" needs `NOT EXISTS`, `NOT IN`, or a `LEFT
+  JOIN` with an `IS NULL` test. The intent contract holds one measure, one
+  grouping, one name filter, one period, an order and a limit — there is
+  nowhere to put a negation. So it was dropped and the remainder answered:
+  every order came back. "All of them" reads like a real answer to that
+  question, which is what made it worse than a refusal.
+
+  `IntentCoverage` had an `exclusion` rule, but it matches *excluding*,
+  *except*, *apart from* and *without* — none of which is how anyone phrases
+  an anti-join. These now escalate to SQL generation, which can express it.
+  Escalating swaps one API call for another rather than adding one.
+
+- **A group filter escalates whichever way the number is written.** "More than
+  1 order" escalated and "more than one order" did not, so whether the rule
+  fired depended on how the user typed the number.
+
+### Measured, and deliberately not changed
+
+- **Superlatives are not a routing fault.** The README lists them among the
+  weakest cases, and they do not escalate — but their gold SQL is plain `GROUP
+  BY` / `ORDER BY` / `LIMIT`, which the intent contract expresses perfectly
+  well. Across all 164 questions in the benchmark and Spider sets, adding a
+  singular-superlative rule newly escalates seven questions and every one of
+  their gold answers is expressible. That is determinism spent for nothing, so
+  no rule was added. A test pins this so the measurement has to be repeated
+  before anyone adds one.
+
+- The two rules above were chosen the same way: measured against the gold SQL
+  of all 164 questions first. They newly escalate five, and all five have gold
+  containing `NOT EXISTS`, `NOT IN`, `HAVING` or a subquery. Zero
+  over-escalation.
+
+**These are routing fixes, not an accuracy claim.** The published benchmark
+scores stand until a live run replaces them.
+
 ## [2.3.0] - 2026-08-28
 
 ### Fixed

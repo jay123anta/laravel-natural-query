@@ -48,6 +48,10 @@ class IntentCoverage
         'having' => [
             '/\b(?:with|having|that\s+have|who\s+have)\s+(?:more|less|fewer|greater|at\s+least|at\s+most|over|under)\b/i',
             '/\bmore\s+than\s+\d+\s+\w+/i',
+            // The same question spelled with a word. "more than 1 ticket"
+            // escalated and "more than one order" did not, so whether the rule
+            // fired depended on how the user typed the number.
+            '/\bmore\s+than\s+(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+\w+/i',
         ],
         // WHERE on a measure -  the contract filters by name and period only
         'numeric_filter' => [
@@ -63,6 +67,31 @@ class IntentCoverage
         'exclusion' => [
             '/\b(?:excluding|except|other\s+than|apart\s+from|but\s+not|without\s+(?:the\s+)?(?:any\s+)?\w+)\b/i',
             '/\bnot\s+(?:including|counting|in)\b/i',
+        ],
+
+        // NEGATED EXISTENCE -  "customers who have never ordered", "orders
+        // that have not shipped". These need NOT EXISTS, NOT IN, or a LEFT
+        // JOIN with an IS NULL test, and the contract has room for none of
+        // them: it holds one measure, one grouping, one name filter, one
+        // period, an order and a limit.
+        //
+        // So the negation was simply DROPPED and the remainder answered. Asked
+        // which orders have not shipped, it returned every order -  the exact
+        // shape of failure this class exists to prevent, and worse than most,
+        // because "all of them" looks like a real answer to that question.
+        //
+        // The `exclusion` rule above does not catch these. It matches
+        // excluding/except/apart from/without, and none of those words appear
+        // in the phrasings people actually use for an anti-join.
+        //
+        // Measured before adding: across all 164 questions in the benchmark
+        // and Spider sets, these patterns newly escalate 4, and the GOLD SQL
+        // for all 4 contains NOT EXISTS, NOT IN or a subquery. Zero
+        // over-escalation.
+        'anti_join' => [
+            '/\bnever\b/i',
+            '/\b(?:have|has|had|is|are|was|were|do|does|did)(?:n\'t|\s+not)\s+(?:been\s+)?\w+/i',
+            '/\bwith\s+no\s+\w+/i',
         ],
         // DISTINCT
         'distinct' => [

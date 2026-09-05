@@ -102,7 +102,9 @@ and is safer than free-form SQL - deterministic, no invented column names.
 Some questions need more, and the failure mode used to be silent. There is no
 `HAVING` in that list, so "customers with more than 10 orders" became
 "customers", ranked. No negation, so "excluding cancelled" was dropped and
-cancelled orders counted toward the total.
+cancelled orders counted toward the total, and "which orders have not shipped"
+returned every order -  which reads like a real answer to that question, and is
+worse than a refusal for exactly that reason.
 
 In `auto` mode those questions now go straight to SQL generation, which can
 express arbitrary (still validated, still SELECT-only) SQL:
@@ -110,8 +112,11 @@ express arbitrary (still validated, still SELECT-only) SQL:
 | Wording | Needs | 
 |---|---|
 | "customers with more than 10 orders" | `HAVING` |
+| "customers who placed more than one order" | `HAVING` |
 | "orders over 5000" | numeric `WHERE` |
 | "revenue excluding cancelled" | negation |
+| "orders that have not shipped" | `NOT EXISTS` / anti-join |
+| "customers who have never ordered" | `NOT EXISTS` / anti-join |
 | "how many different customers" | `DISTINCT` |
 | "what percentage of orders were cancelled" | ratio of aggregates |
 | "top 2 customers in each region" | window function |

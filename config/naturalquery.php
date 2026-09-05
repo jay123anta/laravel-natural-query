@@ -427,8 +427,10 @@ return [
 
         // In 'auto' query mode, send a question straight to SQL generation when
         // its wording needs SQL the intent contract cannot express -  a HAVING
-        // ("customers with more than 10 orders"), a numeric filter ("orders
-        // over 5000"), an exclusion ("excluding cancelled"), a ratio, a
+        // ("customers with more than 10 orders", spelled with a digit or a
+        // word), a numeric filter ("orders over 5000"), an exclusion
+        // ("excluding cancelled"), a negated existence test ("orders that have
+        // not shipped", "customers who have never ordered"), a ratio, a
         // DISTINCT, or a per-group top-N.
         //
         // Intent mode does not FAIL on these -  it answers a narrower question
